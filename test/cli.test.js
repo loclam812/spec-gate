@@ -1,0 +1,62 @@
+import { it } from 'node:test'
+import assert from 'node:assert/strict'
+import { chmodSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { runEval } from '../cli/eval.js'
+import { repoSlug } from '../cli/lib/store.js'
+import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+
+function setup() {
+  const { repo, preFix, postFix } = makeFixtureRepo()
+  const home = tempDir('sg-home-')
+  writeSample(join(home, 'projects', repoSlug(repo), 'eval'), {
+    id: 'demo-1',
+    pre_fix: preFix,
+    post_fix: postFix,
+    test_command: 'node --test {file}',
+    test_globs: ['**/*.test.js'],
+  })
+  const generated = join(tempDir(), 'generated.test.js')
+  writeFileSync(generated, CATCHING_TEST)
+  const bin = tempDir('sg-bin-')
+  writeFile(bin, 'claude', `#!/bin/sh\nmkdir -p test && cp '${generated}' test/total.test.js && echo '{}'\n`)
+  chmodSync(join(bin, 'claude'), 0o755)
+  const env = { ...process.env, SPEC_GATE_HOME: home, PATH: `${bin}:${process.env.PATH}` }
+  const run = (...argv) => {
+    const chunks = []
+    const code = runEval([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })
+    return { code, text: chunks.join('') }
+  }
+  return { home, repo, run }
+}
+
+it('where, validate, prepare, generate, score and report run end to end with a stub claude', () => {
+  const { home, repo, run } = setup()
+  assert.equal(run('where', 'demo-1').text, `${join(home, 'projects', repoSlug(repo), 'eval', 'demo-1')}\n`)
+  assert.deepEqual(run('validate', 'demo-1'), { code: 0, text: 'ok\n' })
+  assert.equal(run('prepare', 'demo-1').code, 0)
+  const generated = run('generate', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
+  assert.match(generated.text, /collected 1 test file\(s\), ignored 1 other change\(s\)/)
+  const scored = run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
+  assert.match(scored.text, /^demo-1: caught\n {2}caught +test\/total\.test\.js\n$/)
+  assert.match(run('report').text, /Catch rate: 1\/1 \(100%\)/)
+})
+
+it('score before prepare says which command to run', () => {
+  const { run } = setup()
+  assert.throws(
+    () => run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1'),
+    /not prepared; run: spec-gate eval prepare demo-1/,
+  )
+})
+
+it('generate without a run number is rejected', () => {
+  const { run } = setup()
+  run('prepare', 'demo-1')
+  assert.throws(() => run('generate', 'demo-1', '--candidate', 'single-prompt'), /--candidate <name> and --run <n> are required/)
+})
+
+it('an unknown sample points at where it was expected', () => {
+  const { run } = setup()
+  assert.throws(() => run('validate', 'missing-1'), /no sample\.yaml in .*eval\/missing-1/)
+})
