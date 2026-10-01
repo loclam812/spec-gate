@@ -1,46 +1,37 @@
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
-import { loadCandidate, runCandidate } from './lib/candidate.js'
+import { runBatch } from './lib/batch.js'
+import { loadCandidate } from './lib/candidate.js'
+import { contextFor, generateRun, rememberRepo, requirePrepared } from './lib/eval-steps.js'
 import { collectTests, scoreRun } from './lib/replay.js'
 import { loadVerdicts, renderReport, summarize } from './lib/report.js'
-import { loadSample, sampleErrors } from './lib/sample.js'
-import { repoSlug, runDir, sampleDir, storeRoot, workDir } from './lib/store.js'
-import { preparedFor, prepareWorkspace, workspaceSides } from './lib/workspace.js'
+import { sampleErrors } from './lib/sample.js'
+import { repoSlug, runDir, sampleDir, storeRoot } from './lib/store.js'
+import { prepareWorkspace } from './lib/workspace.js'
 
 const OPTIONS = {
   repo: { type: 'string', default: '.' },
-  candidate: { type: 'string' },
+  candidate: { type: 'string', multiple: true },
   run: { type: 'string' },
+  runs: { type: 'string', default: '3' },
+  sample: { type: 'string', multiple: true },
   fresh: { type: 'boolean', default: false },
 }
 
 const USAGE = [
   'usage: spec-gate eval <where|validate|prepare|generate|collect|score> <sample-id> [--repo <path>]',
   '                      [--candidate <name> --run <n>] [--fresh]',
+  '       spec-gate eval batch [--runs <n>] [--candidate <name>]... [--sample <id>]...',
   '       spec-gate eval report',
 ].join('\n')
 
-function context(values, id, env) {
-  const repo = resolve(values.repo)
-  const slug = repoSlug(repo)
-  const dir = sampleDir(slug, id, env)
-  if (!existsSync(join(dir, 'sample.yaml'))) throw new Error(`no sample.yaml in ${dir}`)
-  const work = workDir(slug, id)
-  return { repo, slug, sample: loadSample(dir), work, sides: workspaceSides(work) }
-}
-
 function outDirFor(ctx, values, env) {
-  if (!values.candidate || !/^\d+$/.test(values.run ?? '')) {
+  const candidate = values.candidate?.[0]
+  if (!candidate || !/^\d+$/.test(values.run ?? '')) {
     throw new Error('--candidate <name> and --run <n> are required')
   }
-  return runDir(ctx.slug, ctx.sample.id, values.candidate, values.run, env)
-}
-
-function requirePrepared(ctx) {
-  if (!preparedFor(ctx.work, ctx.sample)) {
-    throw new Error(`sample ${ctx.sample.id} is not prepared; run: spec-gate eval prepare ${ctx.sample.id}`)
-  }
+  return runDir(ctx.slug, ctx.sample.id, candidate, values.run, env)
 }
 
 const collectedLine = ({ tests, ignored }) =>
@@ -61,12 +52,8 @@ const COMMANDS = {
   },
   generate(ctx, values, out, env) {
     requirePrepared(ctx)
-    const outDir = outDirFor(ctx, values, env)
-    rmSync(outDir, { recursive: true, force: true })
-    const candidate = loadCandidate(values.candidate, storeRoot(env))
-    const watch = [ctx.sides.post, storeRoot(env), ctx.repo]
-    runCandidate(candidate, ctx.sample, ctx.sides.pre, outDir, { env, hide: [ctx.sides.post], watch })
-    out.write(collectedLine(collectTests(ctx.sample, ctx.sides.pre, outDir)))
+    const candidate = loadCandidate(values.candidate[0], storeRoot(env))
+    out.write(collectedLine(generateRun(ctx, candidate, outDirFor(ctx, values, env), env)))
     return 0
   },
   collect(ctx, values, out, env) {
@@ -98,11 +85,17 @@ export function runEval(argv, { env = process.env, out = process.stdout } = {}) 
     out.write(renderReport(summarize(loadVerdicts(storeRoot(env)))))
     return 0
   }
+  if (command === 'batch') {
+    if (!/^\d+$/.test(values.runs)) throw new Error('--runs must be a whole number')
+    return runBatch({ env, out, runs: Number(values.runs), candidates: values.candidate ?? null, samples: values.sample ?? null })
+  }
+  const repo = resolve(values.repo)
   if (command === 'where' && id) {
-    out.write(`${sampleDir(repoSlug(resolve(values.repo)), id, env)}\n`)
+    rememberRepo(repoSlug(repo), repo, env)
+    out.write(`${sampleDir(repoSlug(repo), id, env)}\n`)
     return 0
   }
   const handler = COMMANDS[command]
   if (!handler || !id) throw new Error(USAGE)
-  return handler(context(values, id, env), values, out, env)
+  return handler(contextFor(repo, id, env), values, out, env)
 }

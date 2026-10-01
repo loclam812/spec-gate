@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -14,6 +14,7 @@ const DEFAULTS = {
   allowed_tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'],
   skill_dir: null,
   timeout_s: 1800,
+  applies_to: null,
 }
 
 export const PROMPT_FILE = 'SPEC_GATE_PROMPT.md'
@@ -30,6 +31,16 @@ export function loadCandidate(name, root) {
     skill_dir: config.skill_dir ? resolve(dir, config.skill_dir) : null,
     promptTemplate: readFileSync(join(dir, config.prompt), 'utf8'),
   }
+}
+
+export function listCandidates(root) {
+  const dir = join(root, 'candidates')
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).filter((name) => existsSync(join(dir, name, 'candidate.yaml'))).sort()
+}
+
+export function appliesTo(candidate, slug) {
+  return !Array.isArray(candidate.applies_to) || candidate.applies_to.includes(slug)
 }
 
 export function renderPrompt(template, vars) {
