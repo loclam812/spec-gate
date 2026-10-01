@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { collectTests, renderCommand, scoreRun } from '../cli/lib/replay.js'
 import { loadSample } from '../cli/lib/sample.js'
@@ -42,16 +42,34 @@ it('renderCommand quotes the file and turns a directory into ./dir', () => {
   assert.equal(renderCommand('go test {dir}', 'a_test.go'), "go test '.'")
 })
 
-it('a test red before the fix and green after it is caught', () => {
-  assert.equal(candidateRun({ 'test/total.test.js': CATCHING_TEST }).record.verdict, 'caught')
+it('a test red before the fix and green after it is caught, and the record names what it ran on', () => {
+  const { record } = candidateRun({ 'test/total.test.js': CATCHING_TEST })
+  assert.equal(record.verdict, 'caught')
+  assert.deepEqual([record.pre_fix, record.post_fix, record.test_command], [preFix, postFix, 'node --test {file}'])
 })
 
 it('a test green on both sides is missed', () => {
   assert.equal(candidateRun({ 'test/total.test.js': MISSING_TEST }).record.verdict, 'missed')
 })
 
-it('a test red after the fix is inconclusive', () => {
-  assert.equal(candidateRun({ 'test/total.test.js': BROKEN_TEST }).record.verdict, 'inconclusive')
+it('a test red on both sides is broken', () => {
+  assert.equal(candidateRun({ 'test/total.test.js': BROKEN_TEST }).record.verdict, 'broken')
+})
+
+it('a test that pins the buggy behaviour is inverted', () => {
+  const pinsBug = BROKEN_TEST.replace('total([{ price: 1, qty: 1 }]), 99', 'total([{ price: 2, qty: 3 }]), 2')
+  assert.equal(candidateRun({ 'test/total.test.js': pinsBug }).record.verdict, 'inverted')
+})
+
+it('a run whose candidate read outside its tree is scored but marked leaked', () => {
+  writeFile(sides.pre, 'test/total.test.js', CATCHING_TEST)
+  const outDir = tempDir()
+  collectTests(sample, sides.pre, outDir)
+  writeFileSync(join(outDir, 'leaks.json'), JSON.stringify({ outside: ['/elsewhere/fix.js'] }))
+  const record = scoreRun(sample, sides, outDir)
+  assert.equal(record.verdict, 'leaked')
+  assert.deepEqual(record.leaks, ['/elsewhere/fix.js'])
+  assert.equal(record.files[0].verdict, 'caught')
 })
 
 it('one caught file makes the run caught, and every file keeps its own verdict', () => {
@@ -63,12 +81,18 @@ it('one caught file makes the run caught, and every file keeps its own verdict',
   )
 })
 
-it('product-code edits are listed as ignored and never scored', () => {
-  const { outDir, record } = candidateRun({ 'src/total.js': FIXED_TOTAL, 'test/total.test.js': MISSING_TEST })
+it('non-test changes are kept under ignored/ but never scored', () => {
+  const { outDir, record } = candidateRun({
+    'ASSUMPTIONS.md': 'Quantity defaults to 1.\n',
+    'src/total.js': FIXED_TOTAL,
+    'test/total.test.js': MISSING_TEST,
+  })
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
     tests: ['test/total.test.js'],
-    ignored: ['src/total.js'],
+    ignored: ['ASSUMPTIONS.md', 'src/total.js'],
   })
+  assert.equal(readFileSync(join(outDir, 'ignored', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
+  assert.equal(readFileSync(join(outDir, 'ignored', 'src/total.js'), 'utf8'), FIXED_TOTAL)
   assert.equal(record.verdict, 'missed')
 })
 

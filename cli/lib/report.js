@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { readJson } from './files.js'
 
-const CONCLUSIVE = ['caught', 'missed', 'empty']
+const CONCLUSIVE = ['caught', 'missed', 'empty', 'inverted']
 
 const listDir = (path) => (existsSync(path) ? readdirSync(path).sort() : [])
 
@@ -39,11 +39,15 @@ function groupBy(items, keyOf) {
 function rate(rows) {
   const conclusive = rows.filter((row) => CONCLUSIVE.includes(row.verdict))
   const caught = conclusive.filter((row) => row.verdict === 'caught').length
+  const broken = rows.filter((row) => row.verdict === 'broken').length
+  const withBroken = conclusive.length + broken
   return {
     caught,
     conclusive: conclusive.length,
-    inconclusive: rows.length - conclusive.length,
+    broken,
+    excluded: rows.length - withBroken,
     rate: conclusive.length > 0 ? caught / conclusive.length : null,
+    rateWithBroken: withBroken > 0 ? caught / withBroken : null,
   }
 }
 
@@ -74,7 +78,12 @@ function renderCandidate({ candidate, overall, runs, spread, samples }) {
   const rows = samples.map((sample) => [sample.key, ...runNumbers.map((n) => sample.byRun[n] ?? '—')])
   const table = [header, header.map(() => '---'), ...rows].map((cells) => `| ${cells.join(' | ')} |`).join('\n')
   const spreadText = spread ? ` · spread across runs ${pct(spread.min)}–${pct(spread.max)}` : ''
-  const rateLine = `Catch rate: ${overall.caught}/${overall.conclusive} (${pct(overall.rate)}) · inconclusive ${overall.inconclusive}${spreadText}`
+  const rateLine = [
+    `Catch rate: ${overall.caught}/${overall.conclusive} (${pct(overall.rate)})`,
+    `broken counted as misses: ${overall.caught}/${overall.conclusive + overall.broken} (${pct(overall.rateWithBroken)})`,
+    `broken ${overall.broken}`,
+    `excluded ${overall.excluded}`,
+  ].join(' · ') + spreadText
   return `## ${candidate}\n\n${rateLine}\n\n${table}\n`
 }
 

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { loadCandidate, runCandidate } from './lib/candidate.js'
@@ -6,7 +6,7 @@ import { collectTests, scoreRun } from './lib/replay.js'
 import { loadVerdicts, renderReport, summarize } from './lib/report.js'
 import { loadSample, sampleErrors } from './lib/sample.js'
 import { repoSlug, runDir, sampleDir, storeRoot, workDir } from './lib/store.js'
-import { prepareWorkspace, workspaceSides } from './lib/workspace.js'
+import { preparedFor, prepareWorkspace, workspaceSides } from './lib/workspace.js'
 
 const OPTIONS = {
   repo: { type: 'string', default: '.' },
@@ -38,8 +38,9 @@ function outDirFor(ctx, values, env) {
 }
 
 function requirePrepared(ctx) {
-  const ready = [ctx.sides.pre, ctx.sides.post].every((side) => existsSync(join(side, '.git')))
-  if (!ready) throw new Error(`sample ${ctx.sample.id} is not prepared; run: spec-gate eval prepare ${ctx.sample.id}`)
+  if (!preparedFor(ctx.work, ctx.sample)) {
+    throw new Error(`sample ${ctx.sample.id} is not prepared; run: spec-gate eval prepare ${ctx.sample.id}`)
+  }
 }
 
 const collectedLine = ({ tests, ignored }) =>
@@ -61,13 +62,19 @@ const COMMANDS = {
   generate(ctx, values, out, env) {
     requirePrepared(ctx)
     const outDir = outDirFor(ctx, values, env)
-    runCandidate(loadCandidate(values.candidate, storeRoot(env)), ctx.sample, ctx.sides.pre, outDir, env)
+    rmSync(outDir, { recursive: true, force: true })
+    const candidate = loadCandidate(values.candidate, storeRoot(env))
+    runCandidate(candidate, ctx.sample, ctx.sides.pre, outDir, { env, hide: [ctx.sides.post] })
     out.write(collectedLine(collectTests(ctx.sample, ctx.sides.pre, outDir)))
     return 0
   },
   collect(ctx, values, out, env) {
     requirePrepared(ctx)
-    out.write(collectedLine(collectTests(ctx.sample, ctx.sides.pre, outDirFor(ctx, values, env))))
+    const outDir = outDirFor(ctx, values, env)
+    if (existsSync(join(outDir, 'collected.json')) && !values.fresh) {
+      throw new Error(`run already collected in ${outDir}; pass --fresh to replace it`)
+    }
+    out.write(collectedLine(collectTests(ctx.sample, ctx.sides.pre, outDir)))
     return 0
   },
   score(ctx, values, out, env) {

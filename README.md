@@ -12,7 +12,7 @@ npm link            # puts `spec-gate` on PATH; or run `node cli/spec-gate.js`
 npm test
 ```
 
-Requires Node 26+, git, tar, and the Claude Code CLI for `generate`.
+Requires Node 26+, git, tar, perl, and the Claude Code CLI for `generate`.
 
 ## Store
 
@@ -53,25 +53,24 @@ timeout_s: 600                          # optional
 
 ## Candidates
 
-`single-prompt` is built in. To measure a repository's own test-writing skill, freeze a copy so
-the baseline cannot drift between runs:
-
-```bash
-mkdir -p ~/.claude/spec-gate/candidates/<name>/skills
-cp -R <repo>/<skills dir>/<skill> ~/.claude/spec-gate/candidates/<name>/skills/
-```
-
-`~/.claude/spec-gate/candidates/<name>/candidate.yaml`:
+`single-prompt` is built in. A candidate is a prompt template, plus optional settings:
 
 ```yaml
+# ~/.claude/spec-gate/candidates/<name>/candidate.yaml
 prompt: prompt.md
-skill_dir: skills/<skill>
 model: opus
 ```
 
-`prompt.md` uses `{{spec}}`, `{{answers}}`, `{{test_globs}}` and `{{skill}}`, for example
-"Use the {{skill}} skill on the requirement below. Stop once the tests are written; do not change
-non-test code."
+`prompt.md` uses `{{spec}}`, `{{answers}}`, `{{test_globs}}` and `{{skill}}`.
+
+To measure a repository's own test-writing skill, do **not** copy it from today's checkout: that
+copy postdates every fix and may already encode the lesson of the bug it is measured on. The
+exported pre-fix tree already carries the repository's skills as they were at `pre_fix`, and every
+candidate run loads them. Write a candidate whose prompt names the skill, for example "Use the
+<skill> skill on the requirement below. Stop once the tests are written; do not change non-test
+code." A sample whose `pre_fix` predates the skill measures its absence.
+
+`skill_dir` is for a skill from outside the repository; freeze it at a date before every sample.
 
 ## Running
 
@@ -84,33 +83,54 @@ done
 spec-gate eval report
 ```
 
-`generate` runs `claude -p` inside the exported pre-fix tree with user settings, MCP servers and
-session history switched off. To drive a candidate by hand instead, open
-`claude --setting-sources project --strict-mcp-config` in the `pre:` directory `prepare` printed,
-then run `spec-gate eval collect` with the same `--candidate` and `--run`.
+`generate` clears the run directory, then runs `claude -p` inside the exported pre-fix tree with
+user settings, MCP servers, session history and auto memory switched off. It keeps the full
+transcript in `transcript.jsonl` and every non-test change the candidate made under `ignored/`.
+
+To drive a candidate by hand instead, open
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude --setting-sources project --strict-mcp-config` in the
+`pre:` directory `prepare` printed, then run `spec-gate eval collect` with the same `--candidate`
+and `--run`. `collect` refuses a run that is already collected unless you pass `--fresh`.
+
+Editing `pre_fix`, `post_fix` or `setup` invalidates the workspace: `generate` and `score` refuse
+until `prepare` rebuilds it.
 
 ## Verdicts
 
-| Verdict | Meaning |
-|---|---|
-| `caught` | A generated test failed before the fix and passed after it |
-| `missed` | Every generated test passed on both sides |
-| `inconclusive` | Every test failed after the fix, timed out after it, or a control run was red |
-| `empty` | The candidate wrote no test file; counted as a miss |
+Each collected test file is run alone on both trees. A run takes its best file verdict.
 
-The catch rate is caught ÷ (caught + missed + empty).
+| Verdict | Meaning | In the rate |
+|---|---|---|
+| `caught` | Failed before the fix, passed after it | caught |
+| `missed` | Passed on both sides | miss |
+| `inverted` | Passed before the fix, failed after it: the test pins the buggy behaviour | miss |
+| `empty` | The candidate wrote no test file | miss |
+| `broken` | Failed on both sides: a wrong test, or one that no longer compiles | bracketed |
+| `inconclusive` | Timed out after the fix, or a control run of the directory was red | excluded |
+| `leaked` | The candidate's tools touched a path outside its working tree | excluded |
+
+The report gives the catch rate as caught ÷ (caught + missed + inverted + empty), and again with
+`broken` counted as a miss; the truth lies between the two.
 
 ## Leak control
 
 - Trees are exported with `git archive`: no history, so the fix cannot be read from the log.
-- Work directories are named `sg-<hash>` under the temp directory, so neither the repository nor
-  the sample appears in any path a memory feature could key on.
+- The fixed tree is unreadable while a candidate runs.
+- Auto memory is off for every candidate run. Work directory names reveal neither the repository
+  nor the sample, but the path is stable across runs, so memory must stay off.
+- Every tool path in the transcript is checked; a run that touched anything outside its working
+  tree is `leaked` and left out of the rate. This detects a leak after the fact; it does not stop
+  a candidate from opening the store or the source checkout.
 - Answers are fixed in advance and fed to the candidate; nobody answers live.
 
 ## Known limits
 
 - Submodules and LFS objects are not exported; `setup` must fetch them.
-- A timeout kills the shell only; children of a compound command can outlive it.
+- Each test command runs in its own process group, killed after every run: a test cannot leave a
+  server running for the next file, and a background process holding stdout keeps the run open
+  until its timeout.
 - A hang before the fix counts as a failing test.
+- Verdicts are per test file: one wrong assertion in a file that also catches the bug makes the
+  file `broken`.
 - Test commands run without `NODE_TEST_CONTEXT`, so a repository using Node's test runner reports
   its own failures even when spec-gate itself runs under one.

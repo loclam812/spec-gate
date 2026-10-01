@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, rmSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { git, isGreen, runShell } from './exec.js'
+import { readJson, writeJson } from './files.js'
+import { git, isGreen, runShell, tryGit } from './exec.js'
 
 const SNAPSHOT_CONFIG = [
   '-c', 'user.name=spec-gate',
@@ -40,14 +41,31 @@ export function workspaceSides(workDir) {
   return { pre: join(workDir, 'pre'), post: join(workDir, 'post') }
 }
 
-// The snapshot's .git is written last, so it marks a side as ready: a side whose setup
-// failed has none and is rebuilt on the next prepare.
+export function isReady(side) {
+  return tryGit(side, ['rev-parse', '--verify', '--quiet', 'HEAD']) !== null
+}
+
+const manifestPath = (workDir) => join(workDir, 'prepared.json')
+const manifestOf = (sample) => ({ pre_fix: sample.pre_fix, post_fix: sample.post_fix, setup: sample.setup })
+
+export function preparedFor(workDir, sample) {
+  if (!existsSync(manifestPath(workDir))) return false
+  const recorded = readJson(manifestPath(workDir))
+  const expected = manifestOf(sample)
+  const sameShas = Object.keys(expected).every((key) => recorded[key] === expected[key])
+  return sameShas && Object.values(workspaceSides(workDir)).every(isReady)
+}
+
+// A side is ready only once its snapshot commit exists: `git init` alone leaves an unborn
+// branch, on which resetTree would wipe the whole tree.
 export function prepareWorkspace(sample, repoPath, workDir, { fresh = false } = {}) {
-  if (fresh) rmSync(workDir, { recursive: true, force: true })
+  for (const side of Object.values(workspaceSides(workDir)).filter(existsSync)) chmodSync(side, 0o755)
+  const stale = existsSync(manifestPath(workDir)) && !preparedFor(workDir, sample)
+  if (fresh || stale) rmSync(workDir, { recursive: true, force: true })
   const sides = workspaceSides(workDir)
   const shas = { pre: sample.pre_fix, post: sample.post_fix }
   for (const [side, dest] of Object.entries(sides)) {
-    if (existsSync(join(dest, '.git'))) continue
+    if (isReady(dest)) continue
     rmSync(dest, { recursive: true, force: true })
     exportTree(repoPath, shas[side], dest)
     if (sample.setup) {
@@ -59,5 +77,6 @@ export function prepareWorkspace(sample, repoPath, workDir, { fresh = false } = 
     }
     snapshot(dest)
   }
+  writeJson(manifestPath(workDir), manifestOf(sample))
   return sides
 }

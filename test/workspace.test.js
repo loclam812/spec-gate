@@ -1,10 +1,10 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { git } from '../cli/lib/exec.js'
 import { loadSample } from '../cli/lib/sample.js'
-import { changedFiles, exportTree, prepareWorkspace, resetTree, snapshot } from '../cli/lib/workspace.js'
+import { changedFiles, exportTree, isReady, preparedFor, prepareWorkspace, resetTree, snapshot } from '../cli/lib/workspace.js'
 import { BUGGY_TOTAL, CATCHING_TEST, FIXED_TOTAL, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
 
 const { repo, preFix, postFix } = makeFixtureRepo()
@@ -69,4 +69,36 @@ it('a failing setup stops prepare, names the side and leaves no ready marker', (
   const work = tempDir()
   assert.throws(() => prepareWorkspace(sample, repo, work), /setup failed in pre \(exit 3\)[\s\S]*registry unreachable/)
   assert.equal(existsSync(join(work, 'pre', '.git')), false)
+})
+
+it('a side with a .git but no snapshot commit is not ready and gets rebuilt', () => {
+  const sample = loadSample(writeSample(tempDir(), fields))
+  const work = tempDir()
+  const sides = prepareWorkspace(sample, repo, work)
+  rmSync(join(sides.pre, '.git'), { recursive: true })
+  git(sides.pre, ['init', '-q'])
+  assert.equal(isReady(sides.pre), false)
+  prepareWorkspace(sample, repo, work)
+  assert.equal(isReady(sides.pre), true)
+  assert.equal(readFileSync(join(sides.pre, 'src/total.js'), 'utf8'), BUGGY_TOTAL)
+})
+
+it('a workspace prepared for other shas is rebuilt for the sample', () => {
+  const work = tempDir()
+  prepareWorkspace(loadSample(writeSample(tempDir(), { ...fields, post_fix: preFix })), repo, work)
+  const sample = loadSample(writeSample(tempDir(), fields))
+  assert.equal(preparedFor(work, sample), false)
+  const sides = prepareWorkspace(sample, repo, work)
+  assert.equal(preparedFor(work, sample), true)
+  assert.equal(readFileSync(join(sides.post, 'src/total.js'), 'utf8'), FIXED_TOTAL)
+})
+
+it('prepare restores access to a side a crashed run left hidden', () => {
+  const sample = loadSample(writeSample(tempDir(), fields))
+  const work = tempDir()
+  const sides = prepareWorkspace(sample, repo, work)
+  chmodSync(sides.post, 0o000)
+  prepareWorkspace(sample, repo, work)
+  assert.equal(preparedFor(work, sample), true)
+  assert.equal(readFileSync(join(sides.post, 'src/total.js'), 'utf8'), FIXED_TOTAL)
 })

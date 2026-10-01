@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, writeFileSync } from 'node:fs'
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runEval } from '../cli/eval.js'
 import { repoSlug } from '../cli/lib/store.js'
@@ -27,7 +27,7 @@ function setup() {
     const code = runEval([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })
     return { code, text: chunks.join('') }
   }
-  return { home, repo, run }
+  return { home, repo, preFix, run }
 }
 
 it('where, validate, prepare, generate, score and report run end to end with a stub claude', () => {
@@ -59,4 +59,27 @@ it('generate without a run number is rejected', () => {
 it('an unknown sample points at where it was expected', () => {
   const { run } = setup()
   assert.throws(() => run('validate', 'missing-1'), /no sample\.yaml in .*eval\/missing-1/)
+})
+
+it('score refuses a workspace prepared for other shas', () => {
+  const { home, repo, preFix, run } = setup()
+  run('prepare', 'demo-1')
+  const yamlPath = join(home, 'projects', repoSlug(repo), 'eval', 'demo-1', 'sample.yaml')
+  const edited = readFileSync(yamlPath, 'utf8').replace(/post_fix: .*/, `post_fix: "${preFix}"`)
+  writeFileSync(yamlPath, edited)
+  assert.throws(
+    () => run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1'),
+    /not prepared; run: spec-gate eval prepare demo-1/,
+  )
+})
+
+it('collect after generate is refused instead of erasing the collected tests', () => {
+  const { run } = setup()
+  run('prepare', 'demo-1')
+  run('generate', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
+  assert.throws(
+    () => run('collect', 'demo-1', '--candidate', 'single-prompt', '--run', '1'),
+    /already collected .*--fresh/,
+  )
+  assert.match(run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1').text, /: caught/)
 })

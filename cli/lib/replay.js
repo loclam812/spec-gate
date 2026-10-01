@@ -16,7 +16,9 @@ export function collectTests(sample, preDir, outDir) {
   const tests = changed.filter((path) => isTestPath(sample, path))
   const ignored = changed.filter((path) => !isTestPath(sample, path))
   rmSync(join(outDir, 'tests'), { recursive: true, force: true })
+  rmSync(join(outDir, 'ignored'), { recursive: true, force: true })
   for (const path of tests) copyInto(join(preDir, path), join(outDir, 'tests', path))
+  for (const path of ignored) copyInto(join(preDir, path), join(outDir, 'ignored', path))
   const manifest = { tests, ignored }
   writeJson(join(outDir, 'collected.json'), manifest)
   resetTree(preDir)
@@ -71,8 +73,18 @@ function scoreFile(sample, sides, outDir, path) {
 
 export function scoreRun(sample, sides, outDir) {
   const { tests } = readJson(join(outDir, 'collected.json'))
+  const leaksPath = join(outDir, 'leaks.json')
+  const leaks = existsSync(leaksPath) ? readJson(leaksPath).outside : []
   const files = tests.map((path) => scoreFile(sample, sides, outDir, path))
-  const record = { sample: sample.id, verdict: sampleVerdict(files.map((file) => file.verdict)), files }
+  const record = {
+    sample: sample.id,
+    pre_fix: sample.pre_fix,
+    post_fix: sample.post_fix,
+    test_command: sample.test_command,
+    verdict: leaks.length > 0 ? 'leaked' : sampleVerdict(files.map((file) => file.verdict)),
+    leaks,
+    files,
+  }
   writeJson(join(outDir, 'verdict.json'), record)
   resetTree(sides.pre)
   resetTree(sides.post)

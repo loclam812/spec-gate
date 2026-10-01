@@ -24,17 +24,28 @@ function childEnv() {
   return env
 }
 
-// ponytail: a timeout kills the shell only; grandchildren of a compound command survive.
-// Kill the process group if a sample's command forks long-lived children.
+function killGroup(pid) {
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error
+  }
+}
+
+// The command runs as the leader of its own process group (perl's setpgrp; spawnSync cannot
+// detach), and the whole group is killed after every run: a server or a sleep a test leaves
+// behind must not hold a port or a lock into the next file's run.
 export function runShell(command, cwd, timeoutS) {
   const started = Date.now()
-  const result = spawnSync('/bin/sh', ['-c', command], {
+  const result = spawnSync('perl', ['-e', 'setpgrp(0, 0); exec @ARGV', '/bin/sh', '-c', command], {
     cwd,
     env: childEnv(),
     encoding: 'utf8',
     timeout: timeoutS * 1000,
     maxBuffer: 64 * 1024 * 1024,
   })
+  if (result.error?.code === 'ENOENT') throw new Error('perl is required on PATH to run test commands')
+  if (result.pid) killGroup(result.pid)
   return {
     code: result.status ?? -1,
     timedOut: result.error?.code === 'ETIMEDOUT',

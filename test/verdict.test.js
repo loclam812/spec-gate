@@ -9,7 +9,8 @@ const hung = { code: -1, timedOut: true }
 it('fileVerdict follows the replay rules', () => {
   assert.equal(fileVerdict({ preWith: red, postWith: green }), 'caught')
   assert.equal(fileVerdict({ preWith: green, postWith: green }), 'missed')
-  assert.equal(fileVerdict({ preWith: red, postWith: red }), 'inconclusive')
+  assert.equal(fileVerdict({ preWith: green, postWith: red }), 'inverted')
+  assert.equal(fileVerdict({ preWith: red, postWith: red }), 'broken')
   assert.equal(fileVerdict({ preWith: red, postWith: hung }), 'inconclusive')
   assert.equal(fileVerdict({ preWith: hung, postWith: green }), 'caught')
 })
@@ -20,9 +21,11 @@ it('a red control run makes the file inconclusive', () => {
   assert.equal(fileVerdict({ preWith: red, postWith: green, preWithout: green, postWithout: green }), 'caught')
 })
 
-it('sampleVerdict prefers caught, then missed, and reports empty runs', () => {
+it('sampleVerdict takes the best file verdict and reports empty runs', () => {
   assert.equal(sampleVerdict([]), 'empty')
   assert.equal(sampleVerdict(['missed', 'caught']), 'caught')
-  assert.equal(sampleVerdict(['inconclusive', 'missed']), 'missed')
+  assert.equal(sampleVerdict(['inverted', 'missed']), 'missed')
+  assert.equal(sampleVerdict(['broken', 'inverted']), 'inverted')
+  assert.equal(sampleVerdict(['inconclusive', 'broken']), 'broken')
   assert.equal(sampleVerdict(['inconclusive']), 'inconclusive')
 })

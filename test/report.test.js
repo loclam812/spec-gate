@@ -10,24 +10,36 @@ const records = [
   { project: 'p1', sample: 's1', candidate: 'single-prompt', run: 2, verdict: 'missed' },
   { project: 'p2', sample: 's2', candidate: 'single-prompt', run: 1, verdict: 'empty' },
   { project: 'p2', sample: 's2', candidate: 'single-prompt', run: 2, verdict: 'inconclusive' },
+  { project: 'p3', sample: 's3', candidate: 'single-prompt', run: 1, verdict: 'broken' },
+  { project: 'p3', sample: 's3', candidate: 'single-prompt', run: 2, verdict: 'leaked' },
 ]
 
-it('summarize counts empty as a miss and leaves inconclusive out of the rate', () => {
+it('summarize counts empty as a miss, brackets broken, and excludes inconclusive and leaked', () => {
   const [summary] = summarize(records)
-  assert.deepEqual(summary.overall, { caught: 1, conclusive: 3, inconclusive: 1, rate: 1 / 3 })
+  assert.deepEqual(summary.overall, {
+    caught: 1,
+    conclusive: 3,
+    broken: 1,
+    excluded: 2,
+    rate: 1 / 3,
+    rateWithBroken: 1 / 4,
+  })
   assert.deepEqual(summary.runs, [
-    { run: 1, caught: 1, conclusive: 2, inconclusive: 0, rate: 0.5 },
-    { run: 2, caught: 0, conclusive: 1, inconclusive: 1, rate: 0 },
+    { run: 1, caught: 1, conclusive: 2, broken: 1, excluded: 0, rate: 0.5, rateWithBroken: 1 / 3 },
+    { run: 2, caught: 0, conclusive: 1, broken: 0, excluded: 2, rate: 0, rateWithBroken: 0 },
   ])
   assert.deepEqual(summary.spread, { min: 0, max: 0.5 })
 })
 
-it('renderReport prints the rate, the spread and one row per sample', () => {
+it('renderReport prints both rates, the spread and one row per sample', () => {
   const text = renderReport(summarize(records))
   assert.match(text, /## single-prompt/)
-  assert.match(text, /Catch rate: 1\/3 \(33%\) · inconclusive 1 · spread across runs 0%–50%/)
+  assert.match(
+    text,
+    /Catch rate: 1\/3 \(33%\) · broken counted as misses: 1\/4 \(25%\) · broken 1 · excluded 2 · spread across runs 0%–50%/,
+  )
   assert.match(text, /\| p1\/s1 \| caught \| missed \|/)
-  assert.match(text, /\| p2\/s2 \| empty \| inconclusive \|/)
+  assert.match(text, /\| p3\/s3 \| broken \| leaked \|/)
 })
 
 it('renderReport marks a missing run instead of shifting columns', () => {

@@ -2,7 +2,7 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { headlessArgs, loadCandidate, PROMPT_FILE, renderPrompt, runCandidate } from '../cli/lib/candidate.js'
+import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate } from '../cli/lib/candidate.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { changedFiles, prepareWorkspace } from '../cli/lib/workspace.js'
 import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
@@ -51,10 +51,16 @@ it('renderPrompt fills every occurrence and leaves unknown placeholders', () => 
   assert.equal(renderPrompt('{{a}} {{a}} {{b}}', { a: 'x' }), 'x x {{b}}')
 })
 
+it('renderPrompt inserts spec text verbatim, dollar sequences included', () => {
+  assert.equal(renderPrompt('<{{spec}}>', { spec: "echo $$ $& $' done" }), "<echo $$ $& $' done>")
+})
+
 it('headless args isolate the run and keep the variadic tool list last', () => {
   const args = headlessArgs({ model: 'opus', allowed_tools: ['Read', 'Write'] })
   assert.equal(args[0], '-p')
   assert.match(args[1], new RegExp(PROMPT_FILE))
+  assert.equal(args[args.indexOf('--output-format') + 1], 'stream-json')
+  assert.ok(args.includes('--verbose'))
   assert.ok(args.includes('--no-session-persistence'))
   assert.ok(args.includes('--strict-mcp-config'))
   assert.equal(args[args.indexOf('--setting-sources') + 1], 'project')
@@ -70,8 +76,8 @@ it('runCandidate writes the prompt, copies the frozen skill and keeps the claude
   writeFileSync(generated, CATCHING_TEST)
   const env = stubClaude(`mkdir -p test && cp '${generated}' test/total.test.js && echo '{"ok":true}'`)
   const outDir = tempDir()
-  runCandidate(loadCandidate('with-skill', root), sample, sides.pre, outDir, env)
-  assert.equal(readFileSync(join(outDir, 'generate.json'), 'utf8'), '{"ok":true}\n')
+  runCandidate(loadCandidate('with-skill', root), sample, sides.pre, outDir, { env })
+  assert.equal(readFileSync(join(outDir, 'transcript.jsonl'), 'utf8'), '{"ok":true}\n')
   assert.match(readFileSync(join(outDir, 'prompt.md'), 'utf8'), /^Skill frozen-skill\. Spec:\n### feature\.md/)
   assert.ok(existsSync(join(sides.pre, '.claude/skills/frozen-skill/SKILL.md')))
   assert.ok(changedFiles(sides.pre).includes('test/total.test.js'))
@@ -80,5 +86,30 @@ it('runCandidate writes the prompt, copies the frozen skill and keeps the claude
 it('a failing claude run raises with its exit code and stderr', () => {
   const env = stubClaude('echo quota exceeded >&2; exit 2')
   const candidate = loadCandidate('single-prompt', tempDir())
-  assert.throws(() => runCandidate(candidate, sample, sides.pre, tempDir(), env), /claude exited 2: quota exceeded/)
+  assert.throws(() => runCandidate(candidate, sample, sides.pre, tempDir(), { env }), /claude exited 2: quota exceeded/)
+})
+
+it('the candidate runs without auto memory and cannot read the hidden fixed tree', () => {
+  const env = stubClaude(
+    'echo "memory-off=$CLAUDE_CODE_DISABLE_AUTO_MEMORY"; cat ../post/src/total.js >/dev/null 2>&1 && echo post-readable || echo post-denied',
+  )
+  const outDir = tempDir()
+  runCandidate(loadCandidate('single-prompt', tempDir()), sample, sides.pre, outDir, { env, hide: [sides.post] })
+  const transcript = readFileSync(join(outDir, 'transcript.jsonl'), 'utf8')
+  assert.match(transcript, /memory-off=1/)
+  assert.match(transcript, /post-denied/)
+  assert.ok(existsSync(join(sides.post, 'src/total.js')))
+  assert.equal(readFileSync(join(sides.post, 'src/total.js'), 'utf8').length > 0, true)
+})
+
+it('pathsOutside reports tool paths that leave the working tree', () => {
+  const root = tempDir()
+  const lines = [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'src/total.js' } }] } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/elsewhere/fix.js' } }] } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Glob', input: { pattern: '../post/**' } }] } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Grep', input: { pattern: 'total', path: join(root, 'src') } }] } },
+  ]
+  const transcript = `${lines.map((line) => JSON.stringify(line)).join('\n')}\nnot json\n`
+  assert.deepEqual(pathsOutside(transcript, root), ['/elsewhere/fix.js', join(root, '..', 'post', '**')])
 })
