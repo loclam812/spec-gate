@@ -10,8 +10,8 @@ You are the dev step of spec-gate. Change the code in {{repo}} until the tests b
 {{tests}}
 ```
 
-Never edit these files: a change to any of them fails this step. If a test looks wrong, say so in
-{{output}} and stop; do not work around it.
+Never edit these files: the CLI reverts any change to them. If a test looks wrong, start {{output}}
+with `TEST-WRONG:` followed by which test and why, and stop; do not work around it.
 
 ## Currently failing
 

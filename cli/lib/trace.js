@@ -3,20 +3,24 @@ import { join } from 'node:path'
 import { mentionsId, uxCells } from './model.js'
 
 const list = (value) => (Array.isArray(value) ? value : [])
-const passed = (status) => status === 'pass' || status === 'skip'
+function fileCaseStatus(id, result) {
+  if (!result) return 'not run'
+  if (result.status === 'unrunnable') return 'untested'
+  if (result.tests.length === 0) return result.status
+  const named = result.tests.filter((test) => mentionsId(test.name, id))
+  if (named.length === 0) return 'no test'
+  if (named.some((test) => test.status === 'fail')) return 'red'
+  return named.every((test) => test.status === 'pass') ? 'green' : 'skipped'
+}
 
+// With a per-test report, only a test whose name carries the id counts; a mention in a comment
+// does not, and a skipped test checks nothing. Without one (jest), the file's status stands in.
 function caseStatus(id, { repo, files, results }) {
   const holders = files.filter((file) => existsSync(join(repo, file)) && mentionsId(readFileSync(join(repo, file), 'utf8'), id))
   if (holders.length === 0) return 'no test'
-  const statuses = holders.map((file) => {
-    const result = results.find((entry) => entry.file === file)
-    if (!result) return 'not run'
-    const named = result.tests.filter((test) => mentionsId(test.name, id))
-    if (named.length > 0) return named.every((test) => passed(test.status)) ? 'green' : 'red'
-    return result.status
-  })
+  const statuses = holders.map((file) => fileCaseStatus(id, results.find((entry) => entry.file === file)))
   if (statuses.every((status) => status === 'green')) return 'green'
-  return statuses.includes('red') ? 'red' : statuses[0]
+  return statuses.includes('red') ? 'red' : statuses.find((status) => status !== 'green')
 }
 
 function combined(statuses) {
@@ -53,7 +57,7 @@ function traceSection(model, casesDoc, context) {
   return { sections, gaps }
 }
 
-export function buildReport({ runId, tier, reasons, request, model, casesDoc, files, results, notes, repo }) {
+export function buildReport({ runId, tier, reasons, request, model, casesDoc, files, results, notes, repo, review = null }) {
   const context = { repo, files, results }
   const traced = model ? traceSection(model, casesDoc, context) : { sections: [], gaps: [] }
   const fileRows = files.map((file) => [file, results.find((entry) => entry.file === file)?.status ?? 'not run'])
@@ -65,6 +69,7 @@ export function buildReport({ runId, tier, reasons, request, model, casesDoc, fi
     ...traced.sections,
     `## Test files\n\n${table(['File', 'Result'], fileRows)}`,
     `## Gaps\n\n${gaps.length > 0 ? gaps.join('\n') : 'None.'}`,
+    ...(review ? [`## Review findings\n\n${review.trim()}`] : []),
     `## Notes\n\n${notes.length > 0 ? notes.map((note) => `- ${note}`).join('\n') : 'None.'}`,
   ].join('\n\n')
   return { markdown: `${markdown}\n`, complete: gaps.length === 0 }

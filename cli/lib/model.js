@@ -1,58 +1,109 @@
 export const LAYERS = ['unit', 'integration', 'e2e', 'ui']
 
+const UX_SOURCE = /^(figma:|screenshot:|existing-screen:)\S+$|^none-agreed$/
+
 const list = (value) => (Array.isArray(value) ? value : [])
 const nonEmpty = (value) => typeof value === 'string' && value.trim() !== ''
+const isMapping = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 const duplicates = (ids) => [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))]
 
-// C1 must not match inside C12 or ABC1, but may follow a lowercase word, as in a Go test name
-// (TestC1_LateRefund).
+// C1 must not match inside C12, ABC1, C1b or #C1C1C1, but may follow a lowercase word, as in a
+// Go test name (TestC1_LateRefund).
 export function mentionsId(text, id) {
-  return new RegExp(`(?<![0-9A-Z])${id}(?![0-9])`).test(text)
+  return new RegExp(`(?<![0-9A-Z])${id}(?![0-9A-Za-z])`).test(text)
 }
 
-function uxErrors(model, questions) {
-  if (model.ui !== true) return []
-  const ux = model.ux ?? {}
+export function splitRequest(text) {
+  return text
+    .split(/(?<=[.!?。])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .map((sentence, index) => ({ id: `S${index + 1}`, text: sentence }))
+}
+
+function mappings(model, key) {
+  const entries = list(model[key])
+  return {
+    valid: entries.filter(isMapping),
+    errors: entries.flatMap((entry, index) => (isMapping(entry) ? [] : [`${key} entry ${index + 1} is not a mapping`])),
+  }
+}
+
+function uxSourceErrors(source, asked, context) {
+  if (source === '') return asked ? [] : ['ux.source: give a UX source or ask for one (a question with about: ux-source)']
+  if (!UX_SOURCE.test(source)) return ['ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed']
+  if (source === 'none-agreed' && !context.uxSourceAgreed) {
+    return ["ux.source: none-agreed needs the user's answer to a question with about: ux-source"]
+  }
+  return []
+}
+
+function uiErrors(model, questions, context) {
+  if (typeof model.ui !== 'boolean') return ['ui: set true or false']
   const asked = questions.some((question) => question.about === 'ux-source')
+  if (model.ui !== true) {
+    return context.uiRequest && !asked
+      ? ['ui: the request names a screen, page, dialog or form; set ui: true, or ask (about: ux-source)']
+      : []
+  }
+  const ux = isMapping(model.ux) ? model.ux : {}
   return [
     ...(list(ux.screens).length === 0 ? ['ux.screens: a UI request names at least one screen'] : []),
     ...(list(ux.states).length === 0 ? ['ux.states: a UI request names at least one state'] : []),
-    ...(!nonEmpty(ux.source) && !asked ? ['ux.source: give a UX source or ask for one (a question with about: ux-source)'] : []),
+    ...uxSourceErrors(nonEmpty(ux.source) ? ux.source.trim() : '', asked, context),
   ]
 }
 
-export function modelErrors(model) {
-  if (model === null || typeof model !== 'object') return ['model.yaml is not a YAML mapping']
-  const sentences = list(model.sentences)
-  const rules = list(model.rules)
-  const flows = list(model.flows)
-  const questions = list(model.questions)
-  const targetIds = [...rules, ...flows].map((item) => item.id)
-  const known = new Set(targetIds)
+function sentenceSetErrors(sentences, context) {
+  if (!Array.isArray(context.sentenceIds)) return []
+  const listed = sentences.map((sentence) => sentence.id)
   return [
-    ...(sentences.length === 0 ? ['sentences: map at least one sentence of the request'] : []),
-    ...duplicates([...targetIds, ...sentences.map((s) => s.id), ...questions.map((q) => q.id)]).map((id) => `duplicate id ${id}`),
-    ...sentences.filter((s) => list(s.covered_by).length === 0).map((s) => `sentence ${s.id} is covered by nothing`),
-    ...sentences.flatMap((s) => list(s.covered_by).filter((ref) => !known.has(ref)).map((ref) => `sentence ${s.id} refers to unknown ${ref}`)),
-    ...rules.filter((rule) => !nonEmpty(rule.when) || !nonEmpty(rule.then)).map((rule) => `rule ${rule.id} needs both when and then`),
-    ...flows.filter((flow) => list(flow.steps).length === 0).map((flow) => `flow ${flow.id} has no steps`),
-    ...uxErrors(model, questions),
+    ...context.sentenceIds.filter((id) => !listed.includes(id)).map((id) => `sentence ${id} of the request is not in the model`),
+    ...listed.filter((id) => !context.sentenceIds.includes(id)).map((id) => `sentence ${id} is not a sentence of the request`),
+  ]
+}
+
+export function modelErrors(model, context = {}) {
+  if (!isMapping(model)) return ['model.yaml is not a YAML mapping']
+  const [sentences, rules, flows, questions] = ['sentences', 'rules', 'flows', 'questions'].map((key) => mappings(model, key))
+  const targetIds = [...rules.valid, ...flows.valid].map((item) => item.id)
+  const known = new Set(targetIds)
+  const uncovered = sentences.valid.filter((s) => list(s.covered_by).length === 0 && !nonEmpty(s.non_testable))
+  return [
+    ...sentences.errors,
+    ...rules.errors,
+    ...flows.errors,
+    ...questions.errors,
+    ...(sentences.valid.length === 0 ? ['sentences: map at least one sentence of the request'] : []),
+    ...sentenceSetErrors(sentences.valid, context),
+    ...duplicates([...targetIds, ...sentences.valid.map((s) => s.id), ...questions.valid.map((q) => q.id)]).map((id) => `duplicate id ${id}`),
+    ...uncovered.map((s) => `sentence ${s.id} is covered by nothing`),
+    ...sentences.valid.flatMap((s) => list(s.covered_by).filter((ref) => !known.has(ref)).map((ref) => `sentence ${s.id} refers to unknown ${ref}`)),
+    ...rules.valid.filter((rule) => !nonEmpty(rule.when) || !nonEmpty(rule.then)).map((rule) => `rule ${rule.id} needs both when and then`),
+    ...flows.valid.filter((flow) => list(flow.steps).length === 0).map((flow) => `flow ${flow.id} has no steps`),
+    ...uiErrors(model, questions.valid, context),
   ]
 }
 
 export function uxCells(model) {
   if (model?.ui !== true) return []
-  const ux = model.ux ?? {}
+  const ux = isMapping(model.ux) ? model.ux : {}
   return list(ux.screens).flatMap((screen) => list(ux.states).map((state) => `ux:${screen}:${state}`))
 }
 
 export function casesErrors(model, casesDoc) {
-  const cases = list(casesDoc?.cases)
-  if (cases.length === 0) return ['cases: write at least one case']
-  const targets = [...list(model.rules).map((rule) => rule.id), ...list(model.flows).map((flow) => flow.id), ...uxCells(model)]
+  const entries = list(casesDoc?.cases)
+  if (entries.length === 0) return ['cases: write at least one case']
+  const cases = entries.filter(isMapping)
+  const targets = [
+    ...list(model?.rules).filter(isMapping).map((rule) => rule.id),
+    ...list(model?.flows).filter(isMapping).map((flow) => flow.id),
+    ...uxCells(model),
+  ]
   const known = new Set(targets)
   const covered = new Set(cases.flatMap((c) => list(c.covers)))
   return [
+    ...entries.flatMap((entry, index) => (isMapping(entry) ? [] : [`cases entry ${index + 1} is not a mapping`])),
     ...duplicates(cases.map((c) => c.id)).map((id) => `duplicate case id ${id}`),
     ...cases.filter((c) => !/^C\d+$/.test(String(c.id))).map((c) => `case id ${c.id} must look like C1, C2, …`),
     ...cases.filter((c) => !LAYERS.includes(c.layer)).map((c) => `case ${c.id}: layer must be one of ${LAYERS.join(', ')}`),
@@ -62,10 +113,10 @@ export function casesErrors(model, casesDoc) {
   ]
 }
 
-export function readyErrors(model, casesDoc) {
+export function readyErrors(model, casesDoc, context = {}) {
   return [
-    ...modelErrors(model),
-    ...list(model?.questions).map((question) => `question ${question.id} is still open`),
+    ...modelErrors(model, context),
+    ...list(model?.questions).filter(isMapping).map((question) => `question ${question.id} is still open`),
     ...casesErrors(model, casesDoc),
   ]
 }

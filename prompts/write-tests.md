@@ -20,6 +20,7 @@ repository at {{repo}}.
 ```
 
 - One test per case; every test name starts with its case id: `C3: rejects a refund after the window`.
+- Test-writing skill in this repository: {{test_skill}}. If one is named, use it to write the tests, with the cases above as its input.
 - Follow the conventions of the tests already next to the code; put each test where the profile's
   test globs will find it.
 - Do not change any non-test file. The tests may fail now: the implementation comes next.

@@ -33,10 +33,13 @@ export function loadCandidate(name, root) {
   }
 }
 
+const candidateNames = (dir) =>
+  existsSync(dir) ? readdirSync(dir).filter((name) => existsSync(join(dir, name, 'candidate.yaml'))) : []
+
+// The built-in baseline always runs next to the store's own candidates; a store candidate with
+// the same name replaces it.
 export function listCandidates(root) {
-  const dir = join(root, 'candidates')
-  if (!existsSync(dir)) return []
-  return readdirSync(dir).filter((name) => existsSync(join(dir, name, 'candidate.yaml'))).sort()
+  return [...new Set([...candidateNames(join(root, 'candidates')), ...candidateNames(BUILT_IN)])].sort()
 }
 
 export function appliesTo(candidate, slug) {

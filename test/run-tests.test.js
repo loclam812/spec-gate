@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverProfile } from '../cli/lib/profile.js'
-import { caseIdsMissing, changedSince, hashFiles, runTestFile } from '../cli/lib/run-tests.js'
+import { caseIdsMissing, changedSince, hashFiles, runnerRoot, runTestFile } from '../cli/lib/run-tests.js'
 import { BUGGY_TOTAL, CATCHING_TEST, commitAll, makeFixtureRepo, writeFile } from './helpers.js'
 
 const { repo } = makeFixtureRepo()
@@ -38,4 +38,15 @@ it('the guard names a test file that was edited or deleted', () => {
 it('caseIdsMissing names the cases no test file mentions', () => {
   writeFile(repo, 'test/c3.test.js', "test('C3: something', () => {})\n")
   assert.deepEqual(caseIdsMissing(repo, ['test/c3.test.js'], ['C3', 'C4']), ['C4'])
+})
+
+it('a test runs from the nearest package or module root that holds its runner', () => {
+  writeFile(repo, 'web/package.json', '{}\n')
+  writeFile(repo, 'svc/go.mod', 'module example.com/svc\n')
+  const js = { name: 'vitest' }
+  const go = { name: 'go' }
+  assert.equal(runnerRoot(repo, 'web/src/deep/a.test.ts', js), 'web')
+  assert.equal(runnerRoot(repo, 'test/c1.test.js', js), '.')
+  assert.equal(runnerRoot(repo, 'svc/pkg/x/a_test.go', go), 'svc')
+  assert.equal(runnerRoot(repo, 'pkg/a_test.go', go), '.')
 })

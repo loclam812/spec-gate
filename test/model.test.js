@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { casesErrors, mentionsId, modelErrors, readyErrors, uxCells } from '../cli/lib/model.js'
+import { casesErrors, mentionsId, modelErrors, readyErrors, splitRequest, uxCells } from '../cli/lib/model.js'
 
 const model = {
   ui: true,
@@ -79,4 +79,43 @@ it('mentionsId finds a case id as a whole token only', () => {
   assert.equal(mentionsId("it('C12: rejects a late refund')", 'C1'), false)
   assert.equal(mentionsId('func TestC1_LateRefund(t *testing.T)', 'C1'), true)
   assert.equal(mentionsId('ABC1 is a product code', 'C1'), false)
+})
+
+it('entries that are not mappings are named instead of crashing the check', () => {
+  const broken = { ...model, rules: [null, ...model.rules], sentences: ['S9', ...model.sentences] }
+  assert.deepEqual(modelErrors(broken), ['sentences entry 1 is not a mapping', 'rules entry 1 is not a mapping'])
+})
+
+it('ui must be a boolean, and a request that names a screen must set it or ask', () => {
+  assert.deepEqual(modelErrors({ ...model, ui: 'yes' }), ['ui: set true or false'])
+  const notUi = { ...model, ui: false }
+  assert.deepEqual(modelErrors(notUi, { uiRequest: true }), [
+    'ui: the request names a screen, page, dialog or form; set ui: true, or ask (about: ux-source)',
+  ])
+})
+
+it('a UX source has a known form, and none-agreed needs the user to have said so', () => {
+  assert.deepEqual(modelErrors({ ...model, ux: { ...model.ux, source: 'TBD' } }), [
+    'ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed',
+  ])
+  const noneAgreed = { ...model, ux: { ...model.ux, source: 'none-agreed' } }
+  assert.deepEqual(modelErrors(noneAgreed), ["ux.source: none-agreed needs the user's answer to a question with about: ux-source"])
+  assert.deepEqual(modelErrors(noneAgreed, { uxSourceAgreed: true }), [])
+})
+
+it('the model lists exactly the sentences the request was split into', () => {
+  const sentenceIds = ['S1', 'S2', 'S3']
+  assert.deepEqual(modelErrors(model, { sentenceIds }), ['sentence S3 of the request is not in the model'])
+  const marked = { ...model, sentences: [...model.sentences, { id: 'S3', text: 'Thanks!', non_testable: 'a courtesy' }] }
+  assert.deepEqual(modelErrors(marked, { sentenceIds }), [])
+  assert.deepEqual(splitRequest('Refunds are rejected after 30 days. Admins approve!\nThanks'), [
+    { id: 'S1', text: 'Refunds are rejected after 30 days.' },
+    { id: 'S2', text: 'Admins approve!' },
+    { id: 'S3', text: 'Thanks' },
+  ])
+})
+
+it('a case id followed by a letter is a different token', () => {
+  assert.equal(mentionsId('color: #C1C1C1', 'C1'), false)
+  assert.equal(mentionsId("test.skip('C2b placeholder')", 'C2'), false)
 })

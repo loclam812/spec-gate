@@ -12,6 +12,11 @@ const T2_SIGNALS = [
   'tính năng', 'màn hình', 'luồng', 'quyền', 'trạng thái', 'đồng thời', 'thời gian thực', 'thông báo',
 ]
 
+const UI_SIGNALS = [
+  'screen', 'page', 'dialog', 'modal', 'form', 'button', 'popup', 'layout', 'view',
+  'màn hình', 'trang', 'nút', 'giao diện', 'biểu mẫu',
+]
+
 // \b is ASCII-only in JavaScript; Vietnamese keywords need Unicode letter boundaries, and the
 // boundary also keeps "state" out of "statement" and "copy" out of "copyright".
 function mentions(text, phrase) {
@@ -30,4 +35,8 @@ export function triage(request, { override = null } = {}) {
   if (t2.length > 0) return { tier: 't2', reasons: [`signals: ${t2.join(', ')}`] }
   if (t0.length > 0) return { tier: 't0', reasons: [`signals: ${t0.join(', ')}`] }
   return { tier: 't1', reasons: ['no decisive signal'] }
+}
+
+export function mentionsUi(request) {
+  return UI_SIGNALS.some((phrase) => mentions(request, phrase))
 }

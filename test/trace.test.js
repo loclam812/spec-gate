@@ -73,3 +73,44 @@ it('a T1 report lists the test files and the notes', () => {
   assert.match(markdown, /\| test\/refund\.test\.js \| green \|/)
   assert.match(markdown, /- the change added 7 branch lines; consider --tier t2/)
 })
+
+it('a case named only in a comment, or only by a skipped test, is not green', () => {
+  writeFile(repo, 'test/thin.test.js', "test('C1: real check', …)\n// also covers C3\ntest.skip('C2: later', …)\n")
+  const thinModel = {
+    ...model,
+    sentences: [{ id: 'S1', text: 'One.', covered_by: ['R1'] }, { id: 'S2', text: 'Two.', covered_by: ['F1'] }, { id: 'S3', text: 'Three.', covered_by: ['R2'] }],
+  }
+  const { markdown, complete } = buildReport({
+    runId: 'r3',
+    tier: 't2',
+    reasons: [],
+    request: 'One. Two. Three.',
+    model: thinModel,
+    casesDoc,
+    files: ['test/thin.test.js'],
+    results: [{ file: 'test/thin.test.js', status: 'green', tests: [{ name: 'C1: real check', status: 'pass' }, { name: 'C2: later', status: 'skip' }] }],
+    notes: [],
+    repo,
+  })
+  assert.equal(complete, false)
+  assert.match(markdown, /\| S1: One\. \| R1 \| C1 \| green \|/)
+  assert.match(markdown, /\| S2: Two\. \| F1 \| C2 \| skipped \|/)
+  assert.match(markdown, /\| S3: Three\. \| R2 \| C3 \| no test \|/)
+})
+
+it('the report carries the review findings when there are any', () => {
+  const { markdown } = buildReport({
+    runId: 'r4',
+    tier: 't1',
+    reasons: [],
+    request: 'x',
+    model: null,
+    casesDoc: null,
+    files: [],
+    results: [],
+    notes: [],
+    review: 'Important: the refund window is off by one day.\n',
+    repo,
+  })
+  assert.match(markdown, /## Review findings\n\nImportant: the refund window is off by one day\./)
+})

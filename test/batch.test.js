@@ -69,3 +69,13 @@ it('batch stops after two leaked runs', () => {
   assert.match(result.text, /stop: two leaked runs/)
   assert.equal(callCount(), 2)
 })
+
+it('the built-in baseline runs next to the store candidates by default', () => {
+  const { home, run } = setup()
+  run('where', 'demo-1')
+  writeFile(home, 'candidates/other/candidate.yaml', 'model: sonnet\n')
+  writeFile(home, 'candidates/other/prompt.md', 'Write tests.\n')
+  const text = run('batch', '--runs', '1').text
+  assert.match(text, /demo-1 other 1: caught\n/)
+  assert.match(text, /demo-1 single-prompt 1: caught\n/)
+})

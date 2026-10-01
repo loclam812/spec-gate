@@ -17,7 +17,7 @@ Requires Node 26+, git, tar, perl, and the Claude Code CLI for `generate`.
 ## Use it as a Claude Code plugin
 
 ```bash
-claude plugin marketplace add ~/Desktop/spec-gate
+claude plugin marketplace add <path-to-spec-gate>
 claude plugin install spec-gate@spec-gate
 ```
 

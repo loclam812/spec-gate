@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, matchesGlob } from 'node:path'
 import { tryGit } from './exec.js'
 
-const JS_TEST_GLOBS = ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx']
+const JS_TEST_GLOBS = ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx', '**/*.spec.ts', '**/*.spec.tsx', '**/*.spec.js', '**/*.spec.jsx']
 const REPORT_FILE = '.spec-gate-report.xml'
 
 const STACKS = [
@@ -10,11 +10,11 @@ const STACKS = [
   {
     name: 'vitest',
     test_globs: JS_TEST_GLOBS,
-    test_command: `npx vitest run {file} --reporter=junit --outputFile=${REPORT_FILE}`,
+    test_command: `npx --no-install vitest run {file} --reporter=junit --outputFile=${REPORT_FILE}`,
     report: 'junit',
     report_file: REPORT_FILE,
   },
-  { name: 'jest', test_globs: JS_TEST_GLOBS, test_command: 'npx jest {file}', report: null, report_file: null },
+  { name: 'jest', test_globs: JS_TEST_GLOBS, test_command: 'npx --no-install jest {file}', report: null, report_file: null },
   {
     name: 'node-test',
     test_globs: ['**/*.test.js', '**/*.test.mjs'],
@@ -30,7 +30,7 @@ const LOCKFILES = [
   ['package-lock.json', 'npm ci'],
 ]
 
-const SKILL_ROLES = { test_writing: /spec-to-tests|test-gen|tdd/, review: /review/, bug_fix: /bug/ }
+const SKILL_ROLES = { test_writing: /write-tests|spec-to-tests|test-gen|tdd/, review: /review/, bug_fix: /bug/ }
 
 function readPackage(repo, path) {
   try {
@@ -54,7 +54,7 @@ function dependencyNames(packages) {
 
 function detectStacks(repo, packages, deps) {
   const present = {
-    go: existsSync(join(repo, 'go.work')) || existsSync(join(repo, 'go.mod')),
+    go: existsSync(join(repo, 'go.work')) || (tryGit(repo, ['ls-files', '--', 'go.mod', '*/go.mod']) ?? '').trim() !== '',
     vitest: deps.has('vitest'),
     jest: deps.has('jest'),
     'node-test': packages.some((pkg) => /node --test/.test(pkg.scripts?.test ?? '')),

@@ -53,7 +53,7 @@ function runJob(job, prepared, env, out) {
 
 export function runBatch({ env, out, runs, candidates, samples }) {
   const root = storeRoot(env)
-  const names = candidates ?? (listCandidates(root).length > 0 ? listCandidates(root) : ['single-prompt'])
+  const names = candidates ?? listCandidates(root)
   for (const slug of listDir(join(root, 'projects')).filter((slug) => !existsSync(repoFileOf(root, slug)))) {
     out.write(`skip ${slug}: no repo.json; run any eval command for it with --repo once\n`)
   }

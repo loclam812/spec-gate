@@ -1,20 +1,35 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { isGreen, runShell } from './exec.js'
 import { mentionsId } from './model.js'
 import { stackFor } from './profile.js'
 import { renderCommand } from './replay.js'
 import { parseReport } from './reports.js'
 
+const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'] }
+
+function ancestors(dir) {
+  const parts = dir === '.' ? [] : dir.split('/')
+  return [...parts.map((_, index) => parts.slice(0, parts.length - index).join('/')), '.']
+}
+
+// A monorepo keeps its runner and its config in a package or module below the root; running
+// there is what makes the runner find its config and not fetch a different version.
+export function runnerRoot(repo, file, stack) {
+  const markers = ROOT_MARKERS[stack.name] ?? []
+  return ancestors(dirname(file)).find((dir) => markers.some((marker) => existsSync(join(repo, dir, marker)))) ?? '.'
+}
+
 export function runTestFile(profile, repo, file, timeoutS = 900) {
   const stack = stackFor(profile, file)
   if (stack === null) {
     return { file, status: 'unrunnable', timedOut: false, tests: [], output: 'no test stack in the profile matches this file' }
   }
-  const reportPath = stack.report_file ? join(repo, stack.report_file) : null
+  const cwd = join(repo, runnerRoot(repo, file, stack))
+  const reportPath = stack.report_file ? join(cwd, stack.report_file) : null
   if (reportPath) rmSync(reportPath, { force: true })
-  const run = runShell(renderCommand(stack.test_command, file), repo, timeoutS)
+  const run = runShell(renderCommand(stack.test_command, relative(cwd, join(repo, file))), cwd, timeoutS)
   const xml = reportPath && existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : ''
   if (reportPath) rmSync(reportPath, { force: true })
   const tests = stack.report

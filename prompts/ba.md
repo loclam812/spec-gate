@@ -5,6 +5,13 @@ cases from. Do not change any file in the repository.
 
 {{request}}
 
+## The request, split into sentences
+
+The model's `sentences` must list exactly these ids, each mapped to a rule or flow, or marked
+`non_testable: "<why>"`.
+
+{{sentences}}
+
 ## Decisions so far
 
 {{decisions}}
@@ -29,8 +36,9 @@ YAML with exactly these keys:
 
 ```yaml
 ui: true | false
-sentences:   # every sentence of the request, each mapped to at least one rule or flow
+sentences:   # exactly the ids listed above
   - { id: S1, text: "…", covered_by: [R1] }
+  - { id: S2, text: "…", non_testable: "a courtesy, nothing to check" }
 rules:       # observable when/then pairs
   - { id: R1, when: "…", then: "…" }
 flows:       # what a user does, step by step
@@ -47,6 +55,14 @@ questions:   # what you would otherwise guess
 - A request that touches UI without a Figma link, a screenshot or an existing screen to match gets
   a question with `about: ux-source`, unless the decisions already settle it.
 - Write nothing else.
+
+## Your previous model
+
+When this is not "None.", rewrite it in full, applying the decisions above.
+
+```yaml
+{{previous_model}}
+```
 
 ## Fix these problems from your previous attempt
 

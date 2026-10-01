@@ -75,7 +75,7 @@ it('a T2 request runs discover → BA → QC → Ready → tests → dev → QA 
 
 it('BA questions go to the user, and the answers come back into the next BA prompt', () => {
   const { cli } = setup()
-  cli('start', '--request', 'Add a refund dialog.', '--tier', 't2')
+  cli('start', '--request', 'Refunds need approval.', '--tier', 't2')
   cli('submit')
   const asking = { ...MODEL, questions: [{ id: 'Q1', text: 'Who may approve a refund?', about: 'rule' }] }
   writeFileSync(cli('next').json.output, stringify(asking))
@@ -84,12 +84,12 @@ it('BA questions go to the user, and the answers come back into the next BA prom
   assert.deepEqual(ask.questions.map((question) => question.id), ['Q1'])
   writeFileSync(ask.answers_file, stringify([{ id: 'Q1', answer: 'Only admins.' }]))
   assert.equal(cli('submit', '--answers', ask.answers_file).json.step, 'ba')
-  assert.match(readFileSync(cli('next').json.prompt_file, 'utf8'), /Q1 Who may approve a refund\?\n {2}Answer: Only admins\./)
+  assert.match(readFileSync(cli('next').json.prompt_file, 'utf8'), /Q1 Who may approve a refund\? \(about: rule\)\n {2}Answer: Only admins\./)
 })
 
 it('a broken model keeps the BA step and puts the problems into the next BA prompt', () => {
   const { cli } = setup()
-  cli('start', '--request', 'Add a refund dialog.', '--tier', 't2')
+  cli('start', '--request', 'Refunds need approval.', '--tier', 't2')
   cli('submit')
   const broken = { ...MODEL, sentences: [{ id: 'S1', text: 'x', covered_by: ['R9'] }] }
   writeFileSync(cli('next').json.output, stringify(broken))
@@ -101,14 +101,14 @@ it('a broken model keeps the BA step and puts the problems into the next BA prom
 
 it('an agent that wrote nothing does not advance the run', () => {
   const { cli } = setup()
-  cli('start', '--request', 'Add a refund dialog.', '--tier', 't2')
+  cli('start', '--request', 'Refunds need approval.', '--tier', 't2')
   cli('submit')
   const result = cli('submit')
   assert.equal(result.json.step, 'ba')
   assert.match(result.json.errors[0], /model\.yaml was not written/)
 })
 
-it('dev may not edit a test file, and three refusals end the run as stuck', () => {
+it('dev may not edit a test file: each edit is reverted, and the third ends the run as stuck', () => {
   const { repo, cli } = setup()
   cli('start', '--request', 'The total multiplies price by quantity.', '--tier', 't1')
   cli('submit')
@@ -116,13 +116,17 @@ it('dev may not edit a test file, and three refusals end the run as stuck', () =
   writeFile(repo, 'test/total.test.js', C1_TEST)
   writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
   assert.equal(cli('submit').json.step, 'dev')
-  writeFile(repo, 'test/total.test.js', C1_TEST.replace('6)', '2)'))
+  const edit = () => writeFile(repo, 'test/total.test.js', C1_TEST.replace('6)', '2)'))
+  edit()
   assert.deepEqual(cli('submit').json.errors, [
-    'dev: test/total.test.js changed; restore it — tests are read-only after the test-writer step',
+    'dev: your edit to test/total.test.js was reverted — tests are read-only after the test-writer step',
   ])
+  edit()
   cli('submit')
+  edit()
   assert.equal(cli('submit').json.step, 'stuck')
   assert.match(cli('next').json.reason, /dev kept changing test files: test\/total\.test\.js/)
+  assert.equal(readFileSync(join(repo, 'test/total.test.js'), 'utf8'), C1_TEST)
 })
 
 it('red tests send QA back to dev, and three red rounds end the run as stuck', () => {

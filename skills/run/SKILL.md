@@ -15,14 +15,16 @@ The CLI is `node "${CLAUDE_PLUGIN_ROOT}/cli/spec-gate.js"`; below it is written 
 Every command runs from the repository root and prints JSON.
 
 1. Start: `spec-gate run start --request "$ARGUMENTS"`. If the user named a tier (`--tier t0|t1|t2`),
-   pass it. Tell the user the tier and its reason in one line.
-2. Loop on `spec-gate run next` until the kind is `done` or `stuck`:
+   pass it. Keep the `run` id it prints and pass `--run <id>` to every later `next`, `submit` and
+   `status`, so a parallel session in another worktree can never steer this run. Tell the user the
+   tier and its reason in one line.
+2. Loop on `spec-gate run next --run <id>` until the kind is `done` or `stuck`:
 
 | kind | Do |
 |---|---|
 | `direct` | This is a direct change: make it the usual way, run the existing tests, then `spec-gate run submit`. |
 | `cli` | `spec-gate run submit`. |
-| `agent` | Spawn one subagent with the Agent tool on the given `model`, prompt: "Read `<prompt_file>` and do exactly what it says; write your result to `<output>`." Then `spec-gate run submit`. If it prints errors, run `spec-gate run next` again — the new prompt carries them — and spawn again. |
+| `agent` | Spawn one subagent with the Agent tool on the given `model`, prompt: "Read `<prompt_file>` and do exactly what it says; write your result to `<output>`." Then `spec-gate run submit`. If it prints errors, run `spec-gate run next` again — the new prompt carries them — and spawn again; after three failed attempts the CLI stops the run as `stuck`. |
 | `ask` | Ask the user every question, in as few prompts as possible (AskUserQuestion takes up to 4). Write their answers as YAML `[{ id: Q1, answer: "…" }]` to `answers_file`, then `spec-gate run submit --answers <answers_file>`. |
 | `approve` | Show the user `summary_file`. On approval, `spec-gate run submit --approve`; otherwise `spec-gate run submit --reject "<what they said>"`. |
 | `stuck` | Show `reason` and stop. |

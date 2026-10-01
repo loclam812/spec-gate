@@ -11,6 +11,7 @@ the request below is done, in the repository at {{repo}}.
 {{profile}}
 ```
 
+- Test-writing skill in this repository: {{test_skill}}. If one is named, use it to write the tests, with the request above as its input.
 - Follow the conventions of the tests already next to the code; put each test where the profile's
   test globs will find it.
 - Cover the behaviour the request asks for, its error path, and one boundary.

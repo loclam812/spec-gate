@@ -26,7 +26,7 @@ const print = (out, value) => out.write(`${JSON.stringify(value, null, 2)}\n`)
 function openRun(values, env) {
   const repo = resolve(values.repo)
   const slug = repoSlug(repo)
-  const dir = join(runsDir(slug, env), values.run ?? latestRunId(slug, env))
+  const dir = join(runsDir(slug, env), values.run ?? latestRunId(slug, env, repo))
   return { dir, repo, state: loadState(dir) }
 }
 
