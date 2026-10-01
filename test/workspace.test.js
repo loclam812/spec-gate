@@ -37,15 +37,19 @@ it('changedFiles lists added and modified paths and leaves nothing staged', () =
   assert.equal(git(dest, ['diff', '--cached', '--name-only']), '')
 })
 
-it('resetTree restores tracked files, removes new ones and keeps ignored ones', () => {
-  const dest = exported(preFix)
+it('resetTree restores the snapshot: ignored files from before it stay, ignored files written after it go', () => {
+  const dest = join(tempDir(), 'tree')
+  exportTree(repo, preFix, dest)
   writeFile(dest, 'node_modules/kept.js', 'x')
+  snapshot(dest)
+  writeFile(dest, 'CLAUDE.local.md', 'remember canary-7')
   writeFile(dest, 'test/total.test.js', CATCHING_TEST)
   writeFile(dest, 'src/total.js', FIXED_TOTAL)
   resetTree(dest)
   assert.deepEqual(changedFiles(dest), [])
   assert.equal(readFileSync(join(dest, 'src/total.js'), 'utf8'), BUGGY_TOTAL)
   assert.ok(existsSync(join(dest, 'node_modules/kept.js')))
+  assert.equal(existsSync(join(dest, 'CLAUDE.local.md')), false)
 })
 
 it('prepareWorkspace exports both sides, runs setup before the snapshot, and is idempotent', () => {

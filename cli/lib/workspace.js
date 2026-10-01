@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { readJson, writeJson } from './files.js'
 import { git, isGreen, runShell, tryGit } from './exec.js'
@@ -19,10 +19,19 @@ export function exportTree(repoPath, sha, dest) {
   rmSync(archive)
 }
 
+const IGNORED_BASELINE = 'spec-gate-ignored'
+
+function ignoredEntries(dest) {
+  return git(dest, ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z'])
+    .split('\0')
+    .filter(Boolean)
+}
+
 export function snapshot(dest) {
   git(dest, ['init', '-q', '-b', 'snapshot'])
   git(dest, ['add', '-A'])
   git(dest, [...SNAPSHOT_CONFIG, 'commit', '-q', '--allow-empty', '-m', 'snapshot'])
+  writeFileSync(join(dest, '.git', IGNORED_BASELINE), ignoredEntries(dest).join('\0'))
 }
 
 export function changedFiles(dest) {
@@ -32,9 +41,17 @@ export function changedFiles(dest) {
   return listed.split('\0').filter(Boolean).sort()
 }
 
+// Ignored files a run writes (CLAUDE.local.md, caches) would otherwise carry over into the next
+// run; ignored files present at the snapshot (installed dependencies) are kept.
 export function resetTree(dest) {
   git(dest, ['reset', '-q', '--hard'])
   git(dest, ['clean', '-fdq'])
+  const baselinePath = join(dest, '.git', IGNORED_BASELINE)
+  if (!existsSync(baselinePath)) return
+  const baseline = new Set(readFileSync(baselinePath, 'utf8').split('\0'))
+  for (const entry of ignoredEntries(dest).filter((path) => !baseline.has(path))) {
+    rmSync(join(dest, entry), { recursive: true, force: true })
+  }
 }
 
 export function workspaceSides(workDir) {

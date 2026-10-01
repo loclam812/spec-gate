@@ -42,6 +42,8 @@ setup: pnpm install --frozen-lockfile   # optional; runs in each exported tree
 test_command: npx vitest run {file}     # {file} = one test file, {dir} = ./its directory
 test_globs: ["**/*.test.ts"]
 timeout_s: 600                          # optional
+report: junit                           # optional: go-json | junit — judge each test, not each file
+report_file: report.xml                 # junit only: where test_command writes the report
 ```
 
 - `spec/` holds the requirement as it was **before** the bug: feature docs, the original ticket or
@@ -97,7 +99,15 @@ until `prepare` rebuilds it.
 
 ## Verdicts
 
-Each collected test file is run alone on both trees. A run takes its best file verdict.
+Each collected test file is run alone on both trees. With `report` set, every test the file adds
+is judged on its own and the file takes its best test verdict — a test that is missing from one
+side, because it did not compile there, counts as failing on that side. Without `report`, the file
+is judged by the command's exit code. A run takes its best file verdict.
+
+Set `report` whenever the runner can produce it: `go test -json {dir}` with `report: go-json`;
+`vitest run {file} --reporter=junit --outputFile=report.xml` or
+`node --test --test-reporter=junit --test-reporter-destination=report.xml {file}` with
+`report: junit` and `report_file: report.xml`.
 
 | Verdict | Meaning | In the rate |
 |---|---|---|
@@ -121,6 +131,10 @@ The report gives the catch rate as caught ÷ (caught + missed + inverted + empty
 - Every tool path in the transcript is checked; a run that touched anything outside its working
   tree is `leaked` and left out of the rate. This detects a leak after the fact; it does not stop
   a candidate from opening the store or the source checkout.
+- Ignored files a run writes, such as `CLAUDE.local.md`, are removed before the next run; ignored
+  files that existed when the workspace was prepared (installed dependencies) stay. A new file
+  inside an ignored directory that already existed then is not removed.
+- The candidate gets no stdin.
 - Answers are fixed in advance and fed to the candidate; nobody answers live.
 
 ## Known limits
@@ -130,7 +144,9 @@ The report gives the catch rate as caught ÷ (caught + missed + inverted + empty
   server running for the next file, and a background process holding stdout keeps the run open
   until its timeout.
 - A hang before the fix counts as a failing test.
-- Verdicts are per test file: one wrong assertion in a file that also catches the bug makes the
-  file `broken`.
+- Without `report`, verdicts are per test file: one wrong assertion in a file that also catches the
+  bug makes the file `broken`.
+- A test that only edits an existing test function, keeping its name, is not counted as the
+  candidate's test under `report`.
 - Test commands run without `NODE_TEST_CONTEXT`, so a repository using Node's test runner reports
   its own failures even when spec-gate itself runs under one.

@@ -111,3 +111,24 @@ it('a hanging test is recorded as timed out and is inconclusive', () => {
   assert.equal(record.verdict, 'inconclusive')
   assert.equal(record.files[0].runs.postWith.timedOut, true)
 })
+
+const MIXED_TEST = `${CATCHING_TEST}${BROKEN_TEST.split('\n').slice(3).join('\n')}`
+
+it('without a report format a file is judged whole, so a wrong neighbour hides the catch', () => {
+  assert.equal(candidateRun({ 'test/total.test.js': MIXED_TEST }).record.verdict, 'broken')
+})
+
+it('with a junit report each test is judged, so the catch survives', () => {
+  const reported = {
+    ...sample,
+    test_command: 'node --test --test-reporter=junit --test-reporter-destination=report.xml {file}',
+    report: 'junit',
+    report_file: 'report.xml',
+  }
+  const { record } = candidateRun({ 'test/total.test.js': MIXED_TEST }, reported)
+  assert.equal(record.verdict, 'caught')
+  assert.deepEqual(
+    record.files[0].tests.map((test) => test.verdict).sort(),
+    ['broken', 'caught'],
+  )
+})

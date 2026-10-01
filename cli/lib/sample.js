@@ -2,9 +2,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { basename, join, matchesGlob } from 'node:path'
 import { parse } from 'yaml'
 import { tryGit } from './exec.js'
+import { REPORT_FORMATS } from './reports.js'
 
 const REQUIRED = ['id', 'pre_fix', 'post_fix', 'test_command', 'test_globs']
-const DEFAULTS = { setup: null, timeout_s: 600 }
+const DEFAULTS = { setup: null, timeout_s: 600, report: null, report_file: null }
 
 export function loadSample(dir) {
   const parsed = parse(readFileSync(join(dir, 'sample.yaml'), 'utf8')) ?? {}
@@ -32,6 +33,8 @@ export function sampleErrors(sample, repoPath) {
     [Array.isArray(sample.test_globs) && sample.test_globs.length > 0, 'test_globs must be a non-empty list'],
     [specFiles(sample).length > 0, 'spec/ must contain at least one file'],
     [existsSync(join(sample.dir, 'answers.yaml')), 'answers.yaml is missing'],
+    [sample.report === null || REPORT_FORMATS.includes(sample.report), `report must be one of ${REPORT_FORMATS.join(', ')}`],
+    [sample.report !== 'junit' || typeof sample.report_file === 'string', 'report junit needs report_file'],
   ]
   const failed = checks.filter(([ok]) => !ok).map(([, message]) => message)
   if (failed.length > 0) return failed

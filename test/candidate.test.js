@@ -113,3 +113,10 @@ it('pathsOutside reports tool paths that leave the working tree', () => {
   const transcript = `${lines.map((line) => JSON.stringify(line)).join('\n')}\nnot json\n`
   assert.deepEqual(pathsOutside(transcript, root), ['/elsewhere/fix.js', join(root, '..', 'post', '**')])
 })
+
+it('the candidate gets no stdin to wait on', () => {
+  const env = stubClaude('[ -c /dev/stdin ] && echo stdin-null || echo stdin-open')
+  const outDir = tempDir()
+  runCandidate(loadCandidate('single-prompt', tempDir()), sample, sides.pre, outDir, { env })
+  assert.match(readFileSync(join(outDir, 'transcript.jsonl'), 'utf8'), /stdin-null/)
+})

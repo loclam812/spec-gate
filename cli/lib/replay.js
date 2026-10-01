@@ -1,9 +1,10 @@
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { runShell, shellQuote } from './exec.js'
 import { readJson, writeJson } from './files.js'
+import { parseReport } from './reports.js'
 import { isTestPath } from './sample.js'
-import { fileVerdict, sampleVerdict } from './verdict.js'
+import { fileVerdict, reportedFileVerdict, sampleVerdict } from './verdict.js'
 import { changedFiles, resetTree } from './workspace.js'
 
 function copyInto(from, to) {
@@ -36,13 +37,21 @@ function needsControl(sample, root, path) {
   return sample.test_command.includes('{dir}') && existsSync(join(root, dirname(path)))
 }
 
+function runReported(sample, command, root) {
+  const run = runShell(command, root, sample.timeout_s)
+  if (!sample.report) return run
+  const reportPath = sample.report_file ? join(root, sample.report_file) : null
+  const xml = reportPath && existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : ''
+  return { ...run, tests: parseReport(sample.report, { output: run.output, xml }) }
+}
+
 function runSide(sample, root, outDir, path) {
   const command = renderCommand(sample.test_command, path)
   resetTree(root)
   copyInto(join(outDir, 'tests', path), join(root, path))
-  const withRun = runShell(command, root, sample.timeout_s)
+  const withRun = runReported(sample, command, root)
   resetTree(root)
-  const withoutRun = needsControl(sample, root, path) ? runShell(command, root, sample.timeout_s) : null
+  const withoutRun = needsControl(sample, root, path) ? runReported(sample, command, root) : null
   return [withRun, withoutRun]
 }
 
@@ -68,7 +77,9 @@ function scoreFile(sample, sides, outDir, path) {
   const [postWith, postWithout] = runSide(sample, sides.post, outDir, path)
   const runs = { preWith, preWithout, postWith, postWithout }
   writeLogs(outDir, path, runs)
-  return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
+  if (!sample.report) return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
+  const { verdict, tests } = reportedFileVerdict(runs)
+  return { path, verdict, tests, runs: briefRuns(runs) }
 }
 
 export function scoreRun(sample, sides, outDir) {

@@ -67,3 +67,10 @@ it('isTestPath matches the globs at any depth', () => {
   assert.equal(isTestPath(sample, 'test/deep/total.test.js'), true)
   assert.equal(isTestPath(sample, 'src/total.js'), false)
 })
+
+it('rejects an unknown report format and a junit report without its file', () => {
+  const unknown = loadSample(writeSample(tempDir(), { ...valid, report: 'tap' }))
+  assert.deepEqual(sampleErrors(unknown, repo), ['report must be one of go-json, junit'])
+  const junit = loadSample(writeSample(tempDir(), { ...valid, report: 'junit' }))
+  assert.deepEqual(sampleErrors(junit, repo), ['report junit needs report_file'])
+})

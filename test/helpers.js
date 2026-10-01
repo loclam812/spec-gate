@@ -46,7 +46,7 @@ export function makeFixtureRepo() {
   const repo = tempDir('sg-fixture-')
   git(repo, ['init', '-q', '-b', 'main'])
   writeFile(repo, 'package.json', '{ "type": "module" }\n')
-  writeFile(repo, '.gitignore', 'node_modules/\n')
+  writeFile(repo, '.gitignore', 'node_modules/\nCLAUDE.local.md\n')
   writeFile(repo, 'src/total.js', BUGGY_TOTAL)
   const preFix = commitAll(repo, 'add total')
   writeFile(repo, 'src/total.js', FIXED_TOTAL)

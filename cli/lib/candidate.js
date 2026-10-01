@@ -109,6 +109,7 @@ export function runCandidate(candidate, sample, preDir, outDir, { env = process.
     spawnSync('claude', headlessArgs(candidate), {
       cwd: preDir,
       env: { ...env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
       timeout: candidate.timeout_s * 1000,
       maxBuffer: 64 * 1024 * 1024,

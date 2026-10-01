@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { fileVerdict, sampleVerdict } from '../cli/lib/verdict.js'
+import { fileVerdict, reportedFileVerdict, sampleVerdict } from '../cli/lib/verdict.js'
 
 const green = { code: 0, timedOut: false }
 const red = { code: 1, timedOut: false }
@@ -28,4 +28,34 @@ it('sampleVerdict takes the best file verdict and reports empty runs', () => {
   assert.equal(sampleVerdict(['broken', 'inverted']), 'inverted')
   assert.equal(sampleVerdict(['inconclusive', 'broken']), 'broken')
   assert.equal(sampleVerdict(['inconclusive']), 'inconclusive')
+})
+
+const ran = (code, tests) => ({ code, timedOut: false, tests: new Map(Object.entries(tests)) })
+
+it('per-test verdicts judge each new test, so a catch survives a broken neighbour', () => {
+  const { verdict, tests } = reportedFileVerdict({
+    preWith: ran(1, { TestOld: 'pass', TestDob: 'fail', TestIns: 'fail' }),
+    postWith: ran(1, { TestOld: 'pass', TestDob: 'pass', TestIns: 'fail' }),
+    preWithout: ran(0, { TestOld: 'pass' }),
+    postWithout: ran(0, { TestOld: 'pass' }),
+  })
+  assert.equal(verdict, 'caught')
+  assert.deepEqual(
+    tests.map((test) => [test.name, test.pre, test.post, test.verdict]),
+    [['TestDob', 'fail', 'pass', 'caught'], ['TestIns', 'fail', 'fail', 'broken']],
+  )
+})
+
+it('a test missing from one side counts as failing there', () => {
+  const { verdict } = reportedFileVerdict({ preWith: ran(2, {}), postWith: ran(0, { TestDob: 'pass' }) })
+  assert.equal(verdict, 'caught')
+})
+
+it('a file with no reported test on either side is broken', () => {
+  assert.equal(reportedFileVerdict({ preWith: ran(2, {}), postWith: ran(2, {}) }).verdict, 'broken')
+})
+
+it('a timeout after the fix stays inconclusive with per-test reports', () => {
+  const hungWithReport = { code: -1, timedOut: true, tests: new Map() }
+  assert.equal(reportedFileVerdict({ preWith: ran(1, { TestDob: 'fail' }), postWith: hungWithReport }).verdict, 'inconclusive')
 })
