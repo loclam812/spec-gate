@@ -44,6 +44,7 @@ test_globs: ["**/*.test.ts"]
 timeout_s: 600                          # optional
 report: junit                           # optional: go-json | junit — judge each test, not each file
 report_file: report.xml                 # junit only: where test_command writes the report
+support_globs: ["**/__tests__/fixtures/**"]  # optional: helpers copied into every run, never scored
 ```
 
 - `spec/` holds the requirement as it was **before** the bug: feature docs, the original ticket or

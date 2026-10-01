@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { runShell, shellQuote } from './exec.js'
 import { readJson, writeJson } from './files.js'
 import { parseReport } from './reports.js'
-import { isTestPath } from './sample.js'
+import { isSupportPath, isTestPath } from './sample.js'
 import { fileVerdict, reportedFileVerdict, sampleVerdict } from './verdict.js'
 import { changedFiles, resetTree } from './workspace.js'
 
@@ -15,12 +15,14 @@ function copyInto(from, to) {
 export function collectTests(sample, preDir, outDir) {
   const changed = changedFiles(preDir)
   const tests = changed.filter((path) => isTestPath(sample, path))
-  const ignored = changed.filter((path) => !isTestPath(sample, path))
-  rmSync(join(outDir, 'tests'), { recursive: true, force: true })
-  rmSync(join(outDir, 'ignored'), { recursive: true, force: true })
-  for (const path of tests) copyInto(join(preDir, path), join(outDir, 'tests', path))
-  for (const path of ignored) copyInto(join(preDir, path), join(outDir, 'ignored', path))
-  const manifest = { tests, ignored }
+  const support = changed.filter((path) => isSupportPath(sample, path))
+  const ignored = changed.filter((path) => !tests.includes(path) && !support.includes(path))
+  const kept = { tests, support, ignored }
+  for (const [folder, paths] of Object.entries(kept)) {
+    rmSync(join(outDir, folder), { recursive: true, force: true })
+    for (const path of paths) copyInto(join(preDir, path), join(outDir, folder, path))
+  }
+  const manifest = kept
   writeJson(join(outDir, 'collected.json'), manifest)
   resetTree(preDir)
   return manifest
@@ -45,9 +47,10 @@ function runReported(sample, command, root) {
   return { ...run, tests: parseReport(sample.report, { output: run.output, xml }) }
 }
 
-function runSide(sample, root, outDir, path) {
+function runSide(sample, root, outDir, path, support) {
   const command = renderCommand(sample.test_command, path)
   resetTree(root)
+  for (const file of support) copyInto(join(outDir, 'support', file), join(root, file))
   copyInto(join(outDir, 'tests', path), join(root, path))
   const withRun = runReported(sample, command, root)
   resetTree(root)
@@ -72,9 +75,9 @@ function briefRuns(runs) {
   )
 }
 
-function scoreFile(sample, sides, outDir, path) {
-  const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path)
-  const [postWith, postWithout] = runSide(sample, sides.post, outDir, path)
+function scoreFile(sample, sides, outDir, path, support) {
+  const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, support)
+  const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, support)
   const runs = { preWith, preWithout, postWith, postWithout }
   writeLogs(outDir, path, runs)
   if (!sample.report) return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
@@ -83,10 +86,10 @@ function scoreFile(sample, sides, outDir, path) {
 }
 
 export function scoreRun(sample, sides, outDir) {
-  const { tests } = readJson(join(outDir, 'collected.json'))
+  const { tests, support = [] } = readJson(join(outDir, 'collected.json'))
   const leaksPath = join(outDir, 'leaks.json')
   const leaks = existsSync(leaksPath) ? readJson(leaksPath).outside : []
-  const files = tests.map((path) => scoreFile(sample, sides, outDir, path))
+  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, support))
   const record = {
     sample: sample.id,
     pre_fix: sample.pre_fix,

@@ -89,6 +89,7 @@ it('non-test changes are kept under ignored/ but never scored', () => {
   })
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
     tests: ['test/total.test.js'],
+    support: [],
     ignored: ['ASSUMPTIONS.md', 'src/total.js'],
   })
   assert.equal(readFileSync(join(outDir, 'ignored', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
@@ -131,4 +132,25 @@ it('with a junit report each test is judged, so the catch survives', () => {
     record.files[0].tests.map((test) => test.verdict).sort(),
     ['broken', 'caught'],
   )
+})
+
+const HELPER_TEST = CATCHING_TEST.replace(
+  "import { total } from '../src/total.js'",
+  "import { total } from '../src/total.js'\nimport { LINE } from './support/line.js'",
+).replace('total([{ price: 2, qty: 3 }])', 'total([LINE])')
+const HELPER = 'export const LINE = { price: 2, qty: 3 }\n'
+
+it('a test that imports a helper it wrote cannot run without support_globs', () => {
+  assert.equal(candidateRun({ 'test/total.test.js': HELPER_TEST, 'test/support/line.js': HELPER }).record.verdict, 'broken')
+})
+
+it('support files are copied into every run but never scored', () => {
+  const supported = { ...sample, support_globs: ['test/support/**'] }
+  const { outDir, record } = candidateRun({ 'test/total.test.js': HELPER_TEST, 'test/support/line.js': HELPER }, supported)
+  assert.equal(record.verdict, 'caught')
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
+    tests: ['test/total.test.js'],
+    support: ['test/support/line.js'],
+    ignored: [],
+  })
 })
