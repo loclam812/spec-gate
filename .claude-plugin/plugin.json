@@ -1,0 +1,8 @@
+{
+  "name": "spec-gate",
+  "version": "0.1.0",
+  "description": "Triage a request, then run BA, QC, tests, implementation, QA and BA verify with deterministic gates; evaluate test generators on real fixed bugs.",
+  "author": {
+    "name": "spec-gate maintainers"
+  }
+}

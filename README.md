@@ -14,6 +14,24 @@ npm test
 
 Requires Node 26+, git, tar, perl, and the Claude Code CLI for `generate`.
 
+## Use it as a Claude Code plugin
+
+```bash
+claude plugin marketplace add ~/Desktop/spec-gate
+claude plugin install spec-gate@spec-gate
+```
+
+Then, inside any repository: `/spec-gate:run <request>`. spec-gate triages the request:
+
+- **T0** (translations, copy, config, docs, a few lines): nothing from spec-gate — make the change.
+- **T1** (one behaviour change): tests, implementation, QA.
+- **T2** (a feature, a flow, states, permissions, UI): BA asks what it must, QC derives the cases,
+  you approve once at Ready, then tests, implementation, QA and a trace from every sentence of
+  your request to a green test.
+
+Force a tier with `--tier t0|t1|t2`. Without the plugin, the same loop is `spec-gate run start`,
+`next`, `submit` and `status`.
+
 ## Store
 
 Everything per user lives under `$SPEC_GATE_HOME` (default `~/.claude/spec-gate`), never inside
@@ -78,13 +96,15 @@ code." A sample whose `pre_fix` predates the skill measures its absence.
 ## Running
 
 ```bash
-spec-gate eval prepare <id> --repo <path>
-for n in 1 2 3; do
-  spec-gate eval generate <id> --repo <path> --candidate single-prompt --run $n
-  spec-gate eval score    <id> --repo <path> --candidate single-prompt --run $n
-done
+spec-gate eval batch --runs 3                 # every sample in the store × every candidate
+spec-gate eval batch --candidate plain --sample shop-1234
 spec-gate eval report
 ```
+
+`batch` prepares each sample once, skips runs that already have a verdict (so it can be rerun
+after an interruption without paying again), and stops after two `leaked` runs. It finds each
+repository through `repo.json`, written by any eval command that was given `--repo`. A candidate
+can be limited to some repositories with `applies_to: [<slug>, …]` in its `candidate.yaml`.
 
 `generate` clears the run directory, then runs `claude -p` inside the exported pre-fix tree with
 user settings, MCP servers, session history and auto memory switched off. It keeps the full
