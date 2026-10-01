@@ -154,3 +154,17 @@ it('support files are copied into every run but never scored', () => {
     ignored: [],
   })
 })
+
+const SHARED_HELPER_TEST =
+  "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { total } from '../src/total.js'\n\nexport const LINE = { price: 2, qty: 3 }\n\ntest('total of nothing is zero', () => {\n  assert.equal(total([]), 0)\n})\n"
+const USES_SHARED_HELPER =
+  "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { total } from '../src/total.js'\nimport { LINE } from './a.test.js'\n\ntest('a line costs price times quantity', () => {\n  assert.equal(total([LINE]), 6)\n})\n"
+
+it('a test file that imports another collected test file is scored with it present', () => {
+  const { record } = candidateRun({ 'test/a.test.js': SHARED_HELPER_TEST, 'test/b.test.js': USES_SHARED_HELPER })
+  assert.equal(record.verdict, 'caught')
+  assert.deepEqual(
+    record.files.map((file) => [file.path, file.verdict]),
+    [['test/a.test.js', 'missed'], ['test/b.test.js', 'caught']],
+  )
+})

@@ -47,11 +47,15 @@ function runReported(sample, command, root) {
   return { ...run, tests: parseReport(sample.report, { output: run.output, xml }) }
 }
 
-function runSide(sample, root, outDir, path, support) {
+function placeCollected(root, outDir, { tests, support }) {
+  for (const file of support) copyInto(join(outDir, 'support', file), join(root, file))
+  for (const file of tests) copyInto(join(outDir, 'tests', file), join(root, file))
+}
+
+function runSide(sample, root, outDir, path, collected) {
   const command = renderCommand(sample.test_command, path)
   resetTree(root)
-  for (const file of support) copyInto(join(outDir, 'support', file), join(root, file))
-  copyInto(join(outDir, 'tests', path), join(root, path))
+  placeCollected(root, outDir, collected)
   const withRun = runReported(sample, command, root)
   resetTree(root)
   const withoutRun = needsControl(sample, root, path) ? runReported(sample, command, root) : null
@@ -75,9 +79,9 @@ function briefRuns(runs) {
   )
 }
 
-function scoreFile(sample, sides, outDir, path, support) {
-  const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, support)
-  const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, support)
+function scoreFile(sample, sides, outDir, path, collected) {
+  const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, collected)
+  const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, collected)
   const runs = { preWith, preWithout, postWith, postWithout }
   writeLogs(outDir, path, runs)
   if (!sample.report) return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
@@ -89,7 +93,7 @@ export function scoreRun(sample, sides, outDir) {
   const { tests, support = [] } = readJson(join(outDir, 'collected.json'))
   const leaksPath = join(outDir, 'leaks.json')
   const leaks = existsSync(leaksPath) ? readJson(leaksPath).outside : []
-  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, support))
+  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support }))
   const record = {
     sample: sample.id,
     pre_fix: sample.pre_fix,
