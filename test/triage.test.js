@@ -1,0 +1,29 @@
+import { it } from 'node:test'
+import assert from 'node:assert/strict'
+import { triage } from '../cli/lib/triage.js'
+
+const cases = [
+  ['Update the German translation for the checkout button', 't0'],
+  ['sửa bản dịch tiếng Đức cho nút thanh toán', 't0'],
+  ['fix typo in README', 't0'],
+  ['Add a refund dialog with an approval flow for admins', 't2'],
+  ['thêm màn hình hoàn tiền có phân quyền', 't2'],
+  ['Translate the labels of the new refund dialog', 't1'],
+  ['Return 404 instead of 500 when the order is missing', 't1'],
+  ['dịch vụ thanh toán trả về lỗi 500', 't1'],
+  ['statement totals are off by one cent', 't1'],
+]
+
+for (const [request, tier] of cases) {
+  it(`${request} -> ${tier}`, () => assert.equal(triage(request).tier, tier))
+}
+
+it('every decision carries its reason', () => {
+  assert.deepEqual(triage('fix typo in README').reasons, ['signals: typo, readme'])
+  assert.deepEqual(triage('Return 404 when the order is missing').reasons, ['no decisive signal'])
+})
+
+it('an override wins, and an unknown tier is rejected', () => {
+  assert.deepEqual(triage('fix typo in README', { override: 't2' }), { tier: 't2', reasons: ['user override'] })
+  assert.throws(() => triage('x', { override: 't9' }), /--tier must be one of t0, t1, t2/)
+})
