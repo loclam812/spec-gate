@@ -2,7 +2,7 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate } from '../cli/lib/candidate.js'
+import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate, watchedPaths } from '../cli/lib/candidate.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { changedFiles, prepareWorkspace } from '../cli/lib/workspace.js'
 import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
@@ -119,4 +119,23 @@ it('the candidate gets no stdin to wait on', () => {
   const outDir = tempDir()
   runCandidate(loadCandidate('single-prompt', tempDir()), sample, sides.pre, outDir, { env })
   assert.match(readFileSync(join(outDir, 'transcript.jsonl'), 'utf8'), /stdin-null/)
+})
+
+it('watchedPaths reports only paths that reach a watched root, not scratch files elsewhere', () => {
+  const work = tempDir()
+  const root = join(work, 'pre')
+  const store = tempDir()
+  writeFile(root, 'src/total.js', 'x')
+  writeFile(work, 'post/src/total.js', 'y')
+  const lines = [
+    { type: 'tool_use', name: 'Write', input: { file_path: '/tmp/mutation.sh' } },
+    { type: 'tool_use', name: 'Read', input: { file_path: '../post/src/total.js' } },
+    { type: 'tool_use', name: 'Glob', input: { pattern: '**/*', path: join(store, 'projects') } },
+    { type: 'tool_use', name: 'Read', input: { file_path: 'src/total.js' } },
+  ]
+  const transcript = lines.map((line) => JSON.stringify({ type: 'assistant', message: { content: [line] } })).join('\n')
+  assert.deepEqual(watchedPaths(transcript, root, [join(work, 'post'), store]), [
+    join(work, 'post', 'src', 'total.js'),
+    join(store, 'projects'),
+  ])
 })

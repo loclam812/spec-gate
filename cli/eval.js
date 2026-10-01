@@ -64,7 +64,8 @@ const COMMANDS = {
     const outDir = outDirFor(ctx, values, env)
     rmSync(outDir, { recursive: true, force: true })
     const candidate = loadCandidate(values.candidate, storeRoot(env))
-    runCandidate(candidate, ctx.sample, ctx.sides.pre, outDir, { env, hide: [ctx.sides.post] })
+    const watch = [ctx.sides.post, storeRoot(env), ctx.repo]
+    runCandidate(candidate, ctx.sample, ctx.sides.pre, outDir, { env, hide: [ctx.sides.post], watch })
     out.write(collectedLine(collectTests(ctx.sample, ctx.sides.pre, outDir)))
     return 0
   },

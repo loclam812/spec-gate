@@ -70,14 +70,34 @@ function parseLines(text) {
   })
 }
 
-export function pathsOutside(transcript, root) {
-  const roots = [resolve(root), realpathSync(root)]
-  const inside = (path) => roots.some((dir) => path === dir || path.startsWith(`${dir}${sep}`))
+function toolPaths(transcript, root) {
   return toolUses(parseLines(transcript))
     .flatMap((use) => (use.name === 'Glob' ? [...PATH_KEYS, 'pattern'] : PATH_KEYS).map((key) => use.input?.[key]))
     .filter((value) => typeof value === 'string')
     .map((value) => resolve(root, value))
-    .filter((path) => !inside(path))
+}
+
+function realOrSelf(path) {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
+const within = (dirs) => (path) => dirs.some((dir) => path === dir || path.startsWith(`${dir}${sep}`))
+
+export function pathsOutside(transcript, root) {
+  const inside = within([resolve(root), realOrSelf(root)])
+  return toolPaths(transcript, root).filter((path) => !inside(path))
+}
+
+// Only the places that can hold the answer count as a leak: the fixed tree, the store with other
+// runs' tests and verdicts, and the source checkout. Scratch files a candidate writes to /tmp,
+// or a library it reads from a module cache, are not.
+export function watchedPaths(transcript, root, watched) {
+  const touches = within(watched.flatMap((dir) => [resolve(dir), realOrSelf(dir)]))
+  return toolPaths(transcript, root).filter(touches)
 }
 
 // Hidden trees are made unreadable for the run so the candidate cannot open the fixed code;
@@ -92,7 +112,7 @@ function withHidden(paths, run) {
   }
 }
 
-export function runCandidate(candidate, sample, preDir, outDir, { env = process.env, hide = [] } = {}) {
+export function runCandidate(candidate, sample, preDir, outDir, { env = process.env, hide = [], watch = null } = {}) {
   resetTree(preDir)
   const skill = candidate.skill_dir ? basename(candidate.skill_dir) : ''
   if (candidate.skill_dir) {
@@ -118,7 +138,9 @@ export function runCandidate(candidate, sample, preDir, outDir, { env = process.
   mkdirSync(outDir, { recursive: true })
   writeFileSync(join(outDir, 'prompt.md'), prompt)
   writeFileSync(join(outDir, 'transcript.jsonl'), result.stdout ?? '')
-  writeJson(join(outDir, 'leaks.json'), { outside: pathsOutside(result.stdout ?? '', preDir) })
+  const transcript = result.stdout ?? ''
+  const leaks = watch ? watchedPaths(transcript, preDir, watch) : pathsOutside(transcript, preDir)
+  writeJson(join(outDir, 'leaks.json'), { outside: leaks })
   if (result.status !== 0) {
     const reason = result.status ?? result.error?.code
     throw new Error(`claude exited ${reason}: ${(result.stderr ?? '').slice(-2000)}`)

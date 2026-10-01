@@ -83,3 +83,28 @@ it('collect after generate is refused instead of erasing the collected tests', (
   )
   assert.match(run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1').text, /: caught/)
 })
+
+function stubTouching(path) {
+  const generated = join(tempDir(), 'generated.test.js')
+  writeFileSync(generated, CATCHING_TEST)
+  const line = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: path } }] } })
+  const bin = tempDir('sg-bin-')
+  writeFile(bin, 'claude', `#!/bin/sh\nmkdir -p test && cp '${generated}' test/total.test.js && echo '${line}'\n`)
+  chmodSync(join(bin, 'claude'), 0o755)
+  return bin
+}
+
+it('a candidate reading the source checkout is leaked; one writing scratch files to /tmp is not', () => {
+  const { home, repo, run } = setup()
+  run('prepare', 'demo-1')
+  const runWith = (bin, n) => {
+    const env = { ...process.env, SPEC_GATE_HOME: home, PATH: `${bin}:${process.env.PATH}` }
+    const out = { write: () => {} }
+    runEval(['generate', 'demo-1', '--candidate', 'single-prompt', '--run', n, '--repo', repo], { env, out })
+    const chunks = []
+    runEval(['score', 'demo-1', '--candidate', 'single-prompt', '--run', n, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })
+    return chunks.join('')
+  }
+  assert.match(runWith(stubTouching(join(repo, 'src', 'total.js')), '1'), /^demo-1: leaked/)
+  assert.match(runWith(stubTouching('/tmp/sg-scratch-mutation.sh'), '2'), /^demo-1: caught/)
+})
