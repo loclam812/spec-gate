@@ -65,3 +65,33 @@ it('a Go module in a subdirectory still gives the go stack', () => {
   commitAll(repo, 'go module below the root')
   assert.deepEqual(discoverProfile(repo).stacks.map((stack) => stack.name), ['go'])
 })
+
+function playwrightRepo(configPath, config) {
+  const { repo } = makeFixtureRepo()
+  writeFile(repo, 'package.json', JSON.stringify({ devDependencies: { vitest: '5.0.3', '@playwright/test': '1.63.0' } }))
+  writeFile(repo, configPath, config)
+  commitAll(repo, 'vitest and playwright')
+  return repo
+}
+
+it('a Playwright config with a testDir gives a playwright stack that owns that directory', () => {
+  const profile = discoverProfile(playwrightRepo('playwright.config.ts', "export default defineConfig({\n  testDir: 'e2e',\n})\n"))
+  assert.deepEqual(profile.stacks.map((stack) => stack.name), ['playwright', 'vitest'])
+  const e2e = stackFor(profile, 'e2e/collection.spec.ts')
+  assert.equal(e2e.name, 'playwright')
+  assert.equal(e2e.report, 'junit')
+  assert.match(e2e.test_command, /^PLAYWRIGHT_JUNIT_OUTPUT_FILE=\.spec-gate-report\.xml npx --no-install playwright test \{file\} --reporter=junit$/)
+  assert.equal(stackFor(profile, 'src/total.spec.ts').name, 'vitest')
+})
+
+it('a Playwright testDir is resolved from the config directory', () => {
+  const profile = discoverProfile(playwrightRepo('web/playwright.config.ts', 'export default { testDir: "./tests/e2e" }\n'))
+  assert.equal(stackFor(profile, 'web/tests/e2e/login.spec.ts').name, 'playwright')
+  assert.equal(stackFor(profile, 'web/src/login.spec.ts').name, 'vitest')
+})
+
+it('a Playwright config without a testDir adds no stack, since it would claim every spec file', () => {
+  const profile = discoverProfile(playwrightRepo('playwright.config.ts', 'export default defineConfig({})\n'))
+  assert.deepEqual(profile.stacks.map((stack) => stack.name), ['vitest'])
+  assert.equal(profile.ui_layer, 'playwright')
+})

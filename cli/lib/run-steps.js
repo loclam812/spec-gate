@@ -178,6 +178,15 @@ function writeTests(run) {
     return { errors: unrunnable.map((file) => `write-tests: no test stack runs ${file}; use a name these globs match: ${globs}`) }
   }
   const results = runAll(run, files)
+  const empty = results.filter((result) => result.status === 'no-tests')
+  if (empty.length > 0) {
+    return {
+      errors: empty.map(
+        (result) =>
+          `write-tests: the ${stackFor(profile, result.file).name} runner found no tests in ${result.file}; its config leaves the file out, so move the file where that runner looks`,
+      ),
+    }
+  }
   if (run.state.tier === 't2') {
     const caseIds = list(readYaml(at(run, 'cases.yaml'))?.cases).map((c) => c.id)
     const missing = caseIdsUntested(run, results, caseIds)
@@ -214,7 +223,7 @@ function qa(run) {
   const results = runAll(run, files)
   writeJson(at(run, 'results.json'), results)
   const untested = results.filter((result) => result.status === 'unrunnable').map((result) => `untested: ${result.file} (no test stack runs it)`)
-  const red = results.filter((result) => result.status === 'red')
+  const red = results.filter((result) => ['red', 'no-tests'].includes(result.status))
   if (red.length === 0) {
     const notes = run.state.tier === 't1' ? escalationNotes(run, files) : []
     return { ...advance(run), patch: { notes: [...run.state.notes, ...untested, ...notes] } }

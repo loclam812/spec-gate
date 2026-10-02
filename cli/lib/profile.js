@@ -1,9 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join, matchesGlob } from 'node:path'
+import { dirname, join, matchesGlob, normalize } from 'node:path'
 import { tryGit } from './exec.js'
 
 const JS_TEST_GLOBS = ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx', '**/*.spec.ts', '**/*.spec.tsx', '**/*.spec.js', '**/*.spec.jsx']
 const REPORT_FILE = '.spec-gate-report.xml'
+
+const PLAYWRIGHT_COMMAND = `PLAYWRIGHT_JUNIT_OUTPUT_FILE=${REPORT_FILE} npx --no-install playwright test {file} --reporter=junit`
 
 const STACKS = [
   { name: 'go', test_globs: ['**/*_test.go'], test_command: 'go test -json {dir}', report: 'go-json', report_file: null },
@@ -52,6 +54,31 @@ function dependencyNames(packages) {
   return new Set(packages.flatMap((pkg) => Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })))
 }
 
+function playwrightConfigs(repo) {
+  const listed = tryGit(repo, ['ls-files', '--', 'playwright.config.*', '*/playwright.config.*']) ?? ''
+  return listed.split('\n').filter(Boolean)
+}
+
+// Without an explicit testDir Playwright claims every spec file under its config, the unit
+// runner's included, so only a config that names its directory gets a stack. It comes first
+// because the JS unit runners' globs also match its files.
+function playwrightStack(repo, deps) {
+  if (!deps.has('@playwright/test')) return null
+  const dirs = playwrightConfigs(repo).flatMap((config) => {
+    const testDir = readFileSync(join(repo, config), 'utf8').match(/\btestDir\s*:\s*['"`]([^'"`]+)['"`]/)?.[1]
+    const dir = testDir ? normalize(join(dirname(config), testDir)) : '.'
+    return dir === '.' || dir.startsWith('..') ? [] : [dir]
+  })
+  if (dirs.length === 0) return null
+  return {
+    name: 'playwright',
+    test_globs: dirs.flatMap((dir) => JS_TEST_GLOBS.map((glob) => `${dir}/${glob}`)),
+    test_command: PLAYWRIGHT_COMMAND,
+    report: 'junit',
+    report_file: REPORT_FILE,
+  }
+}
+
 function detectStacks(repo, packages, deps) {
   const present = {
     go: existsSync(join(repo, 'go.work')) || (tryGit(repo, ['ls-files', '--', 'go.mod', '*/go.mod']) ?? '').trim() !== '',
@@ -59,7 +86,8 @@ function detectStacks(repo, packages, deps) {
     jest: deps.has('jest'),
     'node-test': packages.some((pkg) => /node --test/.test(pkg.scripts?.test ?? '')),
   }
-  return STACKS.filter((stack) => present[stack.name])
+  const playwright = playwrightStack(repo, deps)
+  return [...(playwright ? [playwright] : []), ...STACKS.filter((stack) => present[stack.name])]
 }
 
 function detectSetup(repo) {
@@ -69,8 +97,7 @@ function detectSetup(repo) {
 
 function detectUiLayer(repo, deps) {
   if (deps.has('@playwright/test') || deps.has('playwright')) return 'playwright'
-  const configs = tryGit(repo, ['ls-files', '--', 'playwright.config.*', '*/playwright.config.*']) ?? ''
-  return configs.trim() ? 'playwright' : null
+  return playwrightConfigs(repo).length > 0 ? 'playwright' : null
 }
 
 function detectSkills(repo) {

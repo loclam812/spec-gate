@@ -33,6 +33,10 @@ Then, inside any repository: `/spec-gate:run <request>`. spec-gate triages the r
 Force a tier with `--tier t0|t1|t2`. Without the plugin, the same loop is `spec-gate run start`,
 `next`, `submit` and `status`.
 
+Test files run with Go, vitest, jest or `node --test`, and with Playwright when
+`playwright.config.*` names a `testDir`; files there go to Playwright, not to the unit runner. A
+test file its runner finds no tests in, because the runner's config leaves it out, is refused.
+
 ## Store
 
 Everything per user lives under `$SPEC_GATE_HOME` (default `~/.claude/spec-gate`), never inside

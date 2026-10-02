@@ -184,3 +184,17 @@ it('a test path outside the repository is refused before anything reads or resto
     'write-tests: /etc/hosts is outside the repository',
   ])
 })
+
+it('a test file its runner finds no tests in is refused at write-tests', () => {
+  const { repo, cli } = setup()
+  cli('start', '--request', 'The total multiplies price by quantity.', '--tier', 't1')
+  cli('submit')
+  const writer = cli('next').json
+  const quiet = { name: 'fake', test_globs: ['e2e/**/*.spec.ts'], test_command: "echo 'No tests found, exiting with code 1'; exit 1", report: null, report_file: null }
+  const profilePath = join(writer.output, '..', 'profile.json')
+  const profile = JSON.parse(readFileSync(profilePath, 'utf8'))
+  writeFileSync(profilePath, JSON.stringify({ ...profile, stacks: [quiet, ...profile.stacks] }))
+  writeFile(repo, 'e2e/total.spec.ts', "test('C1: total', () => {})\n")
+  writeFileSync(writer.output, stringify({ files: ['e2e/total.spec.ts'] }))
+  assert.match(cli('submit').json.errors[0], /^write-tests: the fake runner found no tests in e2e\/total\.spec\.ts/)
+})

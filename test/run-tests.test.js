@@ -49,4 +49,25 @@ it('a test runs from the nearest package or module root that holds its runner', 
   assert.equal(runnerRoot(repo, 'test/c1.test.js', js), '.')
   assert.equal(runnerRoot(repo, 'svc/pkg/x/a_test.go', go), 'svc')
   assert.equal(runnerRoot(repo, 'pkg/a_test.go', go), '.')
+  writeFile(repo, 'web/playwright.config.ts', 'export default {}\n')
+  assert.equal(runnerRoot(repo, 'web/tests/e2e/a.spec.ts', { name: 'playwright' }), 'web')
+})
+
+it('a JUnit report without a test case means the runner found no tests in the file', () => {
+  const excluded = {
+    stacks: [{ name: 'fake', test_globs: ['**/*.fake'], test_command: "printf '<testsuites tests=\"0\"></testsuites>' > report.xml; exit 1", report: 'junit', report_file: 'report.xml' }],
+  }
+  writeFile(repo, 'e2e/b.fake', '')
+  assert.equal(runTestFile(excluded, repo, 'e2e/b.fake').status, 'no-tests')
+  assert.equal(existsSync(join(repo, 'report.xml')), false)
+})
+
+it('a file the runner finds no tests in is no-tests, not red', () => {
+  const quiet = {
+    stacks: [{ name: 'fake', test_globs: ['**/*.fake'], test_command: "echo 'No tests found, exiting with code 1'; exit 1", report: null, report_file: null }],
+  }
+  writeFile(repo, 'e2e/a.fake', '')
+  const result = runTestFile(quiet, repo, 'e2e/a.fake')
+  assert.equal(result.status, 'no-tests')
+  assert.deepEqual(result.tests, [])
 })

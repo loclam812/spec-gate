@@ -7,7 +7,11 @@ import { stackFor } from './profile.js'
 import { renderCommand } from './replay.js'
 import { parseReport } from './reports.js'
 
-const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'] }
+const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map((ext) => `playwright.config.${ext}`)
+const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS }
+
+// What jest prints when its config leaves the file out; a JUnit runner writes no test case instead.
+const NO_TESTS = /No tests found/
 
 function ancestors(dir) {
   const parts = dir === '.' ? [] : dir.split('/')
@@ -35,7 +39,9 @@ export function runTestFile(profile, repo, file, timeoutS = 900) {
   const tests = stack.report
     ? [...parseReport(stack.report, { output: run.output, xml })].map(([name, status]) => ({ name, status }))
     : []
-  return { file, status: isGreen(run) ? 'green' : 'red', timedOut: run.timedOut, tests, output: run.output.slice(-4000) }
+  const empty = stack.report === 'junit' ? xml !== '' && !/<testcase\b/.test(xml) : NO_TESTS.test(run.output)
+  const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
+  return { file, status, timedOut: run.timedOut, tests, output: run.output.slice(-4000) }
 }
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
