@@ -15,6 +15,7 @@ const DEFAULTS = {
   skill_dir: null,
   timeout_s: 1800,
   applies_to: null,
+  needs_spec: true,
 }
 
 export const PROMPT_FILE = 'SPEC_GATE_PROMPT.md'
@@ -133,8 +134,9 @@ export function runCandidate(candidate, sample, preDir, outDir, { env = process.
     cpSync(candidate.skill_dir, join(preDir, '.claude', 'skills', skill), { recursive: true })
   }
   const prompt = renderPrompt(candidate.promptTemplate, {
-    spec: specText(sample),
-    answers: answersText(sample),
+    spec: candidate.needs_spec ? specText(sample) : '',
+    answers: candidate.needs_spec ? answersText(sample) : '',
+    feature: sample.feature ?? '',
     test_globs: sample.test_globs.join(', '),
     skill,
   })

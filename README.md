@@ -77,6 +77,7 @@ timeout_s: 600                          # optional
 report: junit                           # optional: go-json | junit — judge each test, not each file
 report_file: report.xml                 # junit only: where test_command writes the report
 support_globs: ["**/__tests__/fixtures/**"]  # optional: helpers copied into every run, never scored
+feature: order totals on the checkout page   # optional: the pointer a spec writer gets
 ```
 
 - `spec/` holds the requirement as it was **before** the bug: feature docs, the original ticket or
@@ -84,6 +85,9 @@ support_globs: ["**/__tests__/fixtures/**"]  # optional: helpers copied into eve
   the fix.
 - `answers.yaml` holds the answers a reviewer could have given **before** the bug was known.
   Write it before the first run and do not edit it afterwards.
+- A spec can be written blind: give the sample a `feature:` pointer, `prepare` it before `spec/`
+  exists, and `generate` with a candidate that has `needs_spec: false`. It sees the pointer and the
+  pre-fix tree, never the fix. Give that candidate `applies_to: []` so `batch` leaves it out.
 - Run `spec-gate eval validate <id> --repo <path>` until it prints `ok`.
 
 ## Candidates
@@ -96,7 +100,7 @@ prompt: prompt.md
 model: opus
 ```
 
-`prompt.md` uses `{{spec}}`, `{{answers}}`, `{{test_globs}}` and `{{skill}}`.
+`prompt.md` uses `{{spec}}`, `{{answers}}`, `{{feature}}`, `{{test_globs}}` and `{{skill}}`.
 
 To measure a repository's own test-writing skill, do **not** copy it from today's checkout: that
 copy postdates every fix and may already encode the lesson of the bug it is measured on. The

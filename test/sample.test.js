@@ -1,5 +1,7 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
+import { join } from 'node:path'
+import { stringify } from 'yaml'
 import { isTestPath, loadSample, sampleErrors, specText } from '../cli/lib/sample.js'
 import { makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
 
@@ -73,4 +75,14 @@ it('rejects an unknown report format and a junit report without its file', () =>
   assert.deepEqual(sampleErrors(unknown, repo), ['report must be one of go-json, junit'])
   const junit = loadSample(writeSample(tempDir(), { ...valid, report: 'junit' }))
   assert.deepEqual(sampleErrors(junit, repo), ['report junit needs report_file'])
+})
+
+it('a sample without spec or answers can still be prepared, and feature must be text', () => {
+  const dir = tempDir()
+  writeFile(join(dir, 'demo-1'), 'sample.yaml', stringify({ ...valid, feature: 'order totals on the checkout page' }))
+  const sample = loadSample(join(dir, 'demo-1'))
+  assert.deepEqual(sampleErrors(sample, repo, { docs: false }), [])
+  assert.deepEqual(sampleErrors(sample, repo), ['spec/ must contain at least one file', 'answers.yaml is missing'])
+  writeFile(join(dir, 'demo-1'), 'sample.yaml', stringify({ ...valid, feature: 42 }))
+  assert.deepEqual(sampleErrors(loadSample(join(dir, 'demo-1')), repo, { docs: false }), ['feature must be a string'])
 })

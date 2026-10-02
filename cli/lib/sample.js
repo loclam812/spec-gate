@@ -22,7 +22,7 @@ function isCommit(repoPath, sha) {
   return tryGit(repoPath, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`]) !== null
 }
 
-export function sampleErrors(sample, repoPath) {
+export function sampleErrors(sample, repoPath, { docs = true } = {}) {
   const missing = REQUIRED.filter((key) => sample[key] === undefined || sample[key] === null || sample[key] === '')
   if (missing.length > 0) return missing.map((key) => `missing field: ${key}`)
   const checks = [
@@ -31,9 +31,10 @@ export function sampleErrors(sample, repoPath) {
     [typeof sample.post_fix === 'string', 'post_fix must be a quoted string'],
     [/\{(file|dir)\}/.test(sample.test_command), 'test_command must contain {file} or {dir}'],
     [Array.isArray(sample.test_globs) && sample.test_globs.length > 0, 'test_globs must be a non-empty list'],
-    [specFiles(sample).length > 0, 'spec/ must contain at least one file'],
-    [existsSync(join(sample.dir, 'answers.yaml')), 'answers.yaml is missing'],
+    [!docs || specFiles(sample).length > 0, 'spec/ must contain at least one file'],
+    [!docs || existsSync(join(sample.dir, 'answers.yaml')), 'answers.yaml is missing'],
     [Array.isArray(sample.support_globs), 'support_globs must be a list'],
+    [sample.feature === undefined || typeof sample.feature === 'string', 'feature must be a string'],
     [sample.report === null || REPORT_FORMATS.includes(sample.report), `report must be one of ${REPORT_FORMATS.join(', ')}`],
     [sample.report !== 'junit' || typeof sample.report_file === 'string', 'report junit needs report_file'],
   ]

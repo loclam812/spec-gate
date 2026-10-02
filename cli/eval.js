@@ -44,7 +44,7 @@ const COMMANDS = {
     return errors.length === 0 ? 0 : 1
   },
   prepare(ctx, values, out) {
-    const errors = sampleErrors(ctx.sample, ctx.repo)
+    const errors = sampleErrors(ctx.sample, ctx.repo, { docs: false })
     if (errors.length > 0) throw new Error(errors.join('\n'))
     const sides = prepareWorkspace(ctx.sample, ctx.repo, ctx.work, { fresh: values.fresh })
     out.write(`pre:  ${sides.pre}\npost: ${sides.post}\n`)

@@ -139,3 +139,13 @@ it('watchedPaths reports only paths that reach a watched root, not scratch files
     join(store, 'projects'),
   ])
 })
+
+it('a spec-writing candidate gets the feature pointer and neither spec nor answers', () => {
+  const root = tempDir()
+  writeFile(root, 'candidates/blind/candidate.yaml', 'needs_spec: false\napplies_to: []\n')
+  writeFile(root, 'candidates/blind/prompt.md', 'Feature: {{feature}}\nSpec: [{{spec}}]\nAnswers: [{{answers}}]\n')
+  const bare = { ...sample, feature: 'order totals on the checkout page', dir: tempDir() }
+  const outDir = tempDir()
+  runCandidate(loadCandidate('blind', root), bare, sides.pre, outDir, { env: stubClaude('exit 0') })
+  assert.equal(readFileSync(join(outDir, 'prompt.md'), 'utf8'), 'Feature: order totals on the checkout page\nSpec: []\nAnswers: []\n')
+})
