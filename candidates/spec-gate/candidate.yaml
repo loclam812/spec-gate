@@ -1,0 +1,5 @@
+driver: spec-gate
+prompt: prompt.md
+model: sonnet
+timeout_s: 1800
+allowed_tools: [Read, Grep, Glob, Edit, Write, "Bash(go test:*)", "Bash(npx vitest:*)", "Bash(pnpm vitest:*)", "Bash(npx playwright:*)", "Bash(node --test:*)"]

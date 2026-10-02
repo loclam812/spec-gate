@@ -149,3 +149,12 @@ it('a spec-writing candidate gets the feature pointer and neither spec nor answe
   runCandidate(loadCandidate('blind', root), bare, sides.pre, outDir, { env: stubClaude('exit 0') })
   assert.equal(readFileSync(join(outDir, 'prompt.md'), 'utf8'), 'Feature: order totals on the checkout page\nSpec: []\nAnswers: []\n')
 })
+
+it('the built-in spec-gate candidate is driven, not prompted, and may run every supported runner', () => {
+  const candidate = loadCandidate('spec-gate', tempDir())
+  assert.equal(candidate.driver, 'spec-gate')
+  assert.equal(candidate.timeout_s, 1800)
+  for (const tool of ['Bash(npx vitest:*)', 'Bash(go test:*)', 'Bash(npx playwright:*)']) {
+    assert.ok(candidate.allowed_tools.includes(tool), tool)
+  }
+})

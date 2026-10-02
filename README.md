@@ -111,6 +111,12 @@ code." A sample whose `pre_fix` predates the skill measures its absence.
 
 `skill_dir` is for a skill from outside the repository; freeze it at a date before every sample.
 
+`spec-gate` is built in too: instead of one prompt it runs spec-gate's own T2 loop in the pre-fix
+tree and stops once the tests are written. The spec files are the request, BA questions are
+answered from `answers.yaml` (a question it does not settle gets `unknown — assumed: …`), Ready
+is approved, and each run keeps the loop's model, cases and decisions under `spec-gate/` and the
+cost of every agent in `cost.json`. `batch` runs it only when named with `--candidate spec-gate`.
+
 ## Running
 
 ```bash

@@ -78,4 +78,5 @@ it('the built-in baseline runs next to the store candidates by default', () => {
   const text = run('batch', '--runs', '1').text
   assert.match(text, /demo-1 other 1: caught\n/)
   assert.match(text, /demo-1 single-prompt 1: caught\n/)
+  assert.doesNotMatch(text, /spec-gate/)
 })
