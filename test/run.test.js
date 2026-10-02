@@ -145,3 +145,16 @@ it('red tests send QA back to dev, and three red rounds end the run as stuck', (
   assert.match(cli('next').json.reason, /tests still red after 3 dev rounds: test\/total\.test\.js/)
   assert.equal(readFileSync(join(repo, 'src/total.js'), 'utf8'), BUGGY_TOTAL)
 })
+
+it('a run started with --stop-after write-tests ends after the tests are written, without the suite baseline', () => {
+  const { repo, cli } = setup()
+  cli('start', '--request', 'The total multiplies price by quantity.', '--tier', 't1', '--stop-after', 'write-tests')
+  cli('submit')
+  const writer = cli('next').json
+  writeFile(repo, 'test/total.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
+  assert.equal(cli('submit').json.step, 'done')
+  const done = cli('next').json
+  assert.match(readFileSync(done.report, 'utf8'), /stopped after write-tests/)
+  assert.equal(existsSync(join(done.report, '..', 'suite-baseline.json')), false)
+})

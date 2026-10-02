@@ -198,6 +198,10 @@ function writeTests(run) {
   }
   writeJson(at(run, 'guard.json'), hashFiles(run.repo, files))
   writeJson(at(run, 'results.json'), results)
+  if (run.state.stop_after === 'write-tests') {
+    writeReport(run, { files, results, notes: [...run.state.notes, 'stopped after write-tests'] })
+    return { step: 'done' }
+  }
   writeJson(at(run, 'suite-baseline.json'), suiteFailures(run, files))
   return advance(run)
 }

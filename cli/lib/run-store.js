@@ -13,7 +13,7 @@ function newRunId(now = new Date()) {
   return `${stamp}-${randomBytes(2).toString('hex')}`
 }
 
-export function createRun(slug, env, { request, triaged, repo, firstStep }) {
+export function createRun(slug, env, { request, triaged, repo, firstStep, stopAfter = null }) {
   const id = newRunId()
   const dir = join(runsDir(slug, env), id)
   mkdirSync(dir, { recursive: true })
@@ -28,6 +28,7 @@ export function createRun(slug, env, { request, triaged, repo, firstStep }) {
     ba_iterations: 0,
     errors: [],
     notes: [],
+    stop_after: stopAfter,
   }
   writeJson(join(dir, 'state.json'), state)
   return { id, dir, state }
