@@ -8,7 +8,7 @@ import { readJson, writeJson } from './files.js'
 import { casesErrors, mentionsId, modelErrors, readyErrors, splitRequest } from './model.js'
 import { discoverProfile, screenNames, stackFor } from './profile.js'
 import { saveState } from './run-store.js'
-import { changedSince, hashFiles, runTestFile } from './run-tests.js'
+import { changedSince, hashFiles, runSuite, runTestFile, suiteTargets } from './run-tests.js'
 import { buildReport } from './trace.js'
 import { mentionsUi } from './triage.js'
 
@@ -198,7 +198,28 @@ function writeTests(run) {
   }
   writeJson(at(run, 'guard.json'), hashFiles(run.repo, files))
   writeJson(at(run, 'results.json'), results)
+  writeJson(at(run, 'suite-baseline.json'), suiteFailures(run, files))
   return advance(run)
+}
+
+function suiteFailures(run, files) {
+  const targets = suiteTargets(profileOf(run), run.repo, files)
+  return Object.fromEntries(targets.map((target) => [target.key, runSuite(run.repo, target).failing]))
+}
+
+// Only tests that passed before the change count: a suite already red at the start does not hold
+// QA back, and a suite whose failures cannot be read is noted rather than guessed at.
+function suiteRegressions(run, files) {
+  const baseline = existsSync(at(run, 'suite-baseline.json')) ? readJson(at(run, 'suite-baseline.json')) : {}
+  return suiteTargets(profileOf(run), run.repo, files).flatMap((target) => {
+    const before = baseline[target.key]
+    const now = runSuite(run.repo, target)
+    if (!Array.isArray(before) || now.failing === null) return [{ note: `suite not checked: ${target.key} (no readable results)` }]
+    const broken = now.failing.filter((name) => !before.includes(name))
+    if (broken.length === 0) return []
+    const listed = broken.map((name) => `- ${name}`).join('\n')
+    return [{ result: { file: `suite: ${target.key}`, status: 'red', timedOut: false, tests: broken.map((name) => ({ name, status: 'fail' })), output: `These tests passed before this change and now fail:\n${listed}\n\n${now.output}` } }]
+  })
 }
 
 function dev(run) {
@@ -224,13 +245,17 @@ function qa(run) {
   writeJson(at(run, 'results.json'), results)
   const untested = results.filter((result) => result.status === 'unrunnable').map((result) => `untested: ${result.file} (no test stack runs it)`)
   const red = results.filter((result) => ['red', 'no-tests'].includes(result.status))
-  if (red.length === 0) {
-    const notes = run.state.tier === 't1' ? escalationNotes(run, files) : []
+  const suite = red.length === 0 ? suiteRegressions(run, files) : []
+  const broken = suite.flatMap((entry) => (entry.result ? [entry.result] : []))
+  if (broken.length > 0) writeJson(at(run, 'results.json'), [...results, ...broken])
+  if (red.length === 0 && broken.length === 0) {
+    const notes = [...suite.flatMap((entry) => (entry.note ? [entry.note] : [])), ...(run.state.tier === 't1' ? escalationNotes(run, files) : [])]
     return { ...advance(run), patch: { notes: [...run.state.notes, ...untested, ...notes] } }
   }
+  const failing = [...red, ...broken]
   const round = run.state.round + 1
   if (round >= MAX_ROUNDS) {
-    return stuck(`tests still red after ${MAX_ROUNDS} dev rounds: ${red.map((result) => result.file).join(', ')}${devNote(run)}`, { round })
+    return stuck(`tests still red after ${MAX_ROUNDS} dev rounds: ${failing.map((result) => result.file).join(', ')}${devNote(run)}`, { round })
   }
   return { step: 'dev', patch: { round } }
 }

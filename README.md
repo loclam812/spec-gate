@@ -37,7 +37,10 @@ Test files run with Go, vitest, jest or `node --test`, and with Playwright when
 `playwright.config.*` names a `testDir`; files there go to Playwright, not to the unit runner, after
 whatever the repository's own `playwright test` script runs first (its `pre` script, or the
 commands before `playwright test`, such as a UI build). A test file its runner finds no tests in,
-because the runner's config leaves it out, is refused.
+because the runner's config leaves it out, is refused. Once the new tests pass, QA also runs the
+whole suite of each runner they use and sends dev back for any test that passed before the change
+and fails after it; tests already red at the start do not count, and jest, which has no per-test
+report here, is not checked.
 
 Triage also counts a screen of the repository as a feature and UI signal: the names of the files
 in its `screens/`, `pages/` and `views/` directories, so "Shop: show …" is a T2 when `Shop.tsx`

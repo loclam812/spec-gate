@@ -84,9 +84,11 @@ it('a Playwright config with a testDir gives a playwright stack that owns that d
   assert.equal(stackFor(profile, 'src/total.spec.ts').name, 'vitest')
 })
 
-it('a Playwright testDir is resolved from the config directory', () => {
-  const profile = discoverProfile(playwrightRepo('web/playwright.config.ts', 'export default { testDir: "./tests/e2e" }\n'))
+it('a Playwright testDir is resolved from the config directory, one per project', () => {
+  const config = 'export default { projects: [{ testDir: "./tests/e2e" }, { testDir: "harness" }] }\n'
+  const profile = discoverProfile(playwrightRepo('web/playwright.config.ts', config))
   assert.equal(stackFor(profile, 'web/tests/e2e/login.spec.ts').name, 'playwright')
+  assert.equal(stackFor(profile, 'web/harness/smoke.spec.ts').name, 'playwright')
   assert.equal(stackFor(profile, 'web/src/login.spec.ts').name, 'vitest')
 })
 
@@ -112,6 +114,9 @@ it('screen names come from the files in screens, pages and views directories', (
   writeFile(repo, 'web/src/screens/OpponentSelect.tsx', '')
   writeFile(repo, 'web/src/screens/Shop.test.tsx', '')
   writeFile(repo, 'app/pages/index.tsx', '')
+  writeFile(repo, 'app/pages/404.tsx', '')
+  writeFile(repo, 'app/pages/_app.tsx', '')
+  writeFile(repo, 'app/pages/[id].tsx', '')
   writeFile(repo, 'app/pages/order-history.vue', '')
   commitAll(repo, 'screens')
   assert.deepEqual(screenNames(repo), ['Opponent Select', 'order history', 'Shop'])

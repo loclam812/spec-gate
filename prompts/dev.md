@@ -23,7 +23,8 @@ with `TEST-WRONG:` followed by which test and why, and stop; do not work around 
 {{profile}}
 ```
 
-Run the failing tests with the profile's test command until they pass. Then write a short summary
+Run the failing tests with the profile's test command until they pass. QA also runs each runner's
+whole suite (`suite_command`): a test that passed before your change must still pass. Then write a short summary
 of what you changed, and why, to {{output}}.
 
 ## Fix these problems from your previous attempt

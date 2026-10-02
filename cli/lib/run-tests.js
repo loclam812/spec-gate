@@ -25,23 +25,44 @@ export function runnerRoot(repo, file, stack) {
   return ancestors(dirname(file)).find((dir) => markers.some((marker) => existsSync(join(repo, dir, marker)))) ?? '.'
 }
 
+function runReported(stack, cwd, command, timeoutS) {
+  const reportPath = stack.report_file ? join(cwd, stack.report_file) : null
+  if (reportPath) rmSync(reportPath, { force: true })
+  const run = runShell(command, cwd, timeoutS)
+  const xml = reportPath && existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : ''
+  if (reportPath) rmSync(reportPath, { force: true })
+  const tests = stack.report
+    ? [...parseReport(stack.report, { output: run.output, xml })].map(([name, status]) => ({ name, status }))
+    : []
+  return { run, xml, tests }
+}
+
 export function runTestFile(profile, repo, file, timeoutS = 900) {
   const stack = stackFor(profile, file)
   if (stack === null) {
     return { file, status: 'unrunnable', timedOut: false, tests: [], output: 'no test stack in the profile matches this file' }
   }
   const cwd = join(repo, runnerRoot(repo, file, stack))
-  const reportPath = stack.report_file ? join(cwd, stack.report_file) : null
-  if (reportPath) rmSync(reportPath, { force: true })
-  const run = runShell(renderCommand(stack.test_command, relative(cwd, join(repo, file))), cwd, timeoutS)
-  const xml = reportPath && existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : ''
-  if (reportPath) rmSync(reportPath, { force: true })
-  const tests = stack.report
-    ? [...parseReport(stack.report, { output: run.output, xml })].map(([name, status]) => ({ name, status }))
-    : []
+  const { run, xml, tests } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
   const empty = stack.report === 'junit' ? xml !== '' && !/<testcase\b/.test(xml) : NO_TESTS.test(run.output)
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
   return { file, status, timedOut: run.timedOut, tests, output: run.output.slice(-4000) }
+}
+
+// The whole suite of each runner the test files use, so QA sees tests the change broke elsewhere.
+// A runner without a per-test report cannot tell old failures from new ones and is left out.
+export function suiteTargets(profile, repo, files) {
+  const targets = files.flatMap((file) => {
+    const stack = stackFor(profile, file)
+    return stack?.suite_command && stack.report ? [{ key: `${stack.name} in ${runnerRoot(repo, file, stack)}`, stack, root: runnerRoot(repo, file, stack) }] : []
+  })
+  return [...new Map(targets.map((target) => [target.key, target])).values()]
+}
+
+export function runSuite(repo, { stack, root }, timeoutS = 1800) {
+  const { run, tests } = runReported(stack, join(repo, root), stack.suite_command, timeoutS)
+  const failing = run.timedOut || tests.length === 0 ? null : tests.filter((test) => test.status === 'fail').map((test) => test.name)
+  return { failing, output: run.output.slice(-4000) }
 }
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
