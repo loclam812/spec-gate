@@ -94,6 +94,12 @@ it('ui must be a boolean, and a request that names a screen must set it or ask',
   ])
 })
 
+it('a UX source may carry a note after its locator', () => {
+  const noted = { ...model, ux: { ...model.ux, source: 'existing-screen:settings/schedule-modal (TimeRangeSelect → TimePicker)' } }
+  assert.deepEqual(modelErrors(noted), [])
+  assert.ok(modelErrors({ ...model, ux: { ...model.ux, source: 'existing-screen: (somewhere)' } }).length > 0)
+})
+
 it('a UX source has a known form, and none-agreed needs the user to have said so', () => {
   assert.deepEqual(modelErrors({ ...model, ux: { ...model.ux, source: 'TBD' } }), [
     'ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed',

@@ -51,8 +51,8 @@ it('a test missing from one side counts as failing there', () => {
   assert.equal(verdict, 'caught')
 })
 
-it('a file with no reported test on either side is broken', () => {
-  assert.equal(reportedFileVerdict({ preWith: ran(2, {}), postWith: ran(2, {}) }).verdict, 'broken')
+it('a file with no reported test on either side is inconclusive: the runner never ran it', () => {
+  assert.equal(reportedFileVerdict({ preWith: ran(2, {}), postWith: ran(2, {}) }).verdict, 'inconclusive')
 })
 
 it('a timeout after the fix stays inconclusive with per-test reports', () => {

@@ -28,7 +28,9 @@ export function reportedFileVerdict({ preWith, postWith, preWithout = null, post
     const post = postWith.tests?.get(name) ?? 'missing'
     return { name, pre, post, verdict: outcome(passed(pre), passed(post)) }
   })
-  if (tests.length === 0) return { verdict: 'broken', tests }
+  // No test reported on either side means the runner never ran the file (a broken install, a file
+  // its config leaves out), which says nothing about the candidate's tests.
+  if (tests.length === 0) return { verdict: 'inconclusive', tests }
   return { verdict: BEST_FIRST.find((verdict) => tests.some((test) => test.verdict === verdict)), tests }
 }
 

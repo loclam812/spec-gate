@@ -1,6 +1,6 @@
 export const LAYERS = ['unit', 'integration', 'e2e', 'ui']
 
-const UX_SOURCE = /^(figma:|screenshot:|existing-screen:)\S+$|^none-agreed$/
+const UX_SOURCE = /^(figma:|screenshot:|existing-screen:)\S+( .*)?$|^none-agreed$/
 
 const list = (value) => (Array.isArray(value) ? value : [])
 const nonEmpty = (value) => typeof value === 'string' && value.trim() !== ''
