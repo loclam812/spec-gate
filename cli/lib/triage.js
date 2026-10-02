@@ -24,19 +24,19 @@ function mentions(text, phrase) {
   return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'iu').test(text)
 }
 
-export function triage(request, { override = null } = {}) {
+export function triage(request, { override = null, screens = [] } = {}) {
   if (override !== null) {
     if (!TIERS.includes(override)) throw new Error(`--tier must be one of ${TIERS.join(', ')}`)
     return { tier: override, reasons: ['user override'] }
   }
   const t0 = T0_SIGNALS.filter((phrase) => mentions(request, phrase))
-  const t2 = T2_SIGNALS.filter((phrase) => mentions(request, phrase))
+  const t2 = [...T2_SIGNALS, ...screens.map((screen) => screen.toLowerCase())].filter((phrase) => mentions(request, phrase))
   if (t0.length > 0 && t2.length > 0) return { tier: 't1', reasons: [`mixed signals: ${[...t0, ...t2].join(', ')}`] }
   if (t2.length > 0) return { tier: 't2', reasons: [`signals: ${t2.join(', ')}`] }
   if (t0.length > 0) return { tier: 't0', reasons: [`signals: ${t0.join(', ')}`] }
   return { tier: 't1', reasons: ['no decisive signal'] }
 }
 
-export function mentionsUi(request) {
-  return UI_SIGNALS.some((phrase) => mentions(request, phrase))
+export function mentionsUi(request, screens = []) {
+  return [...UI_SIGNALS, ...screens].some((phrase) => mentions(request, phrase))
 }

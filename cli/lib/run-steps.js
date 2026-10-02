@@ -6,7 +6,7 @@ import { renderPrompt } from './candidate.js'
 import { tryGit } from './exec.js'
 import { readJson, writeJson } from './files.js'
 import { casesErrors, mentionsId, modelErrors, readyErrors, splitRequest } from './model.js'
-import { discoverProfile, stackFor } from './profile.js'
+import { discoverProfile, screenNames, stackFor } from './profile.js'
 import { saveState } from './run-store.js'
 import { changedSince, hashFiles, runTestFile } from './run-tests.js'
 import { buildReport } from './trace.js'
@@ -62,7 +62,7 @@ function modelContext(run) {
   const request = readText(at(run, 'request.md'))
   return {
     sentenceIds: splitRequest(request).map((sentence) => sentence.id),
-    uiRequest: mentionsUi(request),
+    uiRequest: mentionsUi(request, screenNames(run.repo)),
     uxSourceAgreed: /\(about: ux-source\)/.test(readText(at(run, 'decisions.md'))),
   }
 }

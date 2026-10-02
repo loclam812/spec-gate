@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { triage } from '../cli/lib/triage.js'
+import { mentionsUi, triage } from '../cli/lib/triage.js'
 
 const cases = [
   ['Update the German translation for the checkout button', 't0'],
@@ -26,4 +26,14 @@ it('every decision carries its reason', () => {
 it('an override wins, and an unknown tier is rejected', () => {
   assert.deepEqual(triage('fix typo in README', { override: 't2' }), { tier: 't2', reasons: ['user override'] })
   assert.throws(() => triage('x', { override: 't9' }), /--tier must be one of t0, t1, t2/)
+})
+
+it('a screen the repository has counts as a T2 and UI signal', () => {
+  const screens = ['Shop', 'Opponent Select']
+  const request = 'Shop: after opening a chest, show the set it came from'
+  assert.deepEqual(triage(request, { screens }), { tier: 't2', reasons: ['signals: shop'] })
+  assert.equal(triage('pick an opponent select by tier', { screens }).tier, 't2')
+  assert.equal(triage(request).tier, 't1')
+  assert.equal(mentionsUi(request, screens), true)
+  assert.equal(mentionsUi(request), false)
 })

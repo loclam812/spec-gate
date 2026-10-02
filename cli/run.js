@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { writeJson } from './lib/files.js'
-import { discoverProfile } from './lib/profile.js'
+import { discoverProfile, screenNames } from './lib/profile.js'
 import { createRun, latestRunId, loadState, runsDir } from './lib/run-store.js'
 import { firstStep, nextInstruction, submitStep } from './lib/run-steps.js'
 import { projectDir, repoSlug } from './lib/store.js'
@@ -34,7 +34,7 @@ function start(values, rest, env, out) {
   const repo = resolve(values.repo)
   const request = values['request-file'] ? readFileSync(values['request-file'], 'utf8') : (values.request ?? rest.join(' '))
   if (!request.trim()) throw new Error('start: give the request with --request "<text>" or --request-file <path>')
-  const triaged = triage(request, { override: values.tier ?? null })
+  const triaged = triage(request, { override: values.tier ?? null, screens: screenNames(repo) })
   const created = createRun(repoSlug(repo), env, { request, triaged, repo, firstStep: firstStep(triaged.tier) })
   print(out, { run: created.id, tier: triaged.tier, reasons: triaged.reasons })
   return 0

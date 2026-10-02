@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { discoverProfile, stackFor } from '../cli/lib/profile.js'
+import { discoverProfile, screenNames, stackFor } from '../cli/lib/profile.js'
 import { commitAll, makeFixtureRepo, writeFile } from './helpers.js'
 
 function fullStackRepo() {
@@ -66,9 +66,9 @@ it('a Go module in a subdirectory still gives the go stack', () => {
   assert.deepEqual(discoverProfile(repo).stacks.map((stack) => stack.name), ['go'])
 })
 
-function playwrightRepo(configPath, config) {
+function playwrightRepo(configPath, config, scripts = {}) {
   const { repo } = makeFixtureRepo()
-  writeFile(repo, 'package.json', JSON.stringify({ devDependencies: { vitest: '5.0.3', '@playwright/test': '1.63.0' } }))
+  writeFile(repo, 'package.json', JSON.stringify({ scripts, devDependencies: { vitest: '5.0.3', '@playwright/test': '1.63.0' } }))
   writeFile(repo, configPath, config)
   commitAll(repo, 'vitest and playwright')
   return repo
@@ -94,4 +94,25 @@ it('a Playwright config without a testDir adds no stack, since it would claim ev
   const profile = discoverProfile(playwrightRepo('playwright.config.ts', 'export default defineConfig({})\n'))
   assert.deepEqual(profile.stacks.map((stack) => stack.name), ['vitest'])
   assert.equal(profile.ui_layer, 'playwright')
+})
+
+it('the playwright stack first runs what the repository runs before playwright test', () => {
+  const config = "export default { testDir: 'e2e' }\n"
+  const inline = discoverProfile(playwrightRepo('playwright.config.ts', config, { e2e: 'npm run build:ui && playwright test' }))
+  assert.match(inline.stacks[0].test_command, /^npm run build:ui && PLAYWRIGHT_JUNIT_OUTPUT_FILE=/)
+  const pre = discoverProfile(playwrightRepo('playwright.config.ts', config, { 'test:e2e': 'playwright test', 'pretest:e2e': 'vite build' }))
+  assert.match(pre.stacks[0].test_command, /^npm run pretest:e2e && PLAYWRIGHT_JUNIT_OUTPUT_FILE=/)
+  const bare = discoverProfile(playwrightRepo('playwright.config.ts', config, { e2e: 'playwright test' }))
+  assert.match(bare.stacks[0].test_command, /^PLAYWRIGHT_JUNIT_OUTPUT_FILE=/)
+})
+
+it('screen names come from the files in screens, pages and views directories', () => {
+  const { repo } = makeFixtureRepo()
+  writeFile(repo, 'web/src/screens/Shop.tsx', '')
+  writeFile(repo, 'web/src/screens/OpponentSelect.tsx', '')
+  writeFile(repo, 'web/src/screens/Shop.test.tsx', '')
+  writeFile(repo, 'app/pages/index.tsx', '')
+  writeFile(repo, 'app/pages/order-history.vue', '')
+  commitAll(repo, 'screens')
+  assert.deepEqual(screenNames(repo), ['Opponent Select', 'order history', 'Shop'])
 })
