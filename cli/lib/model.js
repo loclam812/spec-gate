@@ -29,11 +29,16 @@ function mappings(model, key) {
   }
 }
 
+export const UX_SOURCE_UNASKED = [
+  'ux.source: give a UX source or ask for one (a question with about: ux-source)',
+  "ux.source: none-agreed needs the user's answer to a question with about: ux-source",
+]
+
 function uxSourceErrors(source, asked, context) {
-  if (source === '') return asked ? [] : ['ux.source: give a UX source or ask for one (a question with about: ux-source)']
+  if (source === '') return asked ? [] : [UX_SOURCE_UNASKED[0]]
   if (!UX_SOURCE.test(source)) return ['ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed']
   if (source === 'none-agreed' && !context.uxSourceAgreed) {
-    return ["ux.source: none-agreed needs the user's answer to a question with about: ux-source"]
+    return [UX_SOURCE_UNASKED[1]]
   }
   return []
 }

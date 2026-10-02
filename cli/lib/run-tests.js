@@ -32,7 +32,7 @@ function runReported(stack, cwd, command, timeoutS) {
   const xml = reportPath && existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : ''
   if (reportPath) rmSync(reportPath, { force: true })
   const tests = stack.report
-    ? [...parseReport(stack.report, { output: run.output, xml })].map(([name, status]) => ({ name, status }))
+    ? [...parseReport(stack.report, { output: run.output, xml }, { subtests: true })].map(([name, status]) => ({ name, status }))
     : []
   return { run, xml, tests }
 }

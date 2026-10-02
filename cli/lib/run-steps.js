@@ -1,12 +1,12 @@
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parse } from 'yaml'
+import { parse, stringify } from 'yaml'
 import { renderPrompt } from './candidate.js'
 import { tryGit } from './exec.js'
 import { readJson, writeJson } from './files.js'
-import { casesErrors, mentionsId, modelErrors, readyErrors, splitRequest } from './model.js'
-import { discoverProfile, screenNames, stackFor } from './profile.js'
+import { casesErrors, mentionsId, modelErrors, readyErrors, splitRequest, UX_SOURCE_UNASKED } from './model.js'
+import { discoverProfile, stackFor } from './profile.js'
 import { saveState } from './run-store.js'
 import { changedSince, hashFiles, runSuite, runTestFile, suiteTargets } from './run-tests.js'
 import { buildReport } from './trace.js'
@@ -62,7 +62,8 @@ function modelContext(run) {
   const request = readText(at(run, 'request.md'))
   return {
     sentenceIds: splitRequest(request).map((sentence) => sentence.id),
-    uiRequest: mentionsUi(request, screenNames(run.repo)),
+    // Screen names only raise the tier: a backend request can share a word with a screen.
+    uiRequest: mentionsUi(request),
     uxSourceAgreed: /\(about: ux-source\)/.test(readText(at(run, 'decisions.md'))),
   }
 }
@@ -315,6 +316,19 @@ function finishDirect(run) {
   return { step: 'done' }
 }
 
+// Only the user can agree a UX source, and a BA that keeps writing none-agreed without asking
+// burns its retries; the CLI asks for it instead.
+function askUxSource(run, model) {
+  const question = {
+    id: 'QUX',
+    text: 'There is no Figma link, screenshot or agreed screen for this UI. What should it match: the existing screens as they are now, a design you can share, or nothing agreed yet?',
+    about: 'ux-source',
+  }
+  writeFileSync(at(run, 'model.yaml'), stringify({ ...model, questions: [...list(model.questions).filter((q) => q?.id !== 'QUX'), question] }))
+  if (run.state.ba_iterations >= MAX_ROUNDS) return stuck(`BA still had questions after ${MAX_ROUNDS} rounds`)
+  return { step: 'ask' }
+}
+
 function recordAnswers(run, answers) {
   if (!answers || !existsSync(answers)) return { errors: ['ask: pass --answers <file> with one { id, answer } per question'] }
   const parsed = (() => {
@@ -348,6 +362,7 @@ const HANDLERS = {
     const output = readOutput(run, 'model.yaml')
     if (output.errors) return output
     const errors = modelErrors(output.value, modelContext(run))
+    if (errors.length > 0 && errors.every((error) => UX_SOURCE_UNASKED.includes(error))) return askUxSource(run, output.value)
     if (errors.length > 0) return { errors }
     if (list(output.value.questions).length === 0) return advance(run)
     if (run.state.ba_iterations >= MAX_ROUNDS) return stuck(`BA still had questions after ${MAX_ROUNDS} rounds`)

@@ -35,3 +35,14 @@ it('junit reads passes, failures, errors, skips and escaped names', () => {
     ['d', 'skip'],
   ])
 })
+
+it('go-json can keep subtests, where a case id often lives', () => {
+  const output = [
+    '{"Action":"fail","Test":"TestRefund/C1:_rejects_after_the_window"}',
+    '{"Action":"fail","Test":"TestRefund"}',
+  ].join('\n')
+  assert.deepEqual([...parseReport('go-json', { output, xml: '' }, { subtests: true })], [
+    ['TestRefund/C1:_rejects_after_the_window', 'fail'],
+    ['TestRefund', 'fail'],
+  ])
+})

@@ -189,3 +189,29 @@ it('a rule basis other than request, decision or assumed is refused', () => {
   writeFileSync(cli('next').json.output, stringify({ ...MODEL, rules: [{ ...MODEL.rules[0], basis: 'code' }] }))
   assert.deepEqual(cli('submit').json.errors, ['rule R1 basis must be request, decision or assumed'])
 })
+
+it('a screen name raises the tier but does not make a backend request a UI request', () => {
+  const { repo, cli } = setup()
+  writeFile(repo, 'web/screens/Accounts.tsx', 'export const Accounts = () => null\n')
+  commitAll(repo, 'a screen named Accounts')
+  cli('start', '--request', 'Import accounts from the CDA header.', '--tier', 't2')
+  cli('submit')
+  const model = { ...MODEL, ui: false, sentences: [{ id: 'S1', text: 'Import accounts from the CDA header.', covered_by: ['R1'] }] }
+  writeFileSync(cli('next').json.output, stringify(model))
+  assert.equal(cli('submit').json.step, 'qc')
+})
+
+it('a UI model with no agreed UX source sends the question to the user instead of back to the BA', () => {
+  const { cli } = setup()
+  cli('start', '--request', 'The total multiplies price by quantity.', '--tier', 't2')
+  cli('submit')
+  const ui = { ...MODEL, ui: true, ux: { source: 'none-agreed', screens: ['cart'], states: ['empty'] } }
+  writeFileSync(cli('next').json.output, stringify(ui))
+  assert.equal(cli('submit').json.step, 'ask')
+  const ask = cli('next').json
+  assert.deepEqual(ask.questions.map((q) => [q.id, q.about]), [['QUX', 'ux-source']])
+  writeFileSync(ask.answers_file, stringify([{ id: 'QUX', answer: 'Match the screens as they are now.' }]))
+  assert.equal(cli('submit', '--answers', ask.answers_file).json.step, 'ba')
+  writeFileSync(cli('next').json.output, stringify(ui))
+  assert.equal(cli('submit').json.step, 'qc')
+})

@@ -9,7 +9,7 @@ function attribute(attrs, name) {
   return match ? decode(match[1]) : null
 }
 
-function parseGoJson(output) {
+function parseGoJson(output, { subtests = false } = {}) {
   const events = output.split('\n').flatMap((line) => {
     try {
       return [JSON.parse(line)]
@@ -18,7 +18,7 @@ function parseGoJson(output) {
     }
   })
   const finals = events.filter(
-    (event) => typeof event.Test === 'string' && !event.Test.includes('/') && ['pass', 'fail', 'skip'].includes(event.Action),
+    (event) => typeof event.Test === 'string' && (subtests || !event.Test.includes('/')) && ['pass', 'fail', 'skip'].includes(event.Action),
   )
   return new Map(finals.map((event) => [event.Test, event.Action]))
 }
@@ -35,8 +35,9 @@ function parseJunit(xml) {
   )
 }
 
-export function parseReport(format, { output, xml }) {
-  if (format === 'go-json') return parseGoJson(output)
+// Eval scores top-level tests only; a run also reads subtests, since a case id often names a t.Run.
+export function parseReport(format, { output, xml }, { subtests = false } = {}) {
+  if (format === 'go-json') return parseGoJson(output, { subtests })
   if (format === 'junit') return parseJunit(xml)
   throw new Error(`unknown report format "${format}"`)
 }
