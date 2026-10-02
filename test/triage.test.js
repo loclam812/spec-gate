@@ -12,6 +12,13 @@ const cases = [
   ['Return 404 instead of 500 when the order is missing', 't1'],
   ['dịch vụ thanh toán trả về lỗi 500', 't1'],
   ['statement totals are off by one cent', 't1'],
+  // Boundary cases: a small diff that changes who may do what is never a T0 or a T1.
+  ['Let viewers delete invoices (one-line change)', 't2'],
+  ['Only admins may export reports', 't2'],
+  ['Change the config so guests can see prices', 't2'],
+  ['cho phép người xem xoá hoá đơn', 't2'],
+  ['Rename the variable total to sum', 't0'],
+  ['Update the wording of the delete button', 't0'],
 ]
 
 for (const [request, tier] of cases) {
@@ -36,4 +43,8 @@ it('a screen the repository has counts as a T2 and UI signal', () => {
   assert.equal(triage(request).tier, 't1')
   assert.equal(mentionsUi(request, screens), true)
   assert.equal(mentionsUi(request), false)
+})
+
+it('an access signal wins over a T0 signal instead of meeting it halfway', () => {
+  assert.deepEqual(triage('Change the config so guests can see prices'), { tier: 't2', reasons: ['access: guests'] })
 })

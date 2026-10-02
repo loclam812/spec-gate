@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stringify } from 'yaml'
 import { runRun } from '../run.js'
-import { renderPrompt, watchedPaths, withHidden } from './candidate.js'
+import { renderPrompt, resultTotals, watchedPaths, withHidden } from './candidate.js'
 import { writeJson } from './files.js'
 import { answersText, specFiles } from './sample.js'
 import { resetTree } from './workspace.js'
@@ -24,18 +24,6 @@ function requestText(sample) {
     .join('\n\n')
 }
 
-function costOf(transcript) {
-  const results = transcript.split('\n').flatMap((line) => {
-    try {
-      const event = JSON.parse(line)
-      return event.type === 'result' && typeof event.total_cost_usd === 'number' ? [event.total_cost_usd] : []
-    } catch {
-      return []
-    }
-  })
-  return results.reduce((sum, usd) => sum + usd, 0)
-}
-
 function spawnAgent({ prompt, model, tools, timeoutS, cwd, home }, env, hide) {
   const result = withHidden(hide, () =>
     spawnSync(
@@ -50,7 +38,7 @@ function spawnAgent({ prompt, model, tools, timeoutS, cwd, home }, env, hide) {
     ),
   )
   const transcript = result.stdout ?? ''
-  const agent = { model, transcript, usd: costOf(transcript) }
+  const agent = { model, transcript, usd: resultTotals(transcript).usd }
   if (result.error?.code === 'ETIMEDOUT') return { ...agent, failure: `claude timed out after ${timeoutS} s` }
   if (result.status !== 0) {
     return { ...agent, failure: `claude exited ${result.status ?? result.error?.code}: ${(result.stderr ?? '').trim().slice(-500)}` }

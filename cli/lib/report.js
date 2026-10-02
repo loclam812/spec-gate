@@ -1,5 +1,6 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { resultTotals } from './candidate.js'
 import { readJson } from './files.js'
 
 const CONCLUSIVE = ['caught', 'missed', 'empty', 'inverted']
@@ -10,6 +11,11 @@ export function parseRunName(name) {
   const match = name.match(/^(.+)-(\d+)$/)
   if (!match) throw new Error(`run directory "${name}" is not <candidate>-<n>`)
   return { candidate: match[1], run: Number(match[2]) }
+}
+
+function runTotals(runDir) {
+  const path = join(runDir, 'transcript.jsonl')
+  return existsSync(path) ? resultTotals(readFileSync(path, 'utf8')) : {}
 }
 
 export function loadVerdicts(root) {
@@ -24,6 +30,7 @@ export function loadVerdicts(root) {
           sample,
           ...parseRunName(name),
           verdict: readJson(join(runsDir, name, 'verdict.json')).verdict,
+          ...runTotals(join(runsDir, name)),
         }))
     }),
   )
@@ -51,6 +58,15 @@ function rate(rows) {
   }
 }
 
+function cost(rows) {
+  const priced = rows.filter((row) => typeof row.usd === 'number')
+  const totalUsd = priced.reduce((sum, row) => sum + row.usd, 0)
+  const totalMs = priced.reduce((sum, row) => sum + (row.ms ?? 0), 0)
+  return priced.length === 0
+    ? null
+    : { measured: priced.length, totalUsd, usdPerRun: totalUsd / priced.length, minutesPerRun: totalMs / priced.length / 60000 }
+}
+
 export function summarize(records) {
   return Object.entries(groupBy(records, (row) => row.candidate)).map(([candidate, rows]) => {
     const runs = Object.entries(groupBy(rows, (row) => row.run))
@@ -63,6 +79,7 @@ export function summarize(records) {
     return {
       candidate,
       overall: rate(rows),
+      cost: cost(rows),
       runs,
       spread: rates.length > 0 ? { min: Math.min(...rates), max: Math.max(...rates) } : null,
       samples,
@@ -72,7 +89,7 @@ export function summarize(records) {
 
 const pct = (value) => (value === null ? 'n/a' : `${Math.round(value * 100)}%`)
 
-function renderCandidate({ candidate, overall, runs, spread, samples }) {
+function renderCandidate({ candidate, overall, cost: spent, runs, spread, samples }) {
   const runNumbers = Array.from({ length: Math.max(...runs.map((run) => run.run)) }, (_, index) => index + 1)
   const header = ['Sample', ...runNumbers.map((n) => `Run ${n}`)]
   const rows = samples.map((sample) => [sample.key, ...runNumbers.map((n) => sample.byRun[n] ?? '—')])
@@ -84,7 +101,10 @@ function renderCandidate({ candidate, overall, runs, spread, samples }) {
     `broken ${overall.broken}`,
     `excluded ${overall.excluded}`,
   ].join(' · ') + spreadText
-  return `## ${candidate}\n\n${rateLine}\n\n${table}\n`
+  const costLine = spent
+    ? `\n\nCost: $${spent.usdPerRun.toFixed(2)} per run, $${spent.totalUsd.toFixed(2)} in total over ${spent.measured} measured runs · ${Math.round(spent.minutesPerRun)} min per run`
+    : ''
+  return `## ${candidate}\n\n${rateLine}${costLine}\n\n${table}\n`
 }
 
 export function renderReport(summaries) {

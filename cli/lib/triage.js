@@ -12,6 +12,13 @@ const T2_SIGNALS = [
   'tính năng', 'màn hình', 'luồng', 'quyền', 'trạng thái', 'đồng thời', 'thời gian thực', 'thông báo',
 ]
 
+// Who may do what: a one-line change here is still a permission change, so these decide T2 even
+// next to a T0 word ("change the config so guests can …").
+const ACCESS_SIGNALS = [
+  'admin', 'admins', 'viewer', 'viewers', 'guest', 'guests', 'access', 'allow', 'allowed', 'deny', 'denied',
+  'cho phép', 'người xem', 'quản trị', 'truy cập',
+]
+
 const UI_SIGNALS = [
   'screen', 'page', 'dialog', 'modal', 'form', 'button', 'popup', 'layout', 'view',
   'màn hình', 'trang', 'nút', 'giao diện', 'biểu mẫu',
@@ -29,6 +36,8 @@ export function triage(request, { override = null, screens = [] } = {}) {
     if (!TIERS.includes(override)) throw new Error(`--tier must be one of ${TIERS.join(', ')}`)
     return { tier: override, reasons: ['user override'] }
   }
+  const access = ACCESS_SIGNALS.filter((phrase) => mentions(request, phrase))
+  if (access.length > 0) return { tier: 't2', reasons: [`access: ${access.join(', ')}`] }
   const t0 = T0_SIGNALS.filter((phrase) => mentions(request, phrase))
   const t2 = [...T2_SIGNALS, ...screens.map((screen) => screen.toLowerCase())].filter((phrase) => mentions(request, phrase))
   if (t0.length > 0 && t2.length > 0) return { tier: 't1', reasons: [`mixed signals: ${[...t0, ...t2].join(', ')}`] }

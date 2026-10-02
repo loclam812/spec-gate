@@ -158,3 +158,34 @@ it('a run started with --stop-after write-tests ends after the tests are written
   assert.match(readFileSync(done.report, 'utf8'), /stopped after write-tests/)
   assert.equal(existsSync(join(done.report, '..', 'suite-baseline.json')), false)
 })
+
+it('Ready shows only what the request did not settle, and points to the rest', () => {
+  const { cli } = setup()
+  cli('start', '--request', 'The total multiplies price by quantity.', '--tier', 't2')
+  cli('submit')
+  const model = {
+    ...MODEL,
+    sentences: [{ id: 'S1', text: 'The total multiplies price by quantity.', covered_by: ['R1', 'R2'] }],
+    rules: [
+      { id: 'R1', when: 'an item has price 2 and quantity 3', then: 'the total is 6', basis: 'request' },
+      { id: 'R2', when: 'the cart is empty', then: 'the total is 0', basis: 'assumed' },
+    ],
+  }
+  writeFileSync(cli('next').json.output, stringify(model))
+  cli('submit')
+  const cases = { cases: [...CASES.cases, { id: 'C2', covers: ['R2'], layer: 'unit', steps: 'empty cart', expected: '0' }] }
+  writeFileSync(cli('next').json.output, stringify(cases))
+  cli('submit')
+  const summary = readFileSync(cli('next').json.summary_file, 'utf8')
+  assert.match(summary, /## Check these\n\n- R2 \(assumed\): when the cart is empty, then the total is 0\n {2}- C2: expect 0/)
+  assert.match(summary, /1 rule straight from the request, covered by 1 case/)
+  assert.doesNotMatch(summary, /price 2 and quantity 3/)
+})
+
+it('a rule basis other than request, decision or assumed is refused', () => {
+  const { cli } = setup()
+  cli('start', '--request', 'The total multiplies price by quantity.', '--tier', 't2')
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify({ ...MODEL, rules: [{ ...MODEL.rules[0], basis: 'code' }] }))
+  assert.deepEqual(cli('submit').json.errors, ['rule R1 basis must be request, decision or assumed'])
+})

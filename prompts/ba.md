@@ -40,7 +40,7 @@ sentences:   # exactly the ids listed above
   - { id: S1, text: "…", covered_by: [R1] }
   - { id: S2, text: "…", non_testable: "a courtesy, nothing to check" }
 rules:       # observable when/then pairs
-  - { id: R1, when: "…", then: "…" }
+  - { id: R1, when: "…", then: "…", basis: request | decision | assumed }
 flows:       # what a user does, step by step
   - { id: F1, name: "…", steps: ["…", "…"] }
 ux:          # only when ui is true
@@ -51,6 +51,9 @@ questions:   # what you would otherwise guess
   - { id: Q1, text: "…", about: rule | flow | ux-source }
 ```
 
+- `basis` says where a rule comes from: `request` when the request states it, `decision` when an
+  answer in the decisions settles it, `assumed` when it is your own call. The user checks only the
+  rules that are not `request`, so never mark a guess as `request`.
 - Ask the fewest questions that settle the most rules; never ask what the decisions answer.
 - A request that touches UI without a Figma link, a screenshot or an existing screen to match gets
   a question with `about: ux-source`, unless the decisions already settle it.

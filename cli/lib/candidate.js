@@ -86,6 +86,14 @@ function parseLines(text) {
   })
 }
 
+// Every claude call ends with a result event carrying its cost and duration; a driven run's
+// transcript holds one per agent.
+export function resultTotals(transcript) {
+  const results = parseLines(transcript).filter((event) => event?.type === 'result')
+  const sum = (key) => results.reduce((total, event) => total + (typeof event[key] === 'number' ? event[key] : 0), 0)
+  return { usd: sum('total_cost_usd'), ms: sum('duration_ms') }
+}
+
 function toolPaths(transcript, root) {
   return toolUses(parseLines(transcript))
     .flatMap((use) => (use.name === 'Glob' ? [...PATH_KEYS, 'pattern'] : PATH_KEYS).map((key) => use.input?.[key]))

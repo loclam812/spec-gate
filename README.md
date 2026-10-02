@@ -28,9 +28,13 @@ Then, inside any repository: `/spec-gate:run <request>`. spec-gate triages the r
 - **T1** (one behaviour change): tests, implementation, QA.
 - **T2** (a feature, a flow, states, permissions, UI): BA asks what it must, QC derives the cases,
   you approve once at Ready, then tests, implementation, QA and a trace from every sentence of
-  your request to a green test.
+  your request to a green test. Ready lists only the rules your request did not settle (taken from
+  an answer, or assumed by the BA) with their cases; the rest is counted, and the full model and
+  cases stay in the run's files.
 
-Force a tier with `--tier t0|t1|t2`. Without the plugin, the same loop is `spec-gate run start`,
+A request that changes who may do what (admin, viewer, guest, access, allow, …) is a T2 even when
+it also reads as a T0 ("change the config so guests can …"). Every run records its tier and the
+words that decided it; `status` and the report show them. Force a tier with `--tier t0|t1|t2`. Without the plugin, the same loop is `spec-gate run start`,
 `next`, `submit` and `status`.
 
 Test files run with Go, vitest, jest or `node --test`, and with Playwright when
@@ -45,6 +49,25 @@ report here, is not checked.
 Triage also counts a screen of the repository as a feature and UI signal: the names of the files
 in its `screens/`, `pages/` and `views/` directories, so "Shop: show …" is a T2 when `Shop.tsx`
 is one.
+
+### What spec-gate adds, and what it hands to the repository
+
+spec-gate owns the part a test-writing skill does not: the BA model of the request with its
+questions, the QC cases derived from it, the Ready gate, the checks that every sentence, rule and
+UX cell has a case and every case a real test, and the trace report. Writing the test code is
+handed over: when the repository has a test-writing skill in `.claude/skills/` (a name containing
+`write-tests`, `spec-to-tests`, `test-gen` or `tdd`), the write-tests step uses it with the cases as
+its input; without one, spec-gate's own prompt writes the tests. Review goes the same way, to a
+skill whose name contains `review`. Nothing has to be installed per machine: skills are discovered
+at run time, and a repository without them still runs.
+
+### Run artifacts are single-use
+
+The model, cases, decisions and trace of a run live in the store
+(`~/.claude/spec-gate/projects/<slug>/runs/<id>/`), never in the repository. They describe the
+request and the code at the moment the run finished. Nothing keeps them in step with later
+changes: the trace is evidence for the change it was made for, at merge time, and a later request
+starts a new run. The tests themselves stay in the repository and keep guarding the behaviour.
 
 ## Store
 
@@ -124,6 +147,10 @@ spec-gate eval batch --runs 3                 # every sample in the store × eve
 spec-gate eval batch --candidate plain --sample shop-1234
 spec-gate eval report
 ```
+
+The report gives each candidate's catch rate, its `broken` count (red on both sides: a wrong test,
+the closest thing to a false positive here), and what a run costs: dollars and minutes per run,
+summed over every `claude` result in the run's transcript.
 
 `batch` prepares each sample once, skips runs that already have a verdict (so it can be rerun
 after an interruption without paying again), and stops after two `leaked` runs. It finds each

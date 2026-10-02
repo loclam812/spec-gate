@@ -102,19 +102,36 @@ function agentInstruction(run, step) {
   return { kind: 'agent', step, model: AGENTS[step].model, prompt_file: promptFile, output: at(run, AGENTS[step].output) }
 }
 
+const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
+
+// Ready shows what the request did not settle: rules that came from an answer or a guess, with the
+// cases that pin them. Rules taken straight from the request are counted, not listed; the full
+// model and cases stay in their files.
 function readySummary(run) {
   const model = readYaml(at(run, 'model.yaml')) ?? {}
   const cases = list(readYaml(at(run, 'cases.yaml'))?.cases)
+  const casesOf = (id) => cases.filter((c) => list(c.covers).includes(id))
+  const rules = list(model.rules)
+  const settled = rules.filter((rule) => rule.basis === 'request')
+  const toCheck = [...rules.filter((rule) => rule.basis === 'assumed'), ...rules.filter((rule) => !['request', 'assumed'].includes(rule.basis))]
+  const checkLines = toCheck.flatMap((rule) => [
+    `- ${rule.id} (${rule.basis ?? 'basis not given'}): when ${rule.when}, then ${rule.then}`,
+    ...casesOf(rule.id).map((c) => `  - ${c.id}: expect ${c.expected}`),
+  ])
+  const settledCases = new Set(settled.flatMap((rule) => casesOf(rule.id).map((c) => c.id)))
   const lines = [
     '# Ready to build',
     '',
-    `${list(model.sentences).length} sentences, ${list(model.rules).length} rules, ${list(model.flows).length} flows, ${cases.length} cases.`,
+    `${plural(list(model.sentences).length, 'sentence')}, ${plural(rules.length, 'rule')}, ${plural(list(model.flows).length, 'flow')}, ${plural(cases.length, 'case')}.`,
+    ...(model.ui === true ? [`UX source: ${model.ux?.source}; screens: ${list(model.ux?.screens).join(', ')}`] : []),
     '',
-    ...list(model.rules).map((rule) => `- ${rule.id}: when ${rule.when}, then ${rule.then}`),
-    ...list(model.flows).map((flow) => `- ${flow.id}: ${flow.name} — ${list(flow.steps).join(' → ')}`),
-    ...(model.ui === true ? [`- UX source: ${model.ux?.source}; screens: ${list(model.ux?.screens).join(', ')}`] : []),
+    '## Check these',
     '',
-    ...cases.map((c) => `- ${c.id} [${c.layer}] covers ${list(c.covers).join(', ')}: expect ${c.expected}`),
+    ...(checkLines.length > 0 ? checkLines : ['Nothing: every rule comes straight from the request.']),
+    '',
+    '## Settled by the request',
+    '',
+    `${plural(settled.length, 'rule')} straight from the request, covered by ${plural(settledCases.size, 'case')}; ${plural(list(model.flows).length, 'flow')}. Full model: ${at(run, 'model.yaml')}; cases: ${at(run, 'cases.yaml')}.`,
   ]
   writeFileSync(at(run, 'ready.md'), `${lines.join('\n')}\n`)
   return at(run, 'ready.md')

@@ -1,5 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeJson } from '../cli/lib/files.js'
 import { loadVerdicts, parseRunName, renderReport, summarize } from '../cli/lib/report.js'
@@ -65,4 +66,28 @@ it('loadVerdicts walks projects, samples and runs', () => {
 it('parseRunName rejects a directory without a run number', () => {
   assert.deepEqual(parseRunName('my-skill-12'), { candidate: 'my-skill', run: 12 })
   assert.throws(() => parseRunName('single-prompt'), /not <candidate>-<n>/)
+})
+
+it('each run carries the cost and time of every claude result in its transcript', () => {
+  const root = tempDir()
+  const runDir = join(root, 'projects', 'p1', 'eval', 's1', 'runs', 'single-prompt-1')
+  writeJson(join(runDir, 'verdict.json'), { verdict: 'caught' })
+  writeFileSync(
+    join(runDir, 'transcript.jsonl'),
+    '{"type":"result","total_cost_usd":0.5,"duration_ms":60000}\nnot json\n{"type":"result","total_cost_usd":0.25,"duration_ms":30000}\n',
+  )
+  assert.deepEqual(loadVerdicts(root), [
+    { project: 'p1', sample: 's1', candidate: 'single-prompt', run: 1, verdict: 'caught', usd: 0.75, ms: 90000 },
+  ])
+})
+
+it('the report prints what a run costs in money and time', () => {
+  const priced = [
+    { project: 'p1', sample: 's1', candidate: 'c', run: 1, verdict: 'caught', usd: 1, ms: 120000 },
+    { project: 'p1', sample: 's1', candidate: 'c', run: 2, verdict: 'missed', usd: 0.5, ms: 240000 },
+    { project: 'p1', sample: 's2', candidate: 'c', run: 1, verdict: 'missed' },
+  ]
+  const [summary] = summarize(priced)
+  assert.deepEqual(summary.cost, { measured: 2, totalUsd: 1.5, usdPerRun: 0.75, minutesPerRun: 3 })
+  assert.match(renderReport([summary]), /Cost: \$0\.75 per run, \$1\.50 in total over 2 measured runs · 3 min per run/)
 })

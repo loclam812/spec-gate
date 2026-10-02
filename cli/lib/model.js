@@ -63,6 +63,9 @@ function sentenceSetErrors(sentences, context) {
   ]
 }
 
+// Where a rule comes from: the request itself, an answer recorded at Ask, or the BA's own guess.
+export const BASES = ['request', 'decision', 'assumed']
+
 export function modelErrors(model, context = {}) {
   if (!isMapping(model)) return ['model.yaml is not a YAML mapping']
   const [sentences, rules, flows, questions] = ['sentences', 'rules', 'flows', 'questions'].map((key) => mappings(model, key))
@@ -80,6 +83,7 @@ export function modelErrors(model, context = {}) {
     ...uncovered.map((s) => `sentence ${s.id} is covered by nothing`),
     ...sentences.valid.flatMap((s) => list(s.covered_by).filter((ref) => !known.has(ref)).map((ref) => `sentence ${s.id} refers to unknown ${ref}`)),
     ...rules.valid.filter((rule) => !nonEmpty(rule.when) || !nonEmpty(rule.then)).map((rule) => `rule ${rule.id} needs both when and then`),
+    ...rules.valid.filter((rule) => rule.basis !== undefined && !BASES.includes(rule.basis)).map((rule) => `rule ${rule.id} basis must be request, decision or assumed`),
     ...flows.valid.filter((flow) => list(flow.steps).length === 0).map((flow) => `flow ${flow.id} has no steps`),
     ...uiErrors(model, questions.valid, context),
   ]
