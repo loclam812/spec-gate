@@ -16,6 +16,7 @@ const DEFAULTS = {
   timeout_s: 1800,
   applies_to: null,
   needs_spec: true,
+  driver: null,
 }
 
 export const PROMPT_FILE = 'SPEC_GATE_PROMPT.md'
@@ -117,7 +118,7 @@ export function watchedPaths(transcript, root, watched) {
 
 // Hidden trees are made unreadable for the run so the candidate cannot open the fixed code;
 // prepareWorkspace restores access if a run dies before the finally block.
-function withHidden(paths, run) {
+export function withHidden(paths, run) {
   const modes = paths.filter(existsSync).map((path) => [path, statSync(path).mode & 0o777])
   for (const [path] of modes) chmodSync(path, 0o000)
   try {

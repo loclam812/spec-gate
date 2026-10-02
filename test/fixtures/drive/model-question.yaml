@@ -1,0 +1,14 @@
+ui: false
+sentences:
+  - id: S1
+    text: The order total is the sum of price times quantity.
+    covered_by: [R1]
+rules:
+  - id: R1
+    when: an item has price 2 and quantity 3
+    then: the total is 6
+flows: []
+questions:
+  - id: Q1
+    text: Is the total rounded to cents?
+    about: rule

@@ -1,0 +1,8 @@
+ui: false
+sentences:
+  - id: S1
+    text: The order total is the sum of price times quantity.
+    covered_by: [R1]
+rules: []
+flows: []
+questions: []

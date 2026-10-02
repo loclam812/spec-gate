@@ -1,0 +1,6 @@
+cases:
+  - id: C1
+    covers: [R1]
+    layer: unit
+    steps: total one line
+    expected: "6"

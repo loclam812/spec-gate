@@ -12,7 +12,7 @@ export function loadSample(dir) {
   return { ...DEFAULTS, ...parsed, dir }
 }
 
-function specFiles(sample) {
+export function specFiles(sample) {
   const specDir = join(sample.dir, 'spec')
   if (!existsSync(specDir)) return []
   return readdirSync(specDir).filter((name) => !name.startsWith('.')).sort()
