@@ -226,7 +226,7 @@ function qa(run) {
   return { step: 'dev', patch: { round } }
 }
 
-function verify(run) {
+function writeReport(run, { files, results, notes }) {
   const t2 = run.state.tier === 't2'
   const { markdown, complete } = buildReport({
     runId: run.state.id,
@@ -235,14 +235,29 @@ function verify(run) {
     request: readText(at(run, 'request.md')),
     model: t2 ? readYaml(at(run, 'model.yaml')) : null,
     casesDoc: t2 ? readYaml(at(run, 'cases.yaml')) : null,
-    files: Object.keys(readJson(at(run, 'guard.json'))),
-    results: readJson(at(run, 'results.json')),
-    notes: run.state.notes,
+    files,
+    results,
+    notes,
     review: readText(at(run, 'review.md')) || null,
     repo: run.repo,
   })
   writeFileSync(at(run, 'report.md'), markdown)
+  return complete
+}
+
+function verify(run) {
+  const complete = writeReport(run, {
+    files: Object.keys(readJson(at(run, 'guard.json'))),
+    results: readJson(at(run, 'results.json')),
+    notes: run.state.notes,
+  })
   return { step: 'done', patch: { complete } }
+}
+
+function finishDirect(run) {
+  const note = 'T0: changed directly by the session; spec-gate wrote and ran no tests.'
+  writeReport(run, { files: [], results: [], notes: [...run.state.notes, note] })
+  return { step: 'done' }
 }
 
 function recordAnswers(run, answers) {
@@ -265,7 +280,7 @@ function recordAnswers(run, answers) {
 }
 
 const HANDLERS = {
-  direct: () => ({ step: 'done' }),
+  direct: finishDirect,
   discover(run) {
     const profile = discoverProfile(run.repo)
     writeJson(at(run, 'profile.json'), profile)

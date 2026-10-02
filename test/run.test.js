@@ -36,6 +36,9 @@ it('a T0 request is handed back to the session and finishes on submit', () => {
   assert.equal(cli('start', '--request', 'fix typo in README').json.tier, 't0')
   assert.equal(cli('next').json.kind, 'direct')
   assert.equal(cli('submit').json.step, 'done')
+  const done = cli('next').json
+  assert.equal(done.kind, 'done')
+  assert.match(readFileSync(done.report, 'utf8'), /\*\*Tier:\*\* t0[\s\S]*T0: changed directly/)
 })
 
 it('a T2 request runs discover → BA → QC → Ready → tests → dev → QA → verify to a green trace', () => {

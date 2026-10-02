@@ -23,7 +23,8 @@ claude plugin install spec-gate@spec-gate
 
 Then, inside any repository: `/spec-gate:run <request>`. spec-gate triages the request:
 
-- **T0** (translations, copy, config, docs, a few lines): nothing from spec-gate — make the change.
+- **T0** (translations, copy, config, docs, a few lines): nothing from spec-gate — make the change; the run
+  report only records that it was made directly.
 - **T1** (one behaviour change): tests, implementation, QA.
 - **T2** (a feature, a flow, states, permissions, UI): BA asks what it must, QC derives the cases,
   you approve once at Ready, then tests, implementation, QA and a trace from every sentence of
