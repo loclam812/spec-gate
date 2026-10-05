@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { didNotLoad } from './run-tests.js'
 import { mentionsId, uxCells } from './model.js'
 
 const list = (value) => (Array.isArray(value) ? value : [])
@@ -8,7 +9,7 @@ function fileCaseStatus(id, result) {
   if (result.status === 'unrunnable') return 'untested'
   if (result.tests.length === 0) return result.status
   const named = result.tests.filter((test) => mentionsId(test.name, id))
-  if (named.length === 0) return 'no test'
+  if (named.length === 0) return didNotLoad(result, [id]) ? 'red' : 'no test'
   if (named.some((test) => test.status === 'fail')) return 'red'
   return named.every((test) => test.status === 'pass') ? 'green' : 'skipped'
 }
@@ -55,6 +56,21 @@ function traceSection(model, casesDoc, context) {
   ]
   const gaps = [...sentenceRows, ...uxRows].filter((row) => row.result !== 'green').map((row) => `- ${row.key}: ${row.result}`)
   return { sections, gaps }
+}
+
+export function buildTrace({ casesDoc, repo, files, results }) {
+  const context = { repo, files, results }
+  const rows = list(casesDoc?.sentences).map((sentence) => {
+    const label = `${sentence.id}: ${sentence.text}`
+    const ids = list(sentence.cases)
+    if (ids.length === 0) return { cells: [label, '', `not testable: ${sentence.non_testable ?? 'no reason given'}`], gap: false, key: sentence.id }
+    const result = combined(ids.map((id) => caseStatus(id, context)))
+    return { cells: [label, ids.join(', '), result], gap: result !== 'green', key: sentence.id, result }
+  })
+  return {
+    section: `## Requirement → test\n\n${table(['Sentence', 'Cases', 'Result'], rows.map((row) => row.cells))}`,
+    gaps: rows.filter((row) => row.gap).map((row) => `- ${row.key}: ${row.result}`),
+  }
 }
 
 export function buildReport({ runId, tier, reasons, request, model, casesDoc, files, results, notes, repo, review = null }) {

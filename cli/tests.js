@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util'
 import { screenNames } from './lib/profile.js'
 import { riskSignals } from './lib/risk.js'
 import { createRun, latestRunId, loadState, runsDir } from './lib/run-store.js'
+import { verifyRun } from './lib/verify.js'
 import { nextInstruction, submitStep } from './lib/tests-steps.js'
 import { repoSlug } from './lib/store.js'
 
@@ -56,4 +57,13 @@ export function runTests(argv, { env = process.env, out = process.stdout } = {})
     return 0
   }
   throw new Error(USAGE)
+}
+
+export function runVerify(argv, { env = process.env, out = process.stdout } = {}) {
+  const { values } = parseArgs({ args: argv, options: OPTIONS })
+  const run = openRun(values, env)
+  if (run.state.step !== 'done') throw new Error(`verify: run ${run.state.id} is at step ${run.state.step}; finish spec-gate tests first`)
+  const { ok } = verifyRun(run)
+  print(out, { ok, report: join(run.dir, 'verify.md') })
+  return ok ? 0 : 1
 }

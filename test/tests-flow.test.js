@@ -3,31 +3,8 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
-import { runTests } from '../cli/tests.js'
-import { BUGGY_TOTAL, commitAll, makeFixtureRepo, tempDir, writeFile } from './helpers.js'
-
-const REQUEST = 'The total multiplies price by quantity.'
-const CASES = {
-  ui: false,
-  sentences: [{ id: 'S1', text: REQUEST, cases: ['C1'] }],
-  cases: [{ id: 'C1', when: 'an item has price 2 and quantity 3', then: 'the total is 6', basis: 'request', risk: 'high', layer: 'unit' }],
-  questions: [],
-}
-const C1_TEST = "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { total } from '../src/total.js'\n\ntest('C1: total multiplies price by quantity', () => {\n  assert.equal(total([{ price: 2, qty: 3 }]), 6)\n})\n"
-
-function setup() {
-  const { repo } = makeFixtureRepo()
-  writeFile(repo, 'package.json', JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }))
-  writeFile(repo, 'src/total.js', BUGGY_TOTAL)
-  commitAll(repo, 'test script, total not yet multiplying by quantity')
-  const env = { ...process.env, SPEC_GATE_HOME: tempDir('sg-home-') }
-  const cli = (...argv) => {
-    const chunks = []
-    const code = runTests([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })
-    return { code, json: JSON.parse(chunks.join('')) }
-  }
-  return { repo, env, cli }
-}
+import { writeFile } from './helpers.js'
+import { C1_TEST, CASES, REQUEST, setup } from './tests-helpers.js'
 
 it('spec-to-tests runs discover → blind QC → Ready → write-tests and ends with a suite snapshot', () => {
   const { repo, cli } = setup()
