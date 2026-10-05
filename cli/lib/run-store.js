@@ -13,25 +13,12 @@ function newRunId(now = new Date()) {
   return `${stamp}-${randomBytes(2).toString('hex')}`
 }
 
-export function createRun(slug, env, { request, triaged, repo, firstStep, stopAfter = null, signals }) {
+export function createRun(slug, env, { request, repo, signals }) {
   const id = newRunId()
   const dir = join(runsDir(slug, env), id)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'request.md'), `${request.trim()}\n`)
-  const state = signals
-    ? { id, repo, step: 'discover', signals, attempts: 0, qc_rounds: 0, errors: [], notes: [] }
-    : {
-    id,
-    repo,
-    tier: triaged.tier,
-    reasons: triaged.reasons,
-    step: firstStep,
-    round: 0,
-    ba_iterations: 0,
-    errors: [],
-    notes: [],
-    stop_after: stopAfter,
-  }
+  const state = { id, repo, step: 'discover', signals, attempts: 0, qc_rounds: 0, errors: [], notes: [] }
   writeJson(join(dir, 'state.json'), state)
   return { id, dir, state }
 }
@@ -42,7 +29,7 @@ export function latestRunId(slug, env, repo) {
   const dir = runsDir(slug, env)
   const ids = existsSync(dir) ? readdirSync(dir).sort() : []
   const mine = ids.filter((id) => readJson(join(dir, id, 'state.json')).repo === repo)
-  if (mine.length === 0) throw new Error('no run yet in this working tree; start one with: spec-gate tests start --request "<request>" (or spec-gate run start --request "<request>")')
+  if (mine.length === 0) throw new Error('no run yet in this working tree; start one with: spec-gate tests start --request "<request>"')
   return mine[mine.length - 1]
 }
 

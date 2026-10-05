@@ -1,8 +1,8 @@
 # spec-gate
 
-Turns a requirement into a model, a blind oracle and executable tests, gated before
-implementation. This repository currently holds milestone M0: the evaluation harness that measures
-how many real, already-fixed bugs a test generator would have caught.
+Three Claude Code skills that put tests before code and check the result afterwards, backed by a
+deterministic CLI, plus an evaluation harness that measures how many real, already-fixed bugs a
+test generator would have caught.
 
 ## Install
 
@@ -14,60 +14,119 @@ npm test
 
 Requires Node 26+, git, tar, perl, and the Claude Code CLI for `generate`.
 
-## Use it as a Claude Code plugin
-
 ```bash
 claude plugin marketplace add <path-to-spec-gate>
 claude plugin install spec-gate@spec-gate
 ```
 
-Then, inside any repository: `/spec-gate:run <request>`. spec-gate triages the request:
+## The skills
 
-- **T0** (translations, copy, config, docs, a few lines): nothing from spec-gate — make the change; the run
-  report only records that it was made directly.
-- **T1** (one behaviour change): tests, implementation, QA.
-- **T2** (a feature, a flow, states, permissions, UI): BA asks what it must, QC derives the cases,
-  you approve once at Ready, then tests, implementation, QA and a trace from every sentence of
-  your request to a green test. Ready lists only the rules your request did not settle (taken from
-  an answer, or assumed by the BA) with their cases; the rest is counted, and the full model and
-  cases stay in the run's files.
+| Skill | When | Does |
+|---|---|---|
+| `/spec-gate:spec-to-tests <request>` | before implementing | a blind QC derives cases from the request, asks only about risky gaps, you approve once at Ready, then tests are written and proven red for the right reason |
+| `/spec-gate:verify-changes` | after implementing | the test files are unchanged, the new tests pass, the whole suite is compared with its state before the change, and a report traces every sentence of the request to a result |
+| `/spec-gate:learn-project` | first use in a repository, or when migrating an old test-writing skill | drafts the repository's testing knowledge file for you to review |
 
-A request that changes who may do what (admin, viewer, guest, access, allow, …) is a T2 even when
-it also reads as a T0 ("change the config so guests can …"). Every run records its tier and the
-words that decided it; `status` and the report show them. Force a tier with `--tier t0|t1|t2`. Without the plugin, the same loop is `spec-gate run start`,
-`next`, `submit` and `status`.
+Each run spawns agents and costs money, so the skills offer themselves and ask before running.
 
-Test files run with Go, vitest, jest or `node --test`, and with Playwright when
-`playwright.config.*` names a `testDir`; files there go to Playwright, not to the unit runner, after
-whatever the repository's own `playwright test` script runs first (its `pre` script, or the
-commands before `playwright test`, such as a UI build). A test file its runner finds no tests in,
-because the runner's config leaves it out, is refused. Once the new tests pass, QA also runs the
-whole suite of each runner they use and sends dev back for any test that passed before the change
-and fails after it; tests already red at the start do not count, and jest, which has no per-test
-report here, is not checked.
+### The flow
 
-Triage also counts a screen of the repository as a feature and UI signal: the names of the files
-in its `screens/`, `pages/` and `views/` directories, so "Checkout: show …" is a T2 when `Checkout.tsx`
-is one.
+```
+spec-to-tests:   discover → qc ⇄ ask → ready → write-tests → check → done
+verify-changes:  guarded files unchanged → new tests green → suites compared → verify.md
+```
 
-### What spec-gate adds, and what it hands to the repository
+- **discover** reads the repository's test stacks (Go, vitest, jest, `node --test`, Playwright) and
+  scores the request's risk: access words, screen and feature signals.
+- **qc** is blind: the QC agent reads only a packet (the request, the knowledge file's Domain terms,
+  the repository's user-facing strings, route and screen names, the names of existing tests), never
+  application code. It returns `cases.yaml`: each request sentence with the cases that cover it,
+  each case with `when`, `then`, its basis (`request`, `decision` or `assumed`), risk and layer, and
+  questions only for high-risk points the request does not settle. Cases scale with risk: 8–15 at low risk, 15–25 at high risk, never more than 30 (more are refused).
+- **ask** puts those questions to you (at most four per round); the answers become decisions and
+  QC runs again. When the request touches a UI, the CLI asks for the UX source (a Figma link, a
+  screenshot, an existing screen) if none was given.
+- **ready** shows only the `assumed` and `decision` cases, with their expectations, and counts the
+  rest. You approve or reject with a reason.
+- **write-tests**: the test writer gets the cases, the knowledge file and the code. Every test
+  name carries its case id; expectations are copied, never changed, and a case the writer thinks is
+  wrong is reported as disputed.
+- **check** runs each test file once. It accepts when every case has a test and every red test
+  fails on an assertion, not on an import, a missing module, a setup error or a timeout. Green tests
+  are allowed and listed. Otherwise the writer gets the failures and up to two more attempts, then the run is
+  `stuck` with the reason.
+- **done** snapshots the failing tests of each runner's whole suite and writes `report.md`.
 
-spec-gate owns the part a test-writing skill does not: the BA model of the request with its
-questions, the QC cases derived from it, the Ready gate, the checks that every sentence, rule and
-UX cell has a case and every case a real test, and the trace report. Writing the test code is
-handed over: when the repository has a test-writing skill in `.claude/skills/` (a name containing
-`write-tests`, `spec-to-tests`, `test-gen` or `tdd`), the write-tests step uses it with the cases as
-its input; without one, spec-gate's own prompt writes the tests. Review goes the same way, to a
-skill whose name contains `review`. Nothing has to be installed per machine: skills are discovered
-at run time, and a repository without them still runs.
+Test files run with Go, vitest, jest or `node --test`, and with Playwright when `playwright.config.*`
+names a `testDir`. A test file its runner finds no tests in, because the runner's config leaves it
+out, is refused, as is one no stack runs. `verify-changes` reruns the whole suite of each runner
+the new tests use; a test that passed in the snapshot and fails now is a regression, and tests
+already red at the start do not count. jest has no per-test report here, so its suite is noted,
+not compared. `spec-gate verify` exits non-zero when anything is red.
 
-### Run artifacts are single-use
+### What it writes where
 
-The model, cases, decisions and trace of a run live in the store
-(`~/.claude/spec-gate/projects/<slug>/runs/<id>/`), never in the repository. They describe the
-request and the code at the moment the run finished. Nothing keeps them in step with later
-changes: the trace is evidence for the change it was made for, at merge time, and a later request
-starts a new run. The tests themselves stay in the repository and keep guarding the behaviour.
+The store (`~/.claude/spec-gate/projects/<slug>/runs/<id>/`, see below) holds everything of a run:
+`request.md`, `profile.json`, `risk.json`, `knowledge.md` (a snapshot), `qc-packet.md`,
+`cases.yaml`, `decisions.md`, `ready.md`, `tests.yaml`, `results.json`, the guarded test files,
+`suite-baseline.json`, `report.md` and `verify.md`. The repository gets only the test files and,
+if you choose, the knowledge file. Run artifacts are single-use: they describe the request and the
+code at one moment, nothing keeps them in step with later changes, and a later request starts a new
+run. The tests stay in the repository and keep guarding the behaviour.
+
+### The knowledge file
+
+`.claude/testing.md` in the repository (tracked or git-excluded), else
+`~/.claude/spec-gate/projects/<slug>/knowledge.md`; at most about 200 lines, with these sections:
+
+```markdown
+# Testing knowledge: <repository>
+## Run
+## Where tests go
+## Helpers and fixtures
+## Mocking rules
+## Known traps
+## Domain terms
+```
+
+The test writer reads all of it; the blind QC reads only Domain terms. `learn-project` cites a
+source for each section ("from vitest.config.ts", "from the old <skill> skill").
+
+```bash
+spec-gate knowledge path                      # where it is, or where it would go
+spec-gate knowledge check --file <path>       # are all six sections there
+spec-gate knowledge draft [--old-skill <dir>] # the prompt and output path for the learn-project agent
+```
+
+### What a run costs
+
+Two kinds of agent run: the QC (opus, once per round) and the test writer (sonnet, once, plus a
+retry per failed check). A `spec-to-tests` run is estimated at about $2, not yet measured; `verify-changes` and the CLI
+steps spawn no agent. Under `eval`, every agent's cost is recorded in the run's `cost.json`.
+
+### CLI
+
+```bash
+spec-gate tests start --request "<text>" | --request-file <path>
+spec-gate tests next | submit | status --run <id>
+spec-gate verify --run <id>
+spec-gate knowledge path | check | draft
+spec-gate profile                              # the repository's test stacks
+spec-gate eval …                               # the evaluation harness below
+```
+
+### Suggesting the skills
+
+spec-gate never edits your CLAUDE.md. To have Claude offer the skills at the right moment, copy
+this into yours:
+
+```markdown
+**Tests from a requirement / gate before merge** (spec-gate plugin):
+- Feature request or AC, tests before code -> offer `spec-gate:spec-to-tests` (ask first; ~$2/run)
+- After implementing against those tests -> offer `spec-gate:verify-changes`
+- Small fix, one behaviour -> test-driven development as today, not spec-gate
+- First use in a repo -> `spec-gate:learn-project`
+```
 
 ## Store
 

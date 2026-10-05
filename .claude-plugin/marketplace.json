@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "spec-gate",
-      "description": "Triage a request, then run BA, QC, tests, implementation, QA and BA verify with deterministic gates.",
+      "description": "Three skills around a feature request: spec-to-tests, verify-changes and learn-project.",
       "version": "0.1.0",
       "source": "./",
       "author": {

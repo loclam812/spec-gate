@@ -11,7 +11,7 @@ The CLI is `node "${CLAUDE_PLUGIN_ROOT}/cli/spec-gate.js"`, written `spec-gate` 
 command from the repository root; each prints JSON. Never edit files under `~/.claude/spec-gate/`
 by hand, except the `answers_file` the CLI names, and never commit or push.
 
-1. Write the request to a temporary file, then `spec-gate tests start --request-file <file>` (so quotes,
+1. Write the request to a temporary file outside the repository (`mktemp`, under `$TMPDIR`), then `spec-gate tests start --request-file <file>` (so quotes,
    `$` and backticks survive); keep the `run` id and pass `--run <id>` to every
    later command. If `spec-gate knowledge path` says none was found, tell the user once that
    `/spec-gate:learn-project` would make the tests fit the repository better, and go on.

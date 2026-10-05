@@ -49,3 +49,20 @@ it('Ready lists only assumed and decision cases and counts the rest', () => {
   assert.match(text, /1 case straight from the request\. All cases: \/run\/cases\.yaml/)
   assert.doesNotMatch(text, /it waits for approval/)
 })
+
+const withSource = (source, context = CONTEXT) =>
+  casesDocErrors({ ...DOC, ui: true, ux: { source, screens: ['refund dialog'], states: ['error'] } }, { ...context, uiRequest: true })
+
+it('a UX source has a known form, and none-agreed needs the user to have said so', () => {
+  for (const source of ['figma:https://example.test/file/1', 'screenshot:docs/refund.png', 'existing-screen:/orders/:id']) {
+    assert.deepEqual(withSource(source), [], source)
+  }
+  assert.deepEqual(withSource('TBD'), ['ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed'])
+  assert.deepEqual(withSource('none-agreed'), ["ux.source: none-agreed needs the user's answer to a question with about: ux-source"])
+  assert.deepEqual(withSource('none-agreed', { ...CONTEXT, uxSourceAgreed: true }), [])
+})
+
+it('a UX source may carry a note after its locator, but not stand without one', () => {
+  assert.deepEqual(withSource('existing-screen:orders/refund-dialog (RefundForm → AmountField)'), [])
+  assert.equal(withSource('existing-screen: (somewhere)').length, 1)
+})

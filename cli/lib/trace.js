@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { didNotLoad } from './run-tests.js'
-import { mentionsId, uxCells } from './model.js'
+import { mentionsId } from './text.js'
 
 const list = (value) => (Array.isArray(value) ? value : [])
 function fileCaseStatus(id, result) {
@@ -30,32 +30,8 @@ function combined(statuses) {
   return statuses.find((status) => status !== 'green')
 }
 
-function casesFor(casesDoc, targets) {
-  return list(casesDoc?.cases).filter((c) => list(c.covers).some((ref) => targets.includes(ref)))
-}
-
 function table(header, rows) {
   return [header, header.map(() => '---'), ...rows].map((cells) => `| ${cells.join(' | ')} |`).join('\n')
-}
-
-function traceSection(model, casesDoc, context) {
-  const statusOf = (c) => caseStatus(c.id, context)
-  const sentenceRows = list(model.sentences).map((sentence) => {
-    const cases = casesFor(casesDoc, list(sentence.covered_by))
-    const result = combined(cases.map(statusOf))
-    return { key: sentence.id, result, cells: [`${sentence.id}: ${sentence.text}`, list(sentence.covered_by).join(', '), cases.map((c) => c.id).join(', '), result] }
-  })
-  const uxRows = uxCells(model).map((cell) => {
-    const cases = casesFor(casesDoc, [cell])
-    const result = combined(cases.map(statusOf))
-    return { key: cell, result, cells: [cell, cases.map((c) => c.id).join(', '), result] }
-  })
-  const sections = [
-    `## Requirement → test\n\n${table(['Sentence', 'Covered by', 'Cases', 'Result'], sentenceRows.map((row) => row.cells))}`,
-    ...(uxRows.length > 0 ? [`## UX\n\n${table(['Cell', 'Cases', 'Result'], uxRows.map((row) => row.cells))}`] : []),
-  ]
-  const gaps = [...sentenceRows, ...uxRows].filter((row) => row.result !== 'green').map((row) => `- ${row.key}: ${row.result}`)
-  return { sections, gaps }
 }
 
 export function buildTrace({ casesDoc, repo, files, results }) {
@@ -71,22 +47,4 @@ export function buildTrace({ casesDoc, repo, files, results }) {
     section: `## Requirement → test\n\n${table(['Sentence', 'Cases', 'Result'], rows.map((row) => row.cells))}`,
     gaps: rows.filter((row) => row.gap).map((row) => `- ${row.key}: ${row.result}`),
   }
-}
-
-export function buildReport({ runId, tier, reasons, request, model, casesDoc, files, results, notes, repo, review = null }) {
-  const context = { repo, files, results }
-  const traced = model ? traceSection(model, casesDoc, context) : { sections: [], gaps: [] }
-  const fileRows = files.map((file) => [file, results.find((entry) => entry.file === file)?.status ?? 'not run'])
-  const fileGaps = fileRows.filter(([, status]) => status !== 'green').map(([file, status]) => `- ${file}: ${status}`)
-  const gaps = [...traced.gaps, ...(model ? [] : fileGaps)]
-  const markdown = [
-    `# spec-gate run ${runId}`,
-    `**Request:** ${request.split('\n')[0]}\n\n**Tier:** ${tier} — ${reasons.join('; ')}`,
-    ...traced.sections,
-    `## Test files\n\n${table(['File', 'Result'], fileRows)}`,
-    `## Gaps\n\n${gaps.length > 0 ? gaps.join('\n') : 'None.'}`,
-    ...(review ? [`## Review findings\n\n${review.trim()}`] : []),
-    `## Notes\n\n${notes.length > 0 ? notes.map((note) => `- ${note}`).join('\n') : 'None.'}`,
-  ].join('\n\n')
-  return { markdown: `${markdown}\n`, complete: gaps.length === 0 }
 }

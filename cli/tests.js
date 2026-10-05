@@ -2,8 +2,9 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { screenNames } from './lib/profile.js'
+import { discoverProfile, screenNames } from './lib/profile.js'
 import { riskSignals } from './lib/risk.js'
+import { writeJson } from './lib/files.js'
 import { createRun, latestRunId, loadState, runsDir } from './lib/run-store.js'
 import { verifyRun } from './lib/verify.js'
 import { nextInstruction, submitStep } from './lib/tests-steps.js'
@@ -112,4 +113,13 @@ export function runKnowledge(argv, { env = process.env, out = process.stdout } =
     return 0
   }
   throw new Error(KNOWLEDGE_USAGE)
+}
+
+export function runProfile(argv, { env = process.env, out = process.stdout } = {}) {
+  const { values } = parseArgs({ args: argv, options: { repo: { type: 'string', default: '.' } } })
+  const repo = resolve(values.repo)
+  const profile = discoverProfile(repo)
+  writeJson(join(projectDir(repoSlug(repo), env), 'profile.json'), profile)
+  print(out, profile)
+  return 0
 }

@@ -4,8 +4,8 @@ const FEATURE_SIGNALS = [
   'tính năng', 'màn hình', 'luồng', 'quyền', 'trạng thái', 'đồng thời', 'thời gian thực', 'thông báo',
 ]
 
-// Who may do what: a one-line change here is still a permission change, so these decide T2 even
-// next to a T0 word ("change the config so guests can …").
+// Who may do what: a one-line change here is still a permission change, so these mark a request
+// high risk even when it also reads as small ("change the config so guests can …").
 const ACCESS_SIGNALS = [
   'admin', 'admins', 'viewer', 'viewers', 'guest', 'guests', 'access', 'allow', 'allowed', 'deny', 'denied',
   'cho phép', 'người xem', 'quản trị', 'truy cập',

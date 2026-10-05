@@ -1,9 +1,11 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
-import { writeFile } from './helpers.js'
+import { runTests } from '../cli/tests.js'
+import { git } from '../cli/lib/exec.js'
+import { tempDir, writeFile } from './helpers.js'
 import { C1_TEST, CASES, REQUEST, setup } from './tests-helpers.js'
 
 it('spec-to-tests runs discover → blind QC → Ready → write-tests and ends with a suite snapshot', () => {
@@ -74,4 +76,98 @@ it('a high-risk question goes to the user, and an unagreed UX source is asked by
   assert.deepEqual(ask.questions.map((q) => q.about), ['ux-source'])
   writeFileSync(ask.answers_file, stringify([{ id: ask.questions[0].id, answer: 'Match the screen as it is now.' }]))
   assert.equal(cli('submit', '--answers', ask.answers_file).json.step, 'qc')
+})
+
+it('three failed submissions of one step end the run stuck with the reason', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(repo, 'test/total.test.js', "import { test } from 'node:test'\ntest('C1: total', () => {\n")
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
+  assert.deepEqual([cli('submit').json.step, cli('submit').json.step, cli('submit').json.step], ['write-tests', 'write-tests', 'stuck'])
+  assert.match(cli('next').json.reason, /^write-tests: output failed its checks 3 times/)
+})
+
+it('a test file no stack runs is refused', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(repo, 'e2e/total.spec.py', 'def test_total(): pass\n')
+  writeFileSync(writer.output, stringify({ files: ['e2e/total.spec.py'] }))
+  assert.match(cli('submit').json.errors[0], /^write-tests: no test stack runs e2e\/total\.spec\.py/)
+})
+
+it('a repository with no test stack stops at discover', () => {
+  const { repo, cli } = setup()
+  rmSync(join(repo, 'package.json'))
+  cli('start', '--request', REQUEST)
+  assert.equal(cli('submit').json.step, 'stuck')
+  assert.match(cli('next').json.reason, /no test stack found/)
+})
+
+it('a test path outside the repository is refused before anything reads it', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(join(repo, '..'), 'outside.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['../outside.test.js', '/etc/hosts'] }))
+  assert.deepEqual(cli('submit').json.errors, [
+    'write-tests: ../outside.test.js is outside the repository',
+    'write-tests: /etc/hosts is outside the repository',
+  ])
+})
+
+it('a test file its runner finds no tests in is refused at write-tests', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  const quiet = { name: 'fake', test_globs: ['e2e/**/*.spec.ts'], test_command: "echo 'No tests found, exiting with code 1'; exit 1", report: null, report_file: null }
+  const profilePath = join(writer.output, '..', 'profile.json')
+  const profile = JSON.parse(readFileSync(profilePath, 'utf8'))
+  writeFileSync(profilePath, JSON.stringify({ ...profile, stacks: [quiet, ...profile.stacks] }))
+  writeFile(repo, 'e2e/total.spec.ts', "test('C1: total', () => {})\n")
+  writeFileSync(writer.output, stringify({ files: ['e2e/total.spec.ts'] }))
+  assert.match(cli('submit').json.errors[0], /^write-tests: the fake runner found no tests in e2e\/total\.spec\.ts/)
+})
+
+it('a rejection at Ready goes back to qc, records the reason and counts a round', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  assert.equal(cli('submit', '--reject', 'refunds need two approvers').json.step, 'qc')
+  assert.equal(cli('status').json.qc_rounds, 1)
+  assert.match(readFileSync(join(cli('next').json.output, '..', 'decisions.md'), 'utf8'), /- Rejected at Ready: refunds need two approvers\n/)
+})
+
+it('two working trees of one repository each follow their own latest run', () => {
+  const { repo, env } = setup()
+  const tree = join(tempDir('sg-tree-'), 'tree')
+  git(repo, ['worktree', 'add', tree])
+  const run = (path, ...argv) => {
+    const chunks = []
+    runTests([...argv, '--repo', path], { env, out: { write: (text) => chunks.push(text) } })
+    return JSON.parse(chunks.join(''))
+  }
+  const first = run(repo, 'start', '--request', REQUEST).run
+  const second = run(tree, 'start', '--request', 'Refunds need approval.').run
+  assert.notEqual(first, second)
+  assert.equal(run(repo, 'status').id, first)
+  assert.equal(run(tree, 'status').id, second)
+})
+
+it('agent output that is not valid YAML comes back with the parse error', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, 'cases:\n  - id: C1\n    then: rejected: window expired\n')
+  const result = cli('submit')
+  assert.equal(result.code, 1)
+  assert.match(result.json.errors[0], /^cases\.yaml is not valid YAML: /)
+})
+
+it('disputed cases from tests.yaml appear in the report', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(repo, 'test/total.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'], disputed: [{ case: 'C1', reason: 'the request says 7 elsewhere' }] }))
+  assert.equal(cli('submit').json.step, 'done')
+  assert.match(readFileSync(cli('next').json.report, 'utf8'), /## Disputed\n\n- C1: the request says 7 elsewhere\n/)
 })
