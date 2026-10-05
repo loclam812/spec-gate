@@ -95,7 +95,7 @@ it('ui must be a boolean, and a request that names a screen must set it or ask',
 })
 
 it('a UX source may carry a note after its locator', () => {
-  const noted = { ...model, ux: { ...model.ux, source: 'existing-screen:settings/schedule-modal (TimeRangeSelect → TimePicker)' } }
+  const noted = { ...model, ux: { ...model.ux, source: 'existing-screen:orders/refund-dialog (RefundForm → AmountField)' } }
   assert.deepEqual(modelErrors(noted), [])
   assert.ok(modelErrors({ ...model, ux: { ...model.ux, source: 'existing-screen: (somewhere)' } }).length > 0)
 })

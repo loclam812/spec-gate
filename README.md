@@ -47,7 +47,7 @@ and fails after it; tests already red at the start do not count, and jest, which
 report here, is not checked.
 
 Triage also counts a screen of the repository as a feature and UI signal: the names of the files
-in its `screens/`, `pages/` and `views/` directories, so "Shop: show …" is a T2 when `Shop.tsx`
+in its `screens/`, `pages/` and `views/` directories, so "Checkout: show …" is a T2 when `Checkout.tsx`
 is one.
 
 ### What spec-gate adds, and what it hands to the repository

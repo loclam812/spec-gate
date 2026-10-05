@@ -36,10 +36,10 @@ it('an override wins, and an unknown tier is rejected', () => {
 })
 
 it('a screen the repository has counts as a T2 and UI signal', () => {
-  const screens = ['Shop', 'Opponent Select']
-  const request = 'Shop: after opening a chest, show the set it came from'
-  assert.deepEqual(triage(request, { screens }), { tier: 't2', reasons: ['signals: shop'] })
-  assert.equal(triage('pick an opponent select by tier', { screens }).tier, 't2')
+  const screens = ['Checkout', 'Order Summary']
+  const request = 'Checkout: after paying, show which coupon was applied'
+  assert.deepEqual(triage(request, { screens }), { tier: 't2', reasons: ['signals: checkout'] })
+  assert.equal(triage('sort the order summary by date', { screens }).tier, 't2')
   assert.equal(triage(request).tier, 't1')
   assert.equal(mentionsUi(request, screens), true)
   assert.equal(mentionsUi(request), false)

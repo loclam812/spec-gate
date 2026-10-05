@@ -110,14 +110,14 @@ it('the playwright stack first runs what the repository runs before playwright t
 
 it('screen names come from the files in screens, pages and views directories', () => {
   const { repo } = makeFixtureRepo()
-  writeFile(repo, 'web/src/screens/Shop.tsx', '')
-  writeFile(repo, 'web/src/screens/OpponentSelect.tsx', '')
-  writeFile(repo, 'web/src/screens/Shop.test.tsx', '')
+  writeFile(repo, 'web/src/screens/Checkout.tsx', '')
+  writeFile(repo, 'web/src/screens/OrderSummary.tsx', '')
+  writeFile(repo, 'web/src/screens/Checkout.test.tsx', '')
   writeFile(repo, 'app/pages/index.tsx', '')
   writeFile(repo, 'app/pages/404.tsx', '')
   writeFile(repo, 'app/pages/_app.tsx', '')
   writeFile(repo, 'app/pages/[id].tsx', '')
   writeFile(repo, 'app/pages/order-history.vue', '')
   commitAll(repo, 'screens')
-  assert.deepEqual(screenNames(repo), ['Opponent Select', 'order history', 'Shop'])
+  assert.deepEqual(screenNames(repo), ['Checkout', 'order history', 'Order Summary'])
 })
