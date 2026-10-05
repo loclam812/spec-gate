@@ -13,6 +13,11 @@ const DOC = {
 }
 const CONTEXT = { sentenceIds: ['S1'], uiRequest: false, uxSourceAgreed: false }
 
+it('more than four questions are refused', () => {
+  const questions = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map((id) => ({ id, text: 'x', about: 'rule' }))
+  assert.deepEqual(casesDocErrors({ ...DOC, questions }, CONTEXT), ['questions: 5 questions; ask at most 4 per round, the riskiest first'])
+})
+
 it('a complete cases document has no errors', () => {
   assert.deepEqual(casesDocErrors(DOC, CONTEXT), [])
 })

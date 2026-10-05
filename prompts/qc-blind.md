@@ -29,6 +29,7 @@ YAML with exactly these keys:
 - `then` comes from the request, a decision above, or the plain purpose of the feature. When none
   of those settles a behaviour that a user sees or that concerns access (risk: high), ask a
   question instead of guessing. Smaller points you may assume: mark them `basis: assumed`.
+- Ask at most 4 questions per round.
 - Never take an expected outcome from what the code does.
 
 ## Fix these problems from your previous attempt

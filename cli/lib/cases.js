@@ -55,6 +55,8 @@ function uiErrors(doc, questions, context) {
   return uxSourceErrors(isMapping(doc.ux) ? String(doc.ux.source ?? '').trim() : '', asked, context)
 }
 
+const MAX_QUESTIONS = 4
+
 export function casesDocErrors(doc, context) {
   if (!isMapping(doc)) return ['cases.yaml is not a YAML mapping']
   const cases = list(doc.cases).filter(isMapping)
@@ -65,6 +67,7 @@ export function casesDocErrors(doc, context) {
     ...(cases.length > MAX_CASES ? [`cases: ${cases.length} cases; keep the ${MAX_CASES} riskiest`] : []),
     ...sentenceErrors(sentences, new Set(cases.map((c) => c.id)), context),
     ...caseErrors(cases),
+    ...(questions.length > MAX_QUESTIONS ? [`questions: ${questions.length} questions; ask at most ${MAX_QUESTIONS} per round, the riskiest first`] : []),
     ...duplicates(questions.map((q) => q.id)).map((id) => `duplicate question id ${id}`),
     ...uiErrors(doc, questions, context),
   ]

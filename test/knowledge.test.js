@@ -1,11 +1,7 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { findKnowledge, knowledgeErrors, knowledgePaths, section } from '../cli/lib/knowledge.js'
-import { tempDir, writeFile } from './helpers.js'
-
-const FULL = ['# Testing knowledge: shop', '## Run', 'npm test', '## Where tests go', 'src/**/__tests__',
-  '## Helpers and fixtures', 'renderWithCart()', '## Mocking rules', 'never mock the module under test',
-  '## Known traps', 'fake timers', '## Domain terms', '- basket: Cart', ''].join('\n')
+import { KNOWLEDGE_FULL as FULL, tempDir, writeFile } from './helpers.js'
 
 it('the repository file wins over the store file', () => {
   const repo = tempDir()

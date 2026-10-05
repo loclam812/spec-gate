@@ -63,3 +63,7 @@ export function writeSample(parent, fields, options = {}) {
   if (answers !== null) writeFile(dir, 'answers.yaml', answers)
   return dir
 }
+
+export const KNOWLEDGE_FULL = ['# Testing knowledge: shop', '## Run', 'npm test', '## Where tests go', 'src/**/__tests__',
+  '## Helpers and fixtures', 'renderWithCart()', '## Mocking rules', 'never mock the module under test',
+  '## Known traps', 'fake timers', '## Domain terms', '- basket: Cart', ''].join('\n')

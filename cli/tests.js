@@ -1,12 +1,15 @@
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { screenNames } from './lib/profile.js'
 import { riskSignals } from './lib/risk.js'
 import { createRun, latestRunId, loadState, runsDir } from './lib/run-store.js'
 import { verifyRun } from './lib/verify.js'
 import { nextInstruction, submitStep } from './lib/tests-steps.js'
-import { repoSlug } from './lib/store.js'
+import { projectDir, repoSlug } from './lib/store.js'
+import { findKnowledge, knowledgeErrors, knowledgePaths } from './lib/knowledge.js'
+import { renderPrompt } from './lib/candidate.js'
 
 const OPTIONS = {
   repo: { type: 'string', default: '.' },
@@ -16,6 +19,8 @@ const OPTIONS = {
   answers: { type: 'string' },
   approve: { type: 'boolean', default: false },
   reject: { type: 'string' },
+  file: { type: 'string' },
+  'old-skill': { type: 'string' },
 }
 
 const USAGE = 'usage: spec-gate tests <start|next|submit|status> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"]'
@@ -66,4 +71,45 @@ export function runVerify(argv, { env = process.env, out = process.stdout } = {}
   const { ok } = verifyRun(run)
   print(out, { ok, report: join(run.dir, 'verify.md') })
   return ok ? 0 : 1
+}
+
+const LEARN_PROMPT = fileURLToPath(new URL('../prompts/learn-project.md', import.meta.url))
+const KNOWLEDGE_USAGE = 'usage: spec-gate knowledge <path|check|draft> [--repo <path>] [--file <path>] [--old-skill <dir>]'
+
+const skillFiles = (path) =>
+  path.endsWith('SKILL.md') ? [path] : readdirSync(path, { recursive: true }).filter((entry) => entry.endsWith('SKILL.md')).map((entry) => join(path, entry))
+
+function draftKnowledge(values, repo, slug, env) {
+  const dir = projectDir(slug, env)
+  mkdirSync(dir, { recursive: true })
+  const output = join(dir, 'knowledge.draft.md')
+  const found = values['old-skill'] ? skillFiles(resolve(values['old-skill'])) : []
+  const prompt = renderPrompt(readFileSync(LEARN_PROMPT, 'utf8'), { repo, output, old_skills: found.length > 0 ? found.join(', ') : 'None.' })
+  const promptFile = join(dir, 'learn-project.prompt.md')
+  writeFileSync(promptFile, prompt)
+  return { prompt_file: promptFile, output, model: 'sonnet' }
+}
+
+export function runKnowledge(argv, { env = process.env, out = process.stdout } = {}) {
+  const { values, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true })
+  const repo = resolve(values.repo)
+  const slug = repoSlug(repo)
+  const [command] = positionals
+  if (command === 'path') {
+    const paths = knowledgePaths(repo, slug, env)
+    const found = findKnowledge(repo, slug, env)
+    print(out, { found: found !== null, path: found?.path ?? null, repo_path: paths.repo, store_path: paths.store })
+    return 0
+  }
+  if (command === 'check') {
+    if (!values.file) throw new Error('check: give the file with --file <path>')
+    const errors = knowledgeErrors(readFileSync(resolve(values.file), 'utf8'))
+    print(out, { errors })
+    return errors.length > 0 ? 1 : 0
+  }
+  if (command === 'draft') {
+    print(out, draftKnowledge(values, repo, slug, env))
+    return 0
+  }
+  throw new Error(KNOWLEDGE_USAGE)
 }
