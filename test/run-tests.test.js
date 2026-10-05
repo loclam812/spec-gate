@@ -166,3 +166,18 @@ it('wrongReasons accepts a did-not-load file when its source names some case id'
   assert.deepEqual(wrongReasons(missing, ['C1', 'C2'], { source: 'test("C1: x")' }), [])
   assert.equal(wrongReasons(missing, ['C1', 'C2'], { source: '' }).length, 1)
 })
+
+const hookFailure = (cause) => failure('failed running beforeEach hook', { type: 'hookFailed', body: `[Error [ERR_TEST_FAILURE]: failed running beforeEach hook] {\n  failureType: 'hookFailed',\n  cause: ${cause}\n      at TestContext.<anonymous> (file:///x/a.test.js:2:26)\n}` })
+
+it('wrongReasons refuses a failed hook unless its cause is a missing symbol', () => {
+  const refused = wrongReasons(red({ 'C1: x': hookFailure('Error: DATABASE_URL is not set') }), ['C1'])
+  assert.equal(refused.length, 1)
+  assert.match(refused[0], /DATABASE_URL is not set \(setup\)/)
+  assert.deepEqual(wrongReasons(red({ 'C1: x': hookFailure('ReferenceError: seedRefunds is not defined') }), ['C1']), [])
+})
+
+it('failureKind reads a jest suite that failed to run by its cause', () => {
+  const suite = (text) => failure('Test suite failed to run', { body: `Test suite failed to run\n\n  ${text}\n\n    at foo (a.js:1:1)` })
+  assert.equal(failureKind(suite('Cannot find module ../src/refund from test/a.test.js')), 'missing')
+  assert.equal(failureKind(suite('Error: DATABASE_URL is not set')), 'setup')
+})

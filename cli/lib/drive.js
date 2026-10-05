@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, matchesGlob, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -101,14 +101,21 @@ function runDirOf(home, run) {
   return join(projects, slug, 'runs', run)
 }
 
+const isDirectory = (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true
+
 function qcReads(agents, preDir, runDir) {
   const profilePath = runDir ? join(runDir, 'profile.json') : null
   const globs = profilePath && existsSync(profilePath) ? readJson(profilePath).stacks.flatMap((stack) => stack.test_globs) : []
   const isTest = (path) => globs.some((glob) => matchesGlob(path, glob))
   const transcript = agents.filter((agent) => agent.step === 'qc').map((agent) => agent.transcript).join('\n')
+  const counts = (path) =>
+    isDirectory(join(preDir, path))
+      ? !LOCALE_DIR.test(`${path}/`) && !isTest(`${path}/`)
+      : SOURCE_EXTENSION.test(path) && !LOCALE_DIR.test(path) && !isTest(path)
   const reads = readPaths(transcript, preDir)
     .map((path) => [relative(preDir, path), relative(realpathSync(preDir), path)].find((rel) => !rel.startsWith('..')))
-    .filter((path) => path && SOURCE_EXTENSION.test(path) && !LOCALE_DIR.test(path) && !isTest(path))
+    .filter((path) => path !== undefined && counts(path))
+    .map((path) => path || '.')
   return [...new Set(reads)].sort()
 }
 

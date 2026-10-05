@@ -101,13 +101,30 @@ const TIMEOUT = /Test timeout of \d+ms exceeded|\btimed out after\b/i
 const SYNTAX = /\bSyntaxError\b|Unexpected token/
 const NETWORK = /ECONNREFUSED|ERR_CONNECTION_REFUSED|ENOTFOUND|getaddrinfo/
 
-export function headline({ message, body }) {
+const HOOK_FAILURE = /failed running .* hook|^Test suite failed to run/
+
+function isHookFailure({ type, message }) {
+  return type === 'hookFailed' || HOOK_FAILURE.test(message)
+}
+
+// A failed hook hides its error: node puts it on a "cause:" line, jest under its "Test suite
+// failed to run" heading.
+function hookCause({ body }) {
+  const lines = body.split('\n').map((line) => line.trim()).filter(Boolean)
+  const cause = lines.find((line) => line.startsWith('cause:'))
+  return cause ? cause.slice('cause:'.length).trim() : (lines.find((line) => !HOOK_FAILURE.test(line) && !/^\[?Error \[/.test(line)) ?? '')
+}
+
+export function headline(failure) {
+  if (isHookFailure(failure)) return hookCause(failure).replace(/^Error: /, '') || firstLine(failure.message)
+  const { message, body } = failure
   const line = PLAYWRIGHT_LOCATION.test(message) || message === GENERIC_FAILURE ? firstLine(body) || firstLine(message) : firstLine(message)
   return line.replace(/^Error: /, '')
 }
 
 export function failureKind(failure) {
   const text = headline(failure)
+  if (isHookFailure(failure)) return MISSING_SYMBOL.test(text) ? 'missing' : 'setup'
   if (/timeout/i.test(failure.type) || TIMEOUT.test(text)) return 'timeout'
   if (/AssertionError|ERR_ASSERTION/.test(failure.type) || /AssertionError|ERR_ASSERTION/.test(text) || /^expected/i.test(text)) return 'assertion'
   if (SYNTAX.test(text)) return 'syntax'
@@ -122,18 +139,18 @@ function outputFailure(output) {
   return { type: '', message: line, body: '' }
 }
 
-const REFUSED_KINDS = ['timeout', 'syntax', 'network']
+const REFUSED_KINDS = ['timeout', 'syntax', 'network', 'setup']
 
 // Red for the right reason is red on the behaviour. A missing symbol of the code under test is the
-// expected red before implementation; a timeout, a syntax error or a network error means the
-// environment is broken, and any other failure, an assertion included, is accepted.
-export const didNotLoad = (result, caseIds) =>
-  result.status === 'red' && !result.timedOut && !result.tests.some((test) => caseIds.some((id) => mentionsId(test.name, id)))
+// expected red before implementation; a timeout, a syntax error, a network error or a failed hook
+// means the environment is broken, and any other failure, an assertion included, is accepted.
+export const didNotLoad = (result) =>
+  result.status === 'red' && !result.timedOut && result.tests.every((test) => result.file.endsWith(test.name.split(' > ').pop()))
 
 export function wrongReasons(result, caseIds, { source = '' } = {}) {
   if (result.timedOut) return [`${result.file}: no test ran (timed out)`]
   const failures = Object.entries(result.failures ?? {})
-  if (didNotLoad(result, caseIds)) {
+  if (didNotLoad(result)) {
     const first = failures[0]?.[1] ?? (result.output ? outputFailure(result.output) : undefined)
     const accepted = first && failureKind(first) === 'missing' && caseIds.some((id) => mentionsId(source, id))
     const reason = first ? headline(first) : 'no failure reported'

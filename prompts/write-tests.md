@@ -16,8 +16,10 @@ You write the automated tests for the cases below, in the repository at {{repo}}
 - The expected outcome of each case is fixed. Read the code to set the test up, never to change
   what a test expects. If you believe a case is wrong, keep the test as the case says and list the
   case id with your reason under `disputed:` in the output file.
-- Each test must be able to fail only on its assertion: imports resolve, setup succeeds, no network
-  or timers left real. A test that is red today is fine when it is red on its assertion.
+- Each test must be able to fail only on its assertion: setup succeeds, no network or timers left
+  real. Import code the request adds from where it will live; red because it does not exist yet is
+  expected. Never stub or mock the code under test. A test that is red today is fine when it is red
+  on its assertion or on code that does not exist yet.
 - Do not change any non-test file. Put each test where the profile's test globs find it.
 - Then write {{output}}:
 

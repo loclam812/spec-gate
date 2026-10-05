@@ -52,7 +52,7 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   name carries its case id; expectations are copied, never changed, and a case the writer thinks is
   wrong is reported as disputed.
 - **check** runs each test file once. It accepts when every case has a test and every red test
-  fails on an assertion, not on an import, a missing module, a setup error or a timeout. Green tests
+  fails on an assertion or on code that does not exist yet, not on a syntax error, a timeout, the network or setup. Green tests
   are allowed and listed. Otherwise the writer gets the failures and up to two more attempts, then the run is
   `stuck` with the reason.
 - **done** snapshots the failing tests of each runner's whole suite and writes `report.md`.

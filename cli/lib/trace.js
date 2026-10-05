@@ -9,7 +9,7 @@ function fileCaseStatus(id, result) {
   if (result.status === 'unrunnable') return 'untested'
   if (result.tests.length === 0) return result.status
   const named = result.tests.filter((test) => mentionsId(test.name, id))
-  if (named.length === 0) return didNotLoad(result, [id]) ? 'red' : 'no test'
+  if (named.length === 0) return didNotLoad(result) ? 'red' : 'no test'
   if (named.some((test) => test.status === 'fail')) return 'red'
   return named.every((test) => test.status === 'pass') ? 'green' : 'skipped'
 }

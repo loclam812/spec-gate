@@ -13,7 +13,7 @@ const FIXTURES = fileURLToPath(new URL('./fixtures/drive', import.meta.url))
 
 // The stub plays every agent: it reads the prompt path from its -p argument and writes that
 // step's output next to the run, as the real agents would.
-function stubEnv({ first = 'cases.yaml', then = 'cases.yaml', sleep = 0, failOn = '', answerOnce = false, qcReads = '', qcGlob = '' }) {
+function stubEnv({ first = 'cases.yaml', then = 'cases.yaml', sleep = 0, failOn = '', answerOnce = false, qcReads = '', qcGlob = '', qcGrep = '' }) {
   const bin = tempDir('sg-bin-')
   const log = join(bin, 'calls.log')
   writeFile(bin, 'claude', `#!/bin/sh
@@ -36,6 +36,8 @@ case "$path" in
   */prompts/qc.md)
     if [ -f "$run/decisions.md" ]; then cp "$FIXTURES/${then}" "$run/cases.yaml"; else cp "$FIXTURES/${first}" "$run/cases.yaml"; fi
     [ -n "${qcReads}" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"%s/${qcReads}"}}]}}\\n' "$PWD"
+    [ "${qcGrep}" = "dir" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"refund","path":"%s/src"}}]}}\\n' "$PWD"
+    [ "${qcGrep}" = "bare" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"refund"}}]}}\\n'
     [ -n "${qcGlob}" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Glob","input":{"pattern":"${qcGlob}"}}]}}\\n' ;;
   */prompts/write-tests.md) cat .claude/testing.md >> "${log}" 2>/dev/null; mkdir -p test && cp "$FIXTURES/c1.test.js" test/c1.test.js && printf 'files: [test/c1.test.js]\\n' > "$run/tests.yaml" ;;
 esac
@@ -137,6 +139,17 @@ it('a QC read of a test file is not counted as a source read', () => {
   const { env } = stubEnv({ qcReads: 'test/old.test.js' })
   driveSpecToTests(candidate, sample, sides.pre, outDir, { env, hide: [sides.post], watch: [sides.post] })
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'qc-reads.json'), 'utf8')), { reads: [] })
+})
+
+it('a QC Grep of a directory, or with no path, is recorded as a read of that directory', () => {
+  const run = (qcGrep) => {
+    const { sample, sides, candidate } = setup()
+    const outDir = tempDir()
+    driveSpecToTests(candidate, sample, sides.pre, outDir, { env: stubEnv({ qcGrep }).env, hide: [sides.post], watch: [sides.post] })
+    return JSON.parse(readFileSync(join(outDir, 'qc-reads.json'), 'utf8'))
+  }
+  assert.deepEqual(run('dir'), { reads: ['src'] })
+  assert.deepEqual(run('bare'), { reads: ['.'] })
 })
 
 it('a QC Glob pattern is not a read of a file', () => {

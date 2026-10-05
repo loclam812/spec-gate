@@ -171,3 +171,44 @@ it('disputed cases from tests.yaml appear in the report', () => {
   assert.equal(cli('submit').json.step, 'done')
   assert.match(readFileSync(cli('next').json.report, 'utf8'), /## Disputed\n\n- C1: the request says 7 elsewhere\n/)
 })
+
+it('a test whose hook throws on the environment is refused as a setup failure', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  const source = "import { test, beforeEach } from 'node:test'\nbeforeEach(() => { throw new Error('DATABASE_URL is not set') })\ntest('C1: total', () => {})\n"
+  writeFile(repo, 'test/total.test.js', source)
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
+  const result = cli('submit').json
+  assert.equal(result.step, 'write-tests')
+  assert.match(result.errors[0], /DATABASE_URL is not set \(setup\)/)
+})
+
+it('a loaded test whose name carries no case id is refused with no test names C1', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  const source = "import { test } from 'node:test'\nimport * as refunds from '../src/refunds.js'\n// C1\ntest('refund within window', () => { refunds.approve() })\n"
+  writeFile(repo, 'src/refunds.js', 'export const other = 1\n')
+  writeFile(repo, 'test/refunds.test.js', source)
+  writeFileSync(writer.output, stringify({ files: ['test/refunds.test.js'] }))
+  assert.deepEqual(cli('submit').json.errors, ['write-tests: no test names C1'])
+})
+
+it('after a Ready reject the next QC prompt quotes the previous cases and the reason', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  cli('submit', '--reject', 'C1 is wrong: refunds after 30 days are refused')
+  const prompt = readFileSync(cli('next').json.prompt_file, 'utf8')
+  assert.match(prompt, /Your previous cases \(revise them; keep their ids\)/)
+  assert.match(prompt, /id: C1/)
+  assert.match(prompt, /C1 is wrong: refunds after 30 days are refused/)
+})
+
+it('the first QC prompt says there are no previous cases', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  assert.match(readFileSync(cli('next').json.prompt_file, 'utf8'), /Your previous cases \(revise them; keep their ids\)\n\nNone\./)
+})

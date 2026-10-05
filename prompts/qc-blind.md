@@ -9,6 +9,10 @@ application). You may read docs, user-facing text and existing test names only.
 
 {{decisions}}
 
+## Your previous cases (revise them; keep their ids)
+
+{{previous}}
+
 ## Write {{output}}
 
 YAML with exactly these keys:

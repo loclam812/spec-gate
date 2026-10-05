@@ -99,8 +99,10 @@ const READ_TOOLS = ['Read', 'Grep', 'Edit']
 export function readPaths(transcript, root) {
   return toolUses(parseLines(transcript))
     .filter((use) => READ_TOOLS.includes(use.name))
-    .flatMap((use) => PATH_KEYS.map((key) => use.input?.[key]))
-    .filter((value) => typeof value === 'string')
+    .flatMap((use) => {
+      const paths = PATH_KEYS.map((key) => use.input?.[key]).filter((value) => typeof value === 'string')
+      return use.name === 'Grep' && paths.length === 0 ? ['.'] : paths
+    })
     .map((value) => resolve(root, value))
 }
 

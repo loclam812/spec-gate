@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, matchesGlob } from 'node:path'
 import { tryGit } from './exec.js'
 import { section } from './knowledge.js'
@@ -14,9 +14,12 @@ const bullets = (items) => (items.length > 0 ? items.slice(0, MAX_LIST).map((ite
 
 // User-facing strings say what the product promises without showing how the code does it.
 function userFacingText(repo, files) {
-  const lines = files
-    .filter((file) => LOCALE_DIR.test(file) && LOCALE_FILE.test(file))
-    .flatMap((file) => [`# ${file}`, ...readFileSync(join(repo, file), 'utf8').split('\n')])
+  const lines = []
+  const locales = files.filter((file) => LOCALE_DIR.test(file) && LOCALE_FILE.test(file) && existsSync(join(repo, file)))
+  for (const file of locales) {
+    if (lines.length >= MAX_TEXT_LINES) break
+    lines.push(`# ${file}`, ...readFileSync(join(repo, file), 'utf8').split('\n'))
+  }
   return lines.length > 0 ? lines.slice(0, MAX_TEXT_LINES).join('\n') : 'None found.'
 }
 

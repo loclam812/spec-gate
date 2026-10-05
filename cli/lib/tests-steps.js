@@ -65,7 +65,7 @@ function runAll(run, files) {
 
 function caseIdsUntested(run, results, caseIds) {
   const tested = (id, result) =>
-    didNotLoad(result, caseIds)
+    didNotLoad(result)
       ? mentionsId(readText(join(run.repo, result.file)), id)
       : result.tests.some((test) => mentionsId(test.name, id))
   return caseIds.filter((id) => !results.some((result) => tested(id, result)))
@@ -234,6 +234,7 @@ function promptVars(run, step) {
     sentences: sentences.join('\n    '),
     decisions: readText(at(run, 'decisions.md')).trim() || 'None yet.',
     cases: readText(at(run, 'cases.yaml')).trim().replace(/\n/g, '\n    ') || 'None.',
+    previous: readText(at(run, 'cases.yaml.prev')).trim() || 'None.',
     knowledge: readText(at(run, 'knowledge.md')).trim() || NO_KNOWLEDGE,
     profile: readText(at(run, 'profile.json')).trim() || '{}',
     errors: run.state.errors.length > 0 ? run.state.errors.map((error) => `- ${error}`).join('\n') : 'None.',
@@ -263,7 +264,7 @@ export function nextInstruction(run) {
 }
 
 // An agent's output from an earlier round must never pass for this round's: entering a step
-// sets the old output aside, where the next prompt can still quote it.
+// sets the old output aside as <name>.prev, which the qc prompt quotes as the previous cases.
 function setAside(run, step) {
   const path = at(run, AGENTS[step].output)
   if (existsSync(path)) renameSync(path, `${path}.prev`)
