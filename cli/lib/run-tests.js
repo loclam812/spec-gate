@@ -37,6 +37,17 @@ function runReported(stack, cwd, command, timeoutS) {
   return { run, xml, tests }
 }
 
+const GENERIC_FAILURE = 'test failed'
+
+// node --test writes only "test failed" to its JUnit file when a file cannot load; the cause is
+// printed by a plain run of the same file.
+function withLoadCause(stack, cwd, file, failures) {
+  const entries = Object.entries(failures)
+  if (stack.name !== 'node-test' || entries.length === 0 || !entries.every(([, failure]) => failure.message === GENERIC_FAILURE)) return failures
+  const cause = outputFailure(runShell(`node --test "${file}"`, cwd, 120).output).message
+  return Object.fromEntries(entries.map(([name, failure]) => [name, { ...failure, body: cause }]))
+}
+
 export function runTestFile(profile, repo, file, timeoutS = 900) {
   const stack = stackFor(profile, file)
   if (stack === null) {
@@ -46,7 +57,7 @@ export function runTestFile(profile, repo, file, timeoutS = 900) {
   const { run, xml, tests } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
   const empty = stack.report === 'junit' ? xml !== '' && !/<testcase\b/.test(xml) : NO_TESTS.test(run.output)
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
-  const failures = stack.report === 'junit' ? Object.fromEntries(junitFailures(xml)) : {}
+  const failures = withLoadCause(stack, cwd, relative(cwd, join(repo, file)), stack.report === 'junit' ? Object.fromEntries(junitFailures(xml)) : {})
   return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
 }
 
@@ -91,7 +102,7 @@ const SYNTAX = /\bSyntaxError\b|Unexpected token/
 const NETWORK = /ECONNREFUSED|ERR_CONNECTION_REFUSED|ENOTFOUND|getaddrinfo/
 
 export function headline({ message, body }) {
-  const line = PLAYWRIGHT_LOCATION.test(message) ? firstLine(body) : firstLine(message)
+  const line = PLAYWRIGHT_LOCATION.test(message) || message === GENERIC_FAILURE ? firstLine(body) || firstLine(message) : firstLine(message)
   return line.replace(/^Error: /, '')
 }
 
@@ -116,13 +127,15 @@ const REFUSED_KINDS = ['timeout', 'syntax', 'network']
 // Red for the right reason is red on the behaviour. A missing symbol of the code under test is the
 // expected red before implementation; a timeout, a syntax error or a network error means the
 // environment is broken, and any other failure, an assertion included, is accepted.
+export const didNotLoad = (result, caseIds) =>
+  result.status === 'red' && !result.timedOut && !result.tests.some((test) => caseIds.some((id) => mentionsId(test.name, id)))
+
 export function wrongReasons(result, caseIds, { source = '' } = {}) {
   if (result.timedOut) return [`${result.file}: no test ran (timed out)`]
   const failures = Object.entries(result.failures ?? {})
-  const named = result.tests.filter((test) => caseIds.some((id) => mentionsId(test.name, id)))
-  if (result.status === 'red' && named.length === 0) {
+  if (didNotLoad(result, caseIds)) {
     const first = failures[0]?.[1] ?? (result.output ? outputFailure(result.output) : undefined)
-    const accepted = first && failureKind(first) === 'missing' && caseIds.every((id) => mentionsId(source, id))
+    const accepted = first && failureKind(first) === 'missing' && caseIds.some((id) => mentionsId(source, id))
     const reason = first ? headline(first) : 'no failure reported'
     return accepted ? [] : [`${result.file}: no test ran (the file did not load: ${reason})`]
   }

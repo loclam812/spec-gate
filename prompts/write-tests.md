@@ -1,34 +1,28 @@
-You are the test-writer step of spec-gate. Write the automated tests for the cases below, in the
-repository at {{repo}}.
+You write the automated tests for the cases below, in the repository at {{repo}}.
 
 ## Cases
 
-```yaml
-{{cases}}
-```
+    {{cases}}
 
-## Model
+## Testing knowledge for this repository
 
-```yaml
-{{model}}
-```
+{{knowledge}}
 
 ## Profile
 
-```json
-{{profile}}
-```
+    {{profile}}
 
-- One test per case; every test name starts with its case id: `C3: rejects a refund after the window`.
-- Test-writing skill in this repository: {{test_skill}}. If one is named, use it to write the tests, with the cases above as its input.
-- Follow the conventions of the tests already next to the code; put each test where the profile's
-  test globs will find it.
-- Do not change any non-test file. The tests may fail now: the implementation comes next.
+- One test per case; every test name starts with its case id: `C3: refuses a refund of 0`.
+- The expected outcome of each case is fixed. Read the code to set the test up, never to change
+  what a test expects. If you believe a case is wrong, keep the test as the case says and list the
+  case id with your reason under `disputed:` in the output file.
+- Each test must be able to fail only on its assertion: imports resolve, setup succeeds, no network
+  or timers left real. A test that is red today is fine when it is red on its assertion.
+- Do not change any non-test file. Put each test where the profile's test globs find it.
 - Then write {{output}}:
 
-```yaml
-files: [path/relative/to/the/repository, …]
-```
+      files: [path/relative/to/the/repository, …]
+      disputed: [{ case: C3, reason: "…" }]   # optional
 
 ## Fix these problems from your previous attempt
 

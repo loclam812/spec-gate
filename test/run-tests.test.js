@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverProfile } from '../cli/lib/profile.js'
-import { caseIdsMissing, changedSince, hashFiles, runnerRoot, runTestFile, wrongReasons } from '../cli/lib/run-tests.js'
+import { caseIdsMissing, changedSince, hashFiles, failureKind, runnerRoot, runTestFile, wrongReasons } from '../cli/lib/run-tests.js'
 import { BUGGY_TOTAL, CATCHING_TEST, commitAll, makeFixtureRepo, writeFile } from './helpers.js'
 
 const { repo } = makeFixtureRepo()
@@ -117,10 +117,11 @@ it('wrongReasons refuses a failure typed as a timeout', () => {
   assert.match(lines[0], /\(timeout\)/)
 })
 
-it('wrongReasons accepts a file that did not load on a missing symbol only when the source names every case', () => {
+it('wrongReasons accepts a file that did not load on a missing symbol only when the source names a case', () => {
   const unloaded = { file: 'b.test.js', status: 'red', timedOut: false, tests: [{ name: 'b.test.js', status: 'fail' }], failures: { 'b.test.js': failure("Cannot find module '../src/refund.js'") } }
   assert.deepEqual(wrongReasons(unloaded, ['C1', 'C2'], { source: 'it("C1: a") it("C2: b")' }), [])
-  assert.deepEqual(wrongReasons(unloaded, ['C1', 'C2'], { source: 'it("C1: a")' }), [
+  assert.deepEqual(wrongReasons(unloaded, ['C1', 'C2'], { source: 'it("C1: a")' }), [])
+  assert.deepEqual(wrongReasons(unloaded, ['C1', 'C2'], { source: '' }), [
     "b.test.js: no test ran (the file did not load: Cannot find module '../src/refund.js')",
   ])
 })
@@ -141,4 +142,27 @@ it('wrongReasons reads a compile error from the output when the runner reports n
   const hung = wrongReasons({ ...built, output: 'panic: test timed out after 10m0s' }, ['C1'], { source: 'C1' })
   assert.equal(hung.length, 1)
   assert.match(hung[0], /timed out/)
+})
+
+it('a node --test file that cannot load is read as a missing symbol, with the real cause', () => {
+  const { repo: fixture } = makeFixtureRepo()
+  writeFile(fixture, 'package.json', JSON.stringify({ type: 'module', scripts: { test: 'node --test' } }))
+  writeFile(fixture, 'src/total.js', BUGGY_TOTAL)
+  commitAll(fixture, 'node test stack')
+  writeFile(fixture, 'test/a.test.js', "import { test } from 'node:test'\nimport { x } from '../src/missing.js'\ntest('C1: a', () => {})\n")
+  const result = runTestFile(discoverProfile(fixture), fixture, 'test/a.test.js')
+  assert.equal(result.status, 'red')
+  assert.deepEqual(wrongReasons(result, ['C1'], { source: 'C1' }), [])
+  assert.equal(failureKind(Object.values(result.failures)[0]), 'missing')
+})
+
+it('headline reads the body when node --test reports only "test failed"', () => {
+  const generic = { type: 'testCodeFailure', message: 'test failed', body: "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/x/src/refund.js'" }
+  assert.equal(failureKind(generic), 'missing')
+})
+
+it('wrongReasons accepts a did-not-load file when its source names some case id', () => {
+  const missing = red({ 'test > a.test.js': failure('Cannot find module ../src/refund.js') })
+  assert.deepEqual(wrongReasons(missing, ['C1', 'C2'], { source: 'test("C1: x")' }), [])
+  assert.equal(wrongReasons(missing, ['C1', 'C2'], { source: '' }).length, 1)
 })

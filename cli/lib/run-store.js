@@ -13,12 +13,14 @@ function newRunId(now = new Date()) {
   return `${stamp}-${randomBytes(2).toString('hex')}`
 }
 
-export function createRun(slug, env, { request, triaged, repo, firstStep, stopAfter = null }) {
+export function createRun(slug, env, { request, triaged, repo, firstStep, stopAfter = null, signals }) {
   const id = newRunId()
   const dir = join(runsDir(slug, env), id)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'request.md'), `${request.trim()}\n`)
-  const state = {
+  const state = signals
+    ? { id, repo, step: 'discover', signals, attempts: 0, qc_rounds: 0, errors: [], notes: [] }
+    : {
     id,
     repo,
     tier: triaged.tier,
