@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { isGreen, runShell } from './exec.js'
-import { mentionsId } from './model.js'
+import { mentionsId } from './text.js'
 import { stackFor } from './profile.js'
 import { renderCommand } from './replay.js'
-import { parseReport } from './reports.js'
+import { junitFailures, parseReport } from './reports.js'
 
 const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map((ext) => `playwright.config.${ext}`)
 const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS }
@@ -40,13 +40,14 @@ function runReported(stack, cwd, command, timeoutS) {
 export function runTestFile(profile, repo, file, timeoutS = 900) {
   const stack = stackFor(profile, file)
   if (stack === null) {
-    return { file, status: 'unrunnable', timedOut: false, tests: [], output: 'no test stack in the profile matches this file' }
+    return { file, status: 'unrunnable', timedOut: false, tests: [], output: 'no test stack in the profile matches this file', failures: {} }
   }
   const cwd = join(repo, runnerRoot(repo, file, stack))
   const { run, xml, tests } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
   const empty = stack.report === 'junit' ? xml !== '' && !/<testcase\b/.test(xml) : NO_TESTS.test(run.output)
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
-  return { file, status, timedOut: run.timedOut, tests, output: run.output.slice(-4000) }
+  const failures = stack.report === 'junit' ? Object.fromEntries(junitFailures(xml)) : {}
+  return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
 }
 
 // The whole suite of each runner the test files use, so QA sees tests the change broke elsewhere.
@@ -80,4 +81,52 @@ export function changedSince(repo, hashes) {
 export function caseIdsMissing(repo, files, caseIds) {
   const texts = files.map((file) => readFileSync(join(repo, file), 'utf8'))
   return caseIds.filter((id) => !texts.some((text) => mentionsId(text, id)))
+}
+
+const firstLine = (text) => text.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
+const PLAYWRIGHT_LOCATION = /^\S+:\d+:\d+ /
+const MISSING_SYMBOL = /Cannot find module|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method/
+const TIMEOUT = /Test timeout of \d+ms exceeded|\btimed out after\b/i
+const SYNTAX = /\bSyntaxError\b|Unexpected token/
+const NETWORK = /ECONNREFUSED|ERR_CONNECTION_REFUSED|ENOTFOUND|getaddrinfo/
+
+export function headline({ message, body }) {
+  const line = PLAYWRIGHT_LOCATION.test(message) ? firstLine(body) : firstLine(message)
+  return line.replace(/^Error: /, '')
+}
+
+export function failureKind(failure) {
+  const text = headline(failure)
+  if (/timeout/i.test(failure.type) || TIMEOUT.test(text)) return 'timeout'
+  if (/AssertionError|ERR_ASSERTION/.test(failure.type) || /AssertionError|ERR_ASSERTION/.test(text) || /^expected/i.test(text)) return 'assertion'
+  if (SYNTAX.test(text)) return 'syntax'
+  if (NETWORK.test(text)) return 'network'
+  return MISSING_SYMBOL.test(text) ? 'missing' : 'other'
+}
+
+function outputFailure(output) {
+  const lines = output.split('\n').map((line) => line.trim()).filter(Boolean)
+  const known = [MISSING_SYMBOL, TIMEOUT, SYNTAX, NETWORK]
+  const line = lines.find((text) => known.some((pattern) => pattern.test(text))) ?? lines[0] ?? ''
+  return { type: '', message: line, body: '' }
+}
+
+const REFUSED_KINDS = ['timeout', 'syntax', 'network']
+
+// Red for the right reason is red on the behaviour. A missing symbol of the code under test is the
+// expected red before implementation; a timeout, a syntax error or a network error means the
+// environment is broken, and any other failure, an assertion included, is accepted.
+export function wrongReasons(result, caseIds, { source = '' } = {}) {
+  if (result.timedOut) return [`${result.file}: no test ran (timed out)`]
+  const failures = Object.entries(result.failures ?? {})
+  const named = result.tests.filter((test) => caseIds.some((id) => mentionsId(test.name, id)))
+  if (result.status === 'red' && named.length === 0) {
+    const first = failures[0]?.[1] ?? (result.output ? outputFailure(result.output) : undefined)
+    const accepted = first && failureKind(first) === 'missing' && caseIds.every((id) => mentionsId(source, id))
+    const reason = first ? headline(first) : 'no failure reported'
+    return accepted ? [] : [`${result.file}: no test ran (the file did not load: ${reason})`]
+  }
+  return failures
+    .filter(([, failure]) => REFUSED_KINDS.includes(failureKind(failure)))
+    .map(([name, failure]) => `${name.split(' > ').pop()}: fails on ${headline(failure)} (${failureKind(failure)}), not on the behaviour`)
 }

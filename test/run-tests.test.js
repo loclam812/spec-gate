@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverProfile } from '../cli/lib/profile.js'
-import { caseIdsMissing, changedSince, hashFiles, runnerRoot, runTestFile } from '../cli/lib/run-tests.js'
+import { caseIdsMissing, changedSince, hashFiles, runnerRoot, runTestFile, wrongReasons } from '../cli/lib/run-tests.js'
 import { BUGGY_TOTAL, CATCHING_TEST, commitAll, makeFixtureRepo, writeFile } from './helpers.js'
 
 const { repo } = makeFixtureRepo()
@@ -70,4 +70,75 @@ it('a file the runner finds no tests in is no-tests, not red', () => {
   const result = runTestFile(quiet, repo, 'e2e/a.fake')
   assert.equal(result.status, 'no-tests')
   assert.deepEqual(result.tests, [])
+})
+
+const failure = (message, extra = {}) => ({ type: '', message, body: '', ...extra })
+const red = (failures, extra = {}) => ({
+  file: 'a.test.js',
+  status: 'red',
+  timedOut: false,
+  tests: Object.keys(failures).map((name) => ({ name, status: 'fail' })),
+  failures,
+  ...extra,
+})
+
+it('wrongReasons accepts a node --test assertion failure whose values mention a timeout', () => {
+  const message = "Expected values to be strictly deep-equal:\n+   status: 'pending'\n-   status: 'timeout'"
+  assert.deepEqual(wrongReasons(red({ 'C1: x': failure(message, { type: 'testCodeFailure' }) }), ['C1']), [])
+})
+
+it('wrongReasons accepts an assertion that only mentions an error code', () => {
+  const found = failure("expected 'ECONNREFUSED' to be 'ETIMEDOUT'", { type: 'AssertionError' })
+  assert.deepEqual(wrongReasons(red({ 'C1: x': found }), ['C1']), [])
+})
+
+it('wrongReasons reads a Playwright failure from its body, not from the location and title', () => {
+  const message = 'refund.spec.ts:3:5 C5: shows the timeout notice'
+  const asserted = failure(message, { body: 'Error: expect(locator).toBeVisible() failed' })
+  assert.deepEqual(wrongReasons(red({ 'C5: shows the timeout notice': asserted }), ['C5']), [])
+  const timedOut = failure(message, { body: 'Test timeout of 30000ms exceeded.' })
+  const lines = wrongReasons(red({ 'C5: shows the timeout notice': timedOut }), ['C5'])
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /\(timeout\)/)
+})
+
+it('wrongReasons refuses a syntax error and a network error', () => {
+  const syntax = wrongReasons(red({ 'C1: x': failure("SyntaxError: Unexpected token '}'") }), ['C1'])
+  assert.equal(syntax.length, 1)
+  assert.match(syntax[0], /\(syntax\)/)
+  const network = wrongReasons(red({ 'C1: x': failure('connect ECONNREFUSED 127.0.0.1:5432') }), ['C1'])
+  assert.equal(network.length, 1)
+  assert.match(network[0], /\(network\)/)
+})
+
+it('wrongReasons refuses a failure typed as a timeout', () => {
+  const lines = wrongReasons(red({ 'C1: x': failure('test did not finish', { type: 'testTimeoutFailure' }) }), ['C1'])
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /\(timeout\)/)
+})
+
+it('wrongReasons accepts a file that did not load on a missing symbol only when the source names every case', () => {
+  const unloaded = { file: 'b.test.js', status: 'red', timedOut: false, tests: [{ name: 'b.test.js', status: 'fail' }], failures: { 'b.test.js': failure("Cannot find module '../src/refund.js'") } }
+  assert.deepEqual(wrongReasons(unloaded, ['C1', 'C2'], { source: 'it("C1: a") it("C2: b")' }), [])
+  assert.deepEqual(wrongReasons(unloaded, ['C1', 'C2'], { source: 'it("C1: a")' }), [
+    "b.test.js: no test ran (the file did not load: Cannot find module '../src/refund.js')",
+  ])
+})
+
+it('wrongReasons refuses a file that did not load for any other reason, and a timeout', () => {
+  const unloaded = { file: 'b.test.js', status: 'red', timedOut: false, tests: [], failures: { 'b.test.js': failure("SyntaxError: Unexpected token '}'") } }
+  assert.deepEqual(wrongReasons(unloaded, ['C3'], { source: 'C3' }), ["b.test.js: no test ran (the file did not load: SyntaxError: Unexpected token '}')"])
+  assert.deepEqual(wrongReasons({ ...unloaded, timedOut: true }, ['C3']), ['b.test.js: no test ran (timed out)'])
+})
+
+it('wrongReasons reads a compile error from the output when the runner reports no failures', () => {
+  const output = './refund_test.go:12:9: undefined: Refund\nFAIL\texample.com/shop [build failed]'
+  const built = { file: 'refund_test.go', status: 'red', timedOut: false, tests: [], failures: {}, output }
+  assert.deepEqual(wrongReasons(built, ['C1'], { source: 'func TestRefund(t *testing.T) { t.Run("C1: a", nil) }' }), [])
+  const lines = wrongReasons(built, ['C1'], { source: '' })
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /no test ran \(the file did not load: .*undefined: Refund\)/)
+  const hung = wrongReasons({ ...built, output: 'panic: test timed out after 10m0s' }, ['C1'], { source: 'C1' })
+  assert.equal(hung.length, 1)
+  assert.match(hung[0], /timed out/)
 })

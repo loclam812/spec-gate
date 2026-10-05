@@ -2,11 +2,34 @@ export const REPORT_FORMATS = ['go-json', 'junit']
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
-const decode = (text) => text.replace(/&(amp|lt|gt|quot|apos);/g, (_, name) => ENTITIES[name])
+const decode = (text) =>
+  text
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&(amp|lt|gt|quot|apos);/g, (_, name) => ENTITIES[name])
 
 function attribute(attrs, name) {
   const match = attrs.match(new RegExp(`\\b${name}="([^"]*)"`))
   return match ? decode(match[1]) : null
+}
+
+function junitCases(xml) {
+  return [...xml.matchAll(/<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g)].map(([, attrs, body = '']) => {
+    const name = attribute(attrs, 'name')
+    const classname = attribute(attrs, 'classname')
+    return { name: classname ? `${classname} > ${name}` : name, body }
+  })
+}
+
+export function junitFailures(xml) {
+  return new Map(
+    junitCases(xml).flatMap(({ name, body }) => {
+      const failed = body.match(/<(failure|error)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/)
+      if (!failed) return []
+      const [, , attrs, text = ''] = failed
+      return [[name, { type: attribute(attrs, 'type') ?? '', message: attribute(attrs, 'message') ?? '', body: decode(text).trim() }]]
+    }),
+  )
 }
 
 function parseGoJson(output, { subtests = false } = {}) {
@@ -24,13 +47,10 @@ function parseGoJson(output, { subtests = false } = {}) {
 }
 
 function parseJunit(xml) {
-  const cases = [...xml.matchAll(/<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g)]
   return new Map(
-    cases.map(([, attrs, body = '']) => {
-      const name = attribute(attrs, 'name')
-      const classname = attribute(attrs, 'classname')
+    junitCases(xml).map(({ name, body }) => {
       const status = /<(failure|error)\b/.test(body) ? 'fail' : /<skipped\b/.test(body) ? 'skip' : 'pass'
-      return [classname ? `${classname} > ${name}` : name, status]
+      return [name, status]
     }),
   )
 }
