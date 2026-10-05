@@ -3,4 +3,5 @@ sentences:
   - { id: S1, text: The total multiplies price by quantity., cases: [C1] }
 cases:
   - { id: C1, when: an item has price 2 and quantity 3, then: the total is 6, basis: request, risk: high, layer: unit }
-questions: []
+questions:
+  - { id: Q1, text: Does the total round to whole units?, about: rule }

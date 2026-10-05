@@ -134,11 +134,13 @@ code." A sample whose `pre_fix` predates the skill measures its absence.
 
 `skill_dir` is for a skill from outside the repository; freeze it at a date before every sample.
 
-`spec-gate` is built in too: instead of one prompt it runs spec-gate's own T2 loop in the pre-fix
-tree and stops once the tests are written. The spec files are the request, BA questions are
-answered from `answers.yaml` (a question it does not settle gets `unknown — assumed: …`), Ready
-is approved, and each run keeps the loop's model, cases and decisions under `spec-gate/` and the
-cost of every agent in `cost.json`. `batch` runs it only when named with `--candidate spec-gate`.
+`spec-to-tests` is built in too: instead of one prompt it runs spec-gate's own `spec-gate tests` flow
+headlessly in the pre-fix tree, until the tests are written. The spec files are the request, QC
+questions are answered from `answers.yaml` (a question it does not settle gets `unknown — assumed:
+…`), Ready is approved, and each run keeps the flow's cases, decisions and report under
+`spec-to-tests/`, the cost of every agent in `cost.json`, and the application source files the blind
+QC read in `qc-reads.json`. A sample's `knowledge.md`, when present, is placed as the repository's
+`.claude/testing.md` before the run. `batch` runs it only when named with `--candidate spec-to-tests`.
 
 ## Running
 

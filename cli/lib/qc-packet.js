@@ -4,7 +4,7 @@ import { tryGit } from './exec.js'
 import { section } from './knowledge.js'
 import { screenNames } from './profile.js'
 
-const LOCALE_DIR = /(^|\/)(locales?|i18n|lang|translations)\//
+export const LOCALE_DIR = /(^|\/)(locales?|i18n|lang|translations)\//
 const LOCALE_FILE = /\.(json|ya?ml|po|properties)$/
 const MAX_TEXT_LINES = 300
 const MAX_LIST = 200

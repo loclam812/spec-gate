@@ -94,6 +94,16 @@ export function resultTotals(transcript) {
   return { usd: sum('total_cost_usd'), ms: sum('duration_ms') }
 }
 
+const READ_TOOLS = ['Read', 'Grep', 'Edit']
+
+export function readPaths(transcript, root) {
+  return toolUses(parseLines(transcript))
+    .filter((use) => READ_TOOLS.includes(use.name))
+    .flatMap((use) => PATH_KEYS.map((key) => use.input?.[key]))
+    .filter((value) => typeof value === 'string')
+    .map((value) => resolve(root, value))
+}
+
 function toolPaths(transcript, root) {
   return toolUses(parseLines(transcript))
     .flatMap((use) => (use.name === 'Glob' ? [...PATH_KEYS, 'pattern'] : PATH_KEYS).map((key) => use.input?.[key]))
