@@ -1,25 +1,14 @@
-export const LAYERS = ['unit', 'integration', 'e2e', 'ui']
+import { UX_SOURCE_UNASKED, uxSourceErrors } from './cases.js'
 
-const UX_SOURCE = /^(figma:|screenshot:|existing-screen:)\S+( .*)?$|^none-agreed$/
+export { UX_SOURCE_UNASKED }
+export const LAYERS = ['unit', 'integration', 'e2e', 'ui']
 
 const list = (value) => (Array.isArray(value) ? value : [])
 const nonEmpty = (value) => typeof value === 'string' && value.trim() !== ''
 const isMapping = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 const duplicates = (ids) => [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))]
 
-// C1 must not match inside C12, ABC1, C1b or #C1C1C1, but may follow a lowercase word, as in a
-// Go test name (TestC1_LateRefund).
-export function mentionsId(text, id) {
-  return new RegExp(`(?<![0-9A-Z])${id}(?![0-9A-Za-z])`).test(text)
-}
-
-export function splitRequest(text) {
-  return text
-    .split(/(?<=[.!?。])\s+|\n+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean)
-    .map((sentence, index) => ({ id: `S${index + 1}`, text: sentence }))
-}
+export { mentionsId, splitRequest } from './text.js'
 
 function mappings(model, key) {
   const entries = list(model[key])
@@ -27,20 +16,6 @@ function mappings(model, key) {
     valid: entries.filter(isMapping),
     errors: entries.flatMap((entry, index) => (isMapping(entry) ? [] : [`${key} entry ${index + 1} is not a mapping`])),
   }
-}
-
-export const UX_SOURCE_UNASKED = [
-  'ux.source: give a UX source or ask for one (a question with about: ux-source)',
-  "ux.source: none-agreed needs the user's answer to a question with about: ux-source",
-]
-
-function uxSourceErrors(source, asked, context) {
-  if (source === '') return asked ? [] : [UX_SOURCE_UNASKED[0]]
-  if (!UX_SOURCE.test(source)) return ['ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed']
-  if (source === 'none-agreed' && !context.uxSourceAgreed) {
-    return [UX_SOURCE_UNASKED[1]]
-  }
-  return []
 }
 
 function uiErrors(model, questions, context) {
