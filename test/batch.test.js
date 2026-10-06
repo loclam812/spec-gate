@@ -26,7 +26,7 @@ function setup() {
     `#!/bin/sh\necho call >> '${calls}'\nmkdir -p test && cp '${generated}' test/total.test.js\ncat '${home}/leak-line.txt' 2>/dev/null || echo '{}'\n`,
   )
   chmodSync(join(bin, 'claude'), 0o755)
-  const env = { ...process.env, SPEC_GATE_HOME: home, PATH: `${bin}:${process.env.PATH}` }
+  const env = { ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: tempDir('sg-work-'), PATH: `${bin}:${process.env.PATH}` }
   const run = (...argv) => {
     const chunks = []
     const code = runEval([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })

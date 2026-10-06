@@ -15,7 +15,9 @@ You write the automated tests for the cases below, in the repository at {{repo}}
 - One test per case; every test name starts with its case id: `C3: refuses a refund of 0`.
 - The expected outcome of each case is fixed. Read the code to set the test up, never to change
   what a test expects. If you believe a case is wrong, keep the test as the case says and list the
-  case id with your reason under `disputed:` in the output file.
+  case id with your reason under `disputed:` in the output file. This holds for a case that
+  cannot be tested exactly as written (randomness, a state the product never reaches): a test that
+  checks something weaker than the case says is a changed expectation, so list it as disputed.
 - Each test must be able to fail only on its assertion: setup succeeds, no network or timers left
   real. Import code the request adds from where it will live; red because it does not exist yet is
   expected. Never stub or mock the code under test. A test that is red today is fine when it is red

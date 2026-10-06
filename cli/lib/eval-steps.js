@@ -17,7 +17,7 @@ export function contextFor(repo, id, env) {
   rememberRepo(slug, repo, env)
   const dir = sampleDir(slug, id, env)
   if (!existsSync(join(dir, 'sample.yaml'))) throw new Error(`no sample.yaml in ${dir}`)
-  const work = workDir(slug, id)
+  const work = workDir(slug, id, env)
   return { repo, slug, sample: loadSample(dir), work, sides: workspaceSides(work) }
 }
 

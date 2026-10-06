@@ -126,6 +126,16 @@ it('wrongReasons accepts a file that did not load on a missing symbol only when 
   ])
 })
 
+it('wrongReasons refuses a broken install: a missing runner or dependency is setup, not missing code', () => {
+  const output = "Error: Cannot find module '/tmp/ws/post/node_modules/vitest/vitest.mjs'\n    at Module._resolveFilename"
+  const crashed = { file: 'b.test.js', status: 'red', timedOut: false, tests: [], failures: {}, output }
+  assert.deepEqual(wrongReasons(crashed, ['C1'], { source: 'C1' }), [
+    "b.test.js: no test ran (the file did not load: Cannot find module '/tmp/ws/post/node_modules/vitest/vitest.mjs')",
+  ])
+  assert.equal(failureKind(failure("Cannot find package 'react' imported from /repo/src/card.tsx")), 'setup')
+  assert.equal(failureKind(failure("Cannot find module '../src/refund.js'")), 'missing')
+})
+
 it('wrongReasons refuses a file that did not load for any other reason, and a timeout', () => {
   const unloaded = { file: 'b.test.js', status: 'red', timedOut: false, tests: [], failures: { 'b.test.js': failure("SyntaxError: Unexpected token '}'") } }
   assert.deepEqual(wrongReasons(unloaded, ['C3'], { source: 'C3' }), ["b.test.js: no test ran (the file did not load: SyntaxError: Unexpected token '}')"])

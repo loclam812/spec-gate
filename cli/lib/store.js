@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { homedir, tmpdir } from 'node:os'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { git, tryGit } from './exec.js'
 
@@ -42,7 +42,13 @@ export function runDir(slug, id, candidate, run, env = process.env) {
   return join(sampleDir(slug, id, env), 'runs', `${candidate}-${run}`)
 }
 
-export function workDir(slug, id) {
+// Workspaces live outside the system temp directory, which macOS purges of files unused for three
+// days (taking node_modules with them), and outside the store, whose reads count as leaks.
+export function workRoot(env = process.env) {
+  return env.SPEC_GATE_WORK || join(homedir(), '.cache', 'spec-gate', 'work')
+}
+
+export function workDir(slug, id, env = process.env) {
   const digest = createHash('sha256').update(`${slug}/${id}`).digest('hex').slice(0, 10)
-  return join(tmpdir(), `sg-${digest}`)
+  return join(workRoot(env), `sg-${digest}`)
 }

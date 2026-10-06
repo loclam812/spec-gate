@@ -21,13 +21,14 @@ function setup() {
   const bin = tempDir('sg-bin-')
   writeFile(bin, 'claude', `#!/bin/sh\nmkdir -p test && cp '${generated}' test/total.test.js && echo '{}'\n`)
   chmodSync(join(bin, 'claude'), 0o755)
-  const env = { ...process.env, SPEC_GATE_HOME: home, PATH: `${bin}:${process.env.PATH}` }
+  const work = tempDir('sg-work-')
+  const env = { ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: work, PATH: `${bin}:${process.env.PATH}` }
   const run = (...argv) => {
     const chunks = []
     const code = runEval([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })
     return { code, text: chunks.join('') }
   }
-  return { home, repo, preFix, run }
+  return { home, repo, preFix, run, work }
 }
 
 it('where, validate, prepare, generate, score and report run end to end with a stub claude', () => {
@@ -95,10 +96,10 @@ function stubTouching(path) {
 }
 
 it('a candidate reading the source checkout is leaked; one writing scratch files to /tmp is not', () => {
-  const { home, repo, run } = setup()
+  const { home, repo, run, work } = setup()
   run('prepare', 'demo-1')
   const runWith = (bin, n) => {
-    const env = { ...process.env, SPEC_GATE_HOME: home, PATH: `${bin}:${process.env.PATH}` }
+    const env = { ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: work, PATH: `${bin}:${process.env.PATH}` }
     const out = { write: () => {} }
     runEval(['generate', 'demo-1', '--candidate', 'single-prompt', '--run', n, '--repo', repo], { env, out })
     const chunks = []

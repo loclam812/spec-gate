@@ -43,10 +43,12 @@ it('only non_testable sentences, and more than 30 cases, are refused', () => {
   assert.match(casesDocErrors(many, CONTEXT).join('\n'), /cases: 31 cases; keep the 30 riskiest/)
 })
 
-it('Ready lists only assumed and decision cases and counts the rest', () => {
-  const text = readySummary(DOC, { casesPath: '/run/cases.yaml' })
-  assert.match(text, /## Check these\n\n- C2 \(assumed, low\): when the refund is for 0, then it is refused/)
-  assert.match(text, /1 case straight from the request\. All cases: \/run\/cases\.yaml/)
+it('Ready lists only assumed cases and counts the rest by where they came from', () => {
+  const decided = { id: 'C3', when: 'a refund is asked twice', then: 'the second is refused', basis: 'decision', risk: 'high', layer: 'unit' }
+  const text = readySummary({ ...DOC, cases: [...DOC.cases, decided] }, { casesPath: '/run/cases.yaml' })
+  assert.match(text, /## Check these\n\n- C2 \(assumed, low\): when the refund is for 0, then it is refused\n\n/)
+  assert.doesNotMatch(text, /C3 \(decision/)
+  assert.match(text, /1 case straight from the request, 1 from your answers\. All cases: \/run\/cases\.yaml/)
   assert.doesNotMatch(text, /it waits for approval/)
 })
 

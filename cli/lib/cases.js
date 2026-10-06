@@ -77,9 +77,8 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
 
 export function readySummary(doc, { casesPath }) {
   const cases = list(doc?.cases).filter(isMapping)
-  const toCheck = [...cases.filter((c) => c.basis === 'assumed'), ...cases.filter((c) => c.basis === 'decision')]
-  const settled = cases.filter((c) => c.basis === 'request')
-  const checkLines = toCheck.map((c) => `- ${c.id} (${c.basis}, ${c.risk}): when ${c.when}, then ${c.then}`)
+  const count = (basis) => cases.filter((c) => c.basis === basis).length
+  const checkLines = cases.filter((c) => c.basis === 'assumed').map((c) => `- ${c.id} (${c.basis}, ${c.risk}): when ${c.when}, then ${c.then}`)
   return [
     '# Ready to write tests',
     '',
@@ -87,9 +86,9 @@ export function readySummary(doc, { casesPath }) {
     '',
     '## Check these',
     '',
-    ...(checkLines.length > 0 ? checkLines : ['Nothing: every case comes straight from the request.']),
+    ...(checkLines.length > 0 ? checkLines : ['Nothing: no case rests on an assumption.']),
     '',
-    `${plural(settled.length, 'case')} straight from the request. All cases: ${casesPath}`,
+    `${plural(count('request'), 'case')} straight from the request, ${count('decision')} from your answers. All cases: ${casesPath}`,
     '',
   ].join('\n')
 }

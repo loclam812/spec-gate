@@ -33,7 +33,13 @@ YAML with exactly these keys:
 - `then` comes from the request, a decision above, or the plain purpose of the feature. When none
   of those settles a behaviour that a user sees or that concerns access (risk: high), ask a
   question instead of guessing. Smaller points you may assume: mark them `basis: assumed`.
-- Ask at most 4 questions per round.
+- Each `then` states one outcome a test can check. Never write "A or B", "either", or "is hidden
+  or shows …": pick the outcome the purpose of the feature implies and mark it `basis: assumed`,
+  or ask.
+- Ask at most 4 questions per round. The person answering has not seen the packet. Write each
+  question in plain words a product owner understands: say what the feature is in one clause, give
+  a concrete example with numbers ("a cart holds 3 of one item and 1 of another: does it count 2 items or
+  4?"), and name no file, config key or internal term.
 - Never take an expected outcome from what the code does.
 
 ## Fix these problems from your previous attempt

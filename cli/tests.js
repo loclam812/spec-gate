@@ -8,6 +8,7 @@ import { writeJson } from './lib/files.js'
 import { createRun, latestRunId, loadState, runsDir } from './lib/run-store.js'
 import { verifyRun } from './lib/verify.js'
 import { nextInstruction, submitStep } from './lib/tests-steps.js'
+import { dropCase } from './lib/drop-case.js'
 import { projectDir, repoSlug } from './lib/store.js'
 import { findKnowledge, knowledgeErrors, knowledgePaths } from './lib/knowledge.js'
 import { renderPrompt } from './lib/candidate.js'
@@ -20,11 +21,13 @@ const OPTIONS = {
   answers: { type: 'string' },
   approve: { type: 'boolean', default: false },
   reject: { type: 'string' },
+  case: { type: 'string' },
+  reason: { type: 'string' },
   file: { type: 'string' },
   'old-skill': { type: 'string' },
 }
 
-const USAGE = 'usage: spec-gate tests <start|next|submit|status> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"]'
+const USAGE = 'usage: spec-gate tests <start|next|submit|status|drop> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"] [--case <id> --reason "<why>"]'
 
 const print = (out, value) => out.write(`${JSON.stringify(value, null, 2)}\n`)
 
@@ -57,6 +60,10 @@ export function runTests(argv, { env = process.env, out = process.stdout } = {})
     const { state, errors } = submitStep(openRun(values, env), { answers: values.answers, approve: values.approve, reject: values.reject })
     print(out, { step: state.step, errors })
     return errors.length > 0 ? 1 : 0
+  }
+  if (command === 'drop') {
+    print(out, dropCase(openRun(values, env), { id: values.case, reason: values.reason }))
+    return 0
   }
   if (command === 'status') {
     print(out, openRun(values, env).state)

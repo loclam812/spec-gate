@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { tmpdir } from 'node:os'
-import { basename, dirname } from 'node:path'
+import { homedir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 import { git } from '../cli/lib/exec.js'
 import { repoSlug, sampleDir, slugFromPath, slugFromRemote, storeRoot, workDir } from '../cli/lib/store.js'
 import { makeFixtureRepo } from './helpers.js'
@@ -39,9 +39,10 @@ it('storeRoot honours SPEC_GATE_HOME', () => {
   assert.equal(sampleDir('s', 'x', { SPEC_GATE_HOME: '/tmp/sg-home' }), '/tmp/sg-home/projects/s/eval/x')
 })
 
-it('workDir names neither the repository nor the sample', () => {
-  const dir = workDir('github.com-acme-shop', 'shop-42')
-  assert.equal(dirname(dir), tmpdir())
+it('workDir names neither the repository nor the sample, and stays out of the system temp directory', () => {
+  const dir = workDir('github.com-acme-shop', 'shop-42', {})
+  assert.equal(dirname(dir), join(homedir(), '.cache', 'spec-gate', 'work'))
   assert.match(basename(dir), /^sg-[0-9a-f]{10}$/)
-  assert.equal(dir, workDir('github.com-acme-shop', 'shop-42'))
+  assert.equal(dir, workDir('github.com-acme-shop', 'shop-42', {}))
+  assert.equal(dirname(workDir('s', 'x', { SPEC_GATE_WORK: '/tmp/sg-work' })), '/tmp/sg-work')
 })

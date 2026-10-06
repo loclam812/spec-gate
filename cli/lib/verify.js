@@ -48,7 +48,8 @@ export function verifyRun(run) {
   const { regressions, notes } = suiteRegressions(run, profile, files)
   const traced = buildTrace({ casesDoc: parse(readFileSync(at(run, 'cases.yaml'), 'utf8')), repo: run.repo, files, results })
   const ok = edited.length === 0 && red.length === 0 && regressions.length === 0 && traced.gaps.length === 0
-  const markdown = renderVerify({ run, edited, red, regressions, traced, notes, ok })
+  const dropped = existsSync(at(run, 'decisions.md')) ? readFileSync(at(run, 'decisions.md'), 'utf8').split('\n').filter((line) => line.startsWith('- Dropped ')) : []
+  const markdown = renderVerify({ run, edited, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok })
   writeFileSync(at(run, 'verify.md'), markdown)
   return { ok, markdown }
 }

@@ -28,7 +28,7 @@ it('the trace follows each sentence to its cases and their test results, and lis
   assert.match(section, /\| S2: The customer requests a refund\. \| C2 \| red \|/)
   assert.match(section, /\| S3: Admins are notified\. \| C3 \| no test \|/)
   assert.match(section, /\| S4: Thanks! \| {2}\| not testable: a courtesy \|/)
-  assert.deepEqual(gaps, ['- S2: red', '- S3: no test'])
+  assert.deepEqual(gaps, ['- S2: C2 red', '- S3: C3 no test'])
 })
 
 it('a case named only in a comment, or only by a skipped test, is not green', () => {
@@ -38,4 +38,12 @@ it('a case named only in a comment, or only by a skipped test, is not green', ()
   assert.match(section, /\| S1: .* \| C1 \| green \|/)
   assert.match(section, /\| S2: .* \| C2 \| skipped \|/)
   assert.match(section, /\| S3: .* \| C3 \| no test \|/)
+})
+
+it('a gap names each case that is not green, not just the sentence', () => {
+  writeFile(repo, 'test/most.test.js', "test('C1: one', …)\ntest('C2: two', …)\n")
+  const results = [{ file: 'test/most.test.js', status: 'green', tests: [{ name: 'C1: one', status: 'pass' }, { name: 'C2: two', status: 'pass' }] }]
+  const casesDoc = { sentences: [{ id: 'S1', text: 'All of it.', cases: ['C1', 'C2', 'C3'] }] }
+  const { gaps } = buildTrace({ casesDoc, repo, files: ['test/most.test.js'], results })
+  assert.deepEqual(gaps, ['- S1: C3 no test'])
 })

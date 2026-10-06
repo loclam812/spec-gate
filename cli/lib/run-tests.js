@@ -122,8 +122,13 @@ export function headline(failure) {
   return line.replace(/^Error: /, '')
 }
 
+// A missing file under node_modules, or a missing npm package, is a broken install, never the code
+// under test.
+const BROKEN_INSTALL = /node_modules[\\/]|Cannot find package '[^./]/
+
 export function failureKind(failure) {
   const text = headline(failure)
+  if (BROKEN_INSTALL.test(text)) return 'setup'
   if (isHookFailure(failure)) return MISSING_SYMBOL.test(text) ? 'missing' : 'setup'
   if (/timeout/i.test(failure.type) || TIMEOUT.test(text)) return 'timeout'
   if (/AssertionError|ERR_ASSERTION/.test(failure.type) || /AssertionError|ERR_ASSERTION/.test(text) || /^expected/i.test(text)) return 'assertion'

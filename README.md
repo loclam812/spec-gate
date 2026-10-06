@@ -46,11 +46,14 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
 - **ask** puts those questions to you (at most four per round); the answers become decisions and
   QC runs again. When the request touches a UI, the CLI asks for the UX source (a Figma link, a
   screenshot, an existing screen) if none was given.
-- **ready** shows only the `assumed` and `decision` cases, with their expectations, and counts the
-  rest. You approve or reject with a reason.
+- **ready** shows only the `assumed` cases, with their expectations, and counts the cases taken
+  from the request and from your answers. You approve or reject with a reason.
 - **write-tests**: the test writer gets the cases, the knowledge file and the code. Every test
   name carries its case id; expectations are copied, never changed, and a case the writer thinks is
-  wrong is reported as disputed.
+  wrong is reported as disputed, as is one it can only test more weakly than written. A disputed case
+  you agree cannot hold is dropped after its test is removed: `spec-gate tests drop --case <id>
+  --reason "<why>"` records the reason, re-guards only the files that held the case, and verify
+  lists it.
 - **check** runs each test file once. It accepts when every case has a test and every red test
   fails on an assertion or on code that does not exist yet, not on a syntax error, a timeout, the network or setup. Green tests
   are allowed and listed. Otherwise the writer gets the failures and up to two more attempts, then the run is
@@ -62,7 +65,9 @@ names a `testDir`. A test file its runner finds no tests in, because the runner'
 out, is refused, as is one no stack runs. `verify-changes` reruns the whole suite of each runner
 the new tests use; a test that passed in the snapshot and fails now is a regression, and tests
 already red at the start do not count. jest has no per-test report here, so its suite is noted,
-not compared. `spec-gate verify` exits non-zero when anything is red.
+not compared. Gaps name each case without a green test. `spec-gate verify` exits non-zero when
+anything is red. With many failing browser tests, each waits for its timeout, so verify can take
+minutes.
 
 ### What it writes where
 
@@ -109,6 +114,7 @@ steps spawn no agent. Under `eval`, every agent's cost is recorded in the run's 
 ```bash
 spec-gate tests start --request "<text>" | --request-file <path>
 spec-gate tests next | submit | status --run <id>
+spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test is removed
 spec-gate verify --run <id>
 spec-gate knowledge path | check | draft
 spec-gate profile                              # the repository's test stacks
@@ -228,7 +234,10 @@ To drive a candidate by hand instead, open
 and `--run`. `collect` refuses a run that is already collected unless you pass `--fresh`.
 
 Editing `pre_fix`, `post_fix` or `setup` invalidates the workspace: `generate` and `score` refuse
-until `prepare` rebuilds it.
+until `prepare` rebuilds it. Workspaces live in `~/.cache/spec-gate/work/` (`SPEC_GATE_WORK`
+overrides it), not in the system temp directory, which macOS purges of files unused for three days.
+A test that fails on a missing file under `node_modules` or a missing npm package is a broken
+install: the check step refuses it rather than counting it as code not written yet.
 
 ## Verdicts
 
