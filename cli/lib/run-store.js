@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { readJson, writeJson } from './files.js'
+import { logEvent } from './run-log.js'
 import { projectDir } from './store.js'
 
 export function runsDir(slug, env) {
@@ -20,6 +21,7 @@ export function createRun(slug, env, { request, repo, signals }) {
   writeFileSync(join(dir, 'request.md'), `${request.trim()}\n`)
   const state = { id, repo, step: 'discover', signals, attempts: 0, qc_rounds: 0, errors: [], notes: [] }
   writeJson(join(dir, 'state.json'), state)
+  logEvent(dir, { step: state.step })
   return { id, dir, state }
 }
 
@@ -35,4 +37,7 @@ export function latestRunId(slug, env, repo) {
 
 export const loadState = (dir) => readJson(join(dir, 'state.json'))
 
-export const saveState = (dir, state) => writeJson(join(dir, 'state.json'), state)
+export function saveState(dir, state) {
+  writeJson(join(dir, 'state.json'), state)
+  logEvent(dir, { step: state.step, attempts: state.attempts ?? 0, errors: state.errors ?? [] })
+}

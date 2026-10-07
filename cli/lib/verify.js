@@ -4,6 +4,7 @@ import { parse } from 'yaml'
 import { readJson } from './files.js'
 import { stackFor } from './profile.js'
 import { changedSince, runSuite, runTestFile, suiteTargets } from './run-tests.js'
+import { logEvent } from './run-log.js'
 import { buildTrace } from './trace.js'
 
 const at = (run, name) => join(run.dir, name)
@@ -62,5 +63,6 @@ export function verifyRun(run) {
   const dropped = existsSync(at(run, 'decisions.md')) ? readFileSync(at(run, 'decisions.md'), 'utf8').split('\n').filter((line) => line.startsWith('- Dropped ')) : []
   const markdown = renderVerify({ run, edited, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok })
   writeFileSync(at(run, 'verify.md'), markdown)
+  logEvent(run.dir, { kind: 'verify', ok, red: red.length, regressions: regressions.length, edited: edited.length })
   return { ok, markdown }
 }

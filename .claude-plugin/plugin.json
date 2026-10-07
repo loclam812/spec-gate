@@ -1,6 +1,6 @@
 {
   "name": "spec-gate",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Workflow skills that guard changes with tests: fix-bug reproduces a bug as a failing test before the fix, spec-to-tests turns a feature request into tests before the code, adopt-tests guards tests another skill wrote, verify-changes checks a change against them and the whole suite, and learn-project drafts the repository's testing knowledge.",
   "author": {
     "name": "spec-gate maintainers"

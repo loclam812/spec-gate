@@ -123,6 +123,14 @@ Two kinds of agent run: the QC (opus, once per round) and the test writer (sonne
 retry per failed check). A `spec-to-tests` run is estimated at about $2, not yet measured; `verify-changes` and the CLI
 steps spawn no agent. Under `eval`, every agent's cost is recorded in the run's `cost.json`.
 
+### Logs
+
+Each run keeps `events.jsonl` (a timestamped line per step change, failed check, verify and drop)
+next to its other files in the store, and `notes.md` for remarks added with `spec-gate note`.
+`spec-gate log --since 3d` summarises the runs of every repository in that window: where each
+stopped, why a run got stuck, how many checks failed, questions, assumed, disputed and dropped
+cases, minutes taken, verify results and notes. Nothing leaves the machine.
+
 ### CLI
 
 ```bash
@@ -132,6 +140,8 @@ spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test 
 spec-gate tests adopt --request "<text>" --file <test> [--file <test> ...]   # guard tests another skill wrote
 spec-gate verify --run <id>
 spec-gate knowledge path | check | draft
+spec-gate log [--since 3d]                     # every run in every repository since then, as JSON
+spec-gate note --run <id> "<what you noticed>" # keep a remark with a run
 spec-gate profile                              # the repository's test stacks
 spec-gate eval …                               # the evaluation harness below
 ```

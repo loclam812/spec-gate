@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { readJson, writeJson } from './files.js'
 import { changedSince, hashFiles } from './run-tests.js'
+import { logEvent } from './run-log.js'
 import { mentionsId } from './text.js'
 
 const at = (run, name) => join(run.dir, name)
@@ -41,5 +42,7 @@ export function dropCase(run, { id, reason }) {
   if (holder) throw new Error(`drop: remove the test for ${id} from ${holder} first`)
   writeFileSync(at(run, 'cases.yaml'), stringify(withoutCase(doc, id, reason.trim())))
   appendFileSync(at(run, 'decisions.md'), `- Dropped ${id} after the tests were written: ${reason.trim()}\n`)
-  return { dropped: id, reguarded: reguard(run, guard, id) }
+  const reguarded = reguard(run, guard, id)
+  logEvent(run.dir, { kind: 'drop', case: id })
+  return { dropped: id, reguarded }
 }
