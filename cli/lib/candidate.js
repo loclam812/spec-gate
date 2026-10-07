@@ -136,10 +136,16 @@ export function watchedPaths(transcript, root, watched) {
   return toolPaths(transcript, root).filter(touches)
 }
 
-// Hidden trees are made unreadable for the run so the candidate cannot open the fixed code;
-// prepareWorkspace restores access if a run dies before the finally block.
+// Hidden trees are made unreadable for the run so the candidate cannot open the fixed code. A tree
+// found already locked was left so by a run that died before its finally block; it is restored to
+// an open mode rather than to the lock.
+const OPEN = 0o755
+
 export function withHidden(paths, run) {
-  const modes = paths.filter(existsSync).map((path) => [path, statSync(path).mode & 0o777])
+  const modes = paths.filter(existsSync).map((path) => {
+    const mode = statSync(path).mode & 0o777
+    return [path, (mode & 0o700) === 0 ? OPEN : mode]
+  })
   for (const [path] of modes) chmodSync(path, 0o000)
   try {
     return run()

@@ -1,8 +1,8 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate, watchedPaths } from '../cli/lib/candidate.js'
+import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate, watchedPaths, withHidden } from '../cli/lib/candidate.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { changedFiles, prepareWorkspace } from '../cli/lib/workspace.js'
 import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
@@ -157,4 +157,13 @@ it('the built-in spec-to-tests candidate is driven, not prompted, and may run ev
   for (const tool of ['Bash(npx vitest:*)', 'Bash(go test:*)', 'Bash(npx playwright:*)']) {
     assert.ok(candidate.allowed_tools.includes(tool), tool)
   }
+})
+
+it('a tree left locked by an interrupted run is unlocked again after the next run, not kept locked', () => {
+  const locked = join(tempDir(), 'post')
+  mkdirSync(locked)
+  chmodSync(locked, 0o000)
+  const during = withHidden([locked], () => statSync(locked).mode & 0o777)
+  assert.equal(during, 0)
+  assert.equal(statSync(locked).mode & 0o700, 0o700)
 })
