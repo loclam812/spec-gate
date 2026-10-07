@@ -68,3 +68,26 @@ it('a UX source may carry a note after its locator, but not stand without one', 
   assert.deepEqual(withSource('existing-screen:orders/refund-dialog (RefundForm → AmountField)'), [])
   assert.equal(withSource('existing-screen: (somewhere)').length, 1)
 })
+
+it('none-agreed needs no extra CLI question while the QC itself asks about the UX source', () => {
+  const asking = { ...DOC, ui: true, ux: { source: 'none-agreed', screens: [], states: [] }, questions: [{ id: 'Q1', text: 'Is there a design?', about: 'ux-source' }] }
+  assert.deepEqual(casesDocErrors(asking, { ...CONTEXT, uiRequest: true }), [])
+})
+
+it('a high-risk case may be assumed only once the round has used its four questions', () => {
+  const risky = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
+  assert.deepEqual(casesDocErrors(risky, CONTEXT), ['case C2 is high risk and assumed: ask about it (a question), or settle it from the request'])
+  const full = ['Q1', 'Q2', 'Q3', 'Q4'].map((id) => ({ id, text: 'x', about: 'rule' }))
+  assert.deepEqual(casesDocErrors({ ...risky, questions: full }, CONTEXT), [])
+})
+
+it('a request too large for one run may be split instead of covered', () => {
+  const split = { split: ['Show the duel board.', 'Feed duel results into rewards.'] }
+  assert.deepEqual(casesDocErrors(split, CONTEXT), [])
+  assert.deepEqual(casesDocErrors({ split: ['Only one part.'] }, CONTEXT), ['split: list at least two smaller requests, each one sentence or more'])
+})
+
+it('a high-risk case may stay assumed once a question about it came back unknown', () => {
+  const risky = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
+  assert.deepEqual(casesDocErrors(risky, { ...CONTEXT, unknownAnswers: true }), [])
+})

@@ -9,7 +9,7 @@ const at = (run, name) => join(run.dir, name)
 const list = (value) => (Array.isArray(value) ? value : [])
 const readText = (path) => (existsSync(path) ? readFileSync(path, 'utf8') : '')
 
-function withoutCase(doc, id, reason) {
+export function withoutCase(doc, id, reason) {
   const sentences = list(doc.sentences).map((sentence) => {
     const cases = list(sentence.cases).filter((caseId) => caseId !== id)
     if (cases.length === list(sentence.cases).length) return sentence

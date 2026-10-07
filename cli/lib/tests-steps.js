@@ -3,7 +3,8 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { renderPrompt } from './candidate.js'
-import { casesDocErrors, readySummary, UX_SOURCE_UNASKED } from './cases.js'
+import { casesDocErrors, isSplit, readySummary, UX_SOURCE_UNASKED } from './cases.js'
+import { withoutCase } from './drop-case.js'
 import { readJson, writeJson } from './files.js'
 import { findKnowledge } from './knowledge.js'
 import { discoverProfile, stackFor } from './profile.js'
@@ -55,6 +56,7 @@ function qcContext(run) {
     sentenceIds: splitRequest(readText(at(run, 'request.md'))).map((sentence) => sentence.id),
     uiRequest: run.state.signals.ui,
     uxSourceAgreed: /\(about: ux-source\)/.test(readText(at(run, 'decisions.md'))),
+    unknownAnswers: /^\s*Answer: unknown\b/im.test(readText(at(run, 'decisions.md'))),
   }
 }
 
@@ -96,7 +98,10 @@ function caseStatus(run, result, id) {
 
 function testsReport(run, results) {
   const cases = list(readYaml(at(run, 'cases.yaml'))?.cases)
-  const disputed = list(readYaml(at(run, 'tests.yaml'))?.disputed)
+  const written = readYaml(at(run, 'tests.yaml'))
+  const disputed = list(written?.disputed)
+  const assumes = list(written?.assumes).filter((line) => typeof line === 'string')
+  const dropped = list(written?.dropped)
   const lines = cases.map((c) => {
     const result = results.find((entry) => entry.tests.some((test) => mentionsId(test.name, c.id)) || mentionsId(readText(join(run.repo, entry.file)), c.id))
     const name = result?.tests.find((test) => mentionsId(test.name, c.id))?.name ?? result?.file ?? 'no test'
@@ -118,6 +123,14 @@ function testsReport(run, results) {
     '',
     ...(assumed.length > 0 ? assumed : ['None.']),
     '',
+    '## Interfaces the tests assume',
+    '',
+    ...(assumes.length > 0 ? assumes.map((line) => `- ${line}`) : ['None.']),
+    '',
+    '## Dropped',
+    '',
+    ...(dropped.length > 0 ? dropped.map((entry) => `- ${entry?.case}: ${entry?.reason}`) : ['None.']),
+    '',
   ].join('\n')
 }
 
@@ -133,6 +146,22 @@ function checkFiles(run, output) {
   const unrunnable = files.filter((file) => stackFor(profile, file) === null)
   if (unrunnable.length > 0) return { errors: unrunnable.map((file) => `write-tests: no test stack runs ${file}; use a name these globs match: ${globs}`) }
   return { files }
+}
+
+function droppedCaseErrors(dropped, caseIds) {
+  return [
+    ...dropped.filter((entry) => !caseIds.includes(entry.case)).map((entry) => `write-tests: dropped ${entry.case} is not a case`),
+    ...dropped.filter((entry) => typeof entry.reason !== 'string' || entry.reason.trim() === '').map((entry) => `write-tests: dropped ${entry.case} needs a reason`),
+    ...(dropped.length * 3 > caseIds.length ? [`write-tests: ${dropped.length} of ${caseIds.length} cases dropped; drop at most a third`] : []),
+  ]
+}
+
+// A case the writer cannot test here leaves cases.yaml like a user drop, so verify's trace agrees.
+function recordDropped(run, dropped) {
+  if (dropped.length === 0) return
+  const doc = dropped.reduce((current, entry) => withoutCase(current, entry.case, entry.reason.trim()), readYaml(at(run, 'cases.yaml')))
+  writeFileSync(at(run, 'cases.yaml'), stringify(doc))
+  appendFileSync(at(run, 'decisions.md'), dropped.map((entry) => `- Dropped ${entry.case} at write-tests: ${entry.reason.trim()}\n`).join(''))
 }
 
 function writeTests(run) {
@@ -151,11 +180,16 @@ function writeTests(run) {
       ),
     }
   }
-  const caseIds = list(readYaml(at(run, 'cases.yaml'))?.cases).map((c) => c.id)
+  const allIds = list(readYaml(at(run, 'cases.yaml'))?.cases).map((c) => c.id)
+  const dropped = list(output.value?.dropped).filter((entry) => entry && typeof entry === 'object')
+  const droppedErrors = droppedCaseErrors(dropped, allIds)
+  if (droppedErrors.length > 0) return { errors: droppedErrors }
+  const caseIds = allIds.filter((id) => !dropped.some((entry) => entry.case === id))
   const wrong = results.flatMap((result) => wrongReasons(result, caseIds, { source: readText(join(run.repo, result.file)) }))
   if (wrong.length > 0) return { errors: wrong.map((line) => `write-tests: ${line}`) }
   const missing = caseIdsUntested(run, results, caseIds)
   if (missing.length > 0) return { errors: missing.map((id) => `write-tests: no test names ${id}`) }
+  recordDropped(run, dropped)
   guardFiles(run, files)
   writeJson(at(run, 'results.json'), results)
   writeJson(at(run, 'suite-baseline.json'), suiteFailures(run, files))
@@ -209,6 +243,7 @@ const HANDLERS = {
     const errors = casesDocErrors(output.value, qcContext(run))
     if (errors.length > 0 && errors.every((error) => UX_SOURCE_UNASKED.includes(error))) return askUxSource(run, output.value)
     if (errors.length > 0) return { errors }
+    if (isSplit(output.value)) return { step: 'split', patch: { split: list(output.value.split) } }
     if (list(output.value.questions).length === 0) return advance(run)
     if (run.state.qc_rounds >= MAX_QC_ROUNDS) return stuck(`QC still had questions after ${MAX_QC_ROUNDS} rounds`)
     return { step: 'ask' }
@@ -247,13 +282,16 @@ function agentInstruction(run, step) {
   const promptFile = at(run, join('prompts', `${step}.md`))
   mkdirSync(dirname(promptFile), { recursive: true })
   writeFileSync(promptFile, renderPrompt(readFileSync(join(PROMPTS, AGENTS[step].template), 'utf8'), promptVars(run, step)))
-  return { kind: 'agent', step, model: AGENTS[step].model, prompt_file: promptFile, output: at(run, AGENTS[step].output) }
+  // Revising cases after answers or a rejection is lighter work than the first pass.
+  const model = step === 'qc' && run.state.qc_rounds > 0 ? 'sonnet' : AGENTS[step].model
+  return { kind: 'agent', step, model, prompt_file: promptFile, output: at(run, AGENTS[step].output) }
 }
 
 export function nextInstruction(run) {
   const { step } = run.state
   if (step === 'done') return { kind: 'done', report: at(run, 'report.md') }
   if (step === 'stuck') return { kind: 'stuck', reason: run.state.stuck_reason }
+  if (step === 'split') return { kind: 'split', requests: run.state.split }
   if (step === 'ask') return { kind: 'ask', questions: list(readYaml(at(run, 'cases.yaml'))?.questions), answers_file: at(run, 'answers.yaml') }
   if (step === 'ready') {
     writeFileSync(at(run, 'ready.md'), readySummary(readYaml(at(run, 'cases.yaml')), { casesPath: at(run, 'cases.yaml') }))

@@ -13,6 +13,7 @@ import { resetTree } from './workspace.js'
 
 const ANSWERER = fileURLToPath(new URL('../../prompts/answerer.md', import.meta.url))
 const MAX_STEPS = 40
+const END_KINDS = ['done', 'stuck', 'split']
 // A driven run spawns several agents; it gets this many agent timeouts in total.
 const RUN_TIMEOUT_FACTOR = 2
 const ARTIFACTS = ['cases.yaml', 'decisions.md', 'ready.md', 'report.md', 'state.json']
@@ -181,12 +182,12 @@ export function driveSpecToTests(candidate, sample, preDir, outDir, { env = proc
       throw new Error(`driver: unexpected instruction ${instruction.kind}`)
     }
     const last = Array.from({ length: MAX_STEPS }).reduce((previous) => {
-      if (['done', 'stuck'].includes(previous?.kind)) return previous
+      if (END_KINDS.includes(previous?.kind)) return previous
       const instruction = cli('next', '--run', run)
-      if (!['done', 'stuck'].includes(instruction.kind)) act(instruction)
+      if (!END_KINDS.includes(instruction.kind)) act(instruction)
       return instruction
     }, null)
-    stuck = last.kind === 'stuck' ? last.reason : last.kind === 'done' ? null : `driver: no end after ${MAX_STEPS} steps`
+    stuck = last.kind === 'stuck' ? last.reason : END_KINDS.includes(last.kind) ? null : `driver: no end after ${MAX_STEPS} steps`
   } finally {
     try {
       saveArtifacts({ home, run, outDir, agents, watch, preDir, stuck })

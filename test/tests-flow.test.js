@@ -212,3 +212,58 @@ it('the first QC prompt says there are no previous cases', () => {
   cli('submit')
   assert.match(readFileSync(cli('next').json.prompt_file, 'utf8'), /Your previous cases \(revise them; keep their ids\)\n\nNone\./)
 })
+
+it('a request the QC splits ends the run with the smaller requests to run one by one', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify({ split: ['Show the board.', 'Reward the winner.'] }))
+  assert.equal(cli('submit').json.step, 'split')
+  assert.deepEqual(cli('next').json, { kind: 'split', requests: ['Show the board.', 'Reward the winner.'] })
+})
+
+it('QC rounds after the first run on sonnet', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  cli('submit', '--reject', 'C1 is wrong')
+  assert.deepEqual([cli('next').json.step, cli('next').json.model], ['qc', 'sonnet'])
+})
+
+it('interfaces the tests assume are listed in the report for the user to check', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(repo, 'test/total.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'], assumes: ['POST /api/refunds returns 202'] }))
+  assert.equal(cli('submit').json.step, 'done')
+  assert.match(readFileSync(cli('next').json.report, 'utf8'), /## Interfaces the tests assume\n\n- POST \/api\/refunds returns 202\n/)
+})
+
+it('a case the writer cannot test in this repository may be dropped with a reason, within a third of the cases', () => {
+  const { repo, cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  const three = {
+    ...CASES,
+    sentences: [{ id: 'S1', text: REQUEST, cases: ['C1', 'C2', 'C3'] }],
+    cases: ['C1', 'C2', 'C3'].map((id) => ({ ...CASES.cases[0], id })),
+  }
+  writeFileSync(cli('next').json.output, stringify(three))
+  cli('submit')
+  cli('submit', '--approve')
+  const writer = cli('next').json
+  writeFile(repo, 'test/total.test.js', C1_TEST.replace("'C1: total", "'C1, C2: total"))
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'], dropped: [{ case: 'C3', reason: 'needs a browser this repository cannot run' }] }))
+  assert.equal(cli('submit').json.step, 'done')
+  assert.match(readFileSync(cli('next').json.report, 'utf8'), /## Dropped\n\n- C3: needs a browser this repository cannot run\n/)
+})
+
+it('dropping more than a third of the cases, or without a reason, is refused', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(repo, 'test/total.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'], dropped: [{ case: 'C1', reason: 'hard' }] }))
+  assert.match(cli('submit').json.errors.join('\n'), /write-tests: 1 of 1 cases dropped; drop at most a third/)
+})

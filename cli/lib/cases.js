@@ -8,7 +8,7 @@ export const UX_SOURCE_UNASKED = [
 export function uxSourceErrors(source, asked, context) {
   if (source === '') return asked ? [] : [UX_SOURCE_UNASKED[0]]
   if (!UX_SOURCE.test(source)) return ['ux.source: use figma:<url>, screenshot:<path>, existing-screen:<route> or none-agreed']
-  if (source === 'none-agreed' && !context.uxSourceAgreed) {
+  if (source === 'none-agreed' && !context.uxSourceAgreed && !asked) {
     return [UX_SOURCE_UNASKED[1]]
   }
   return []
@@ -57,8 +57,14 @@ function uiErrors(doc, questions, context) {
 
 const MAX_QUESTIONS = 4
 
+const SPLIT_ERROR = 'split: list at least two smaller requests, each one sentence or more'
+
+// A request too large to cover within MAX_CASES comes back as smaller requests to run one by one.
+export const isSplit = (doc) => isMapping(doc) && doc.split !== undefined
+
 export function casesDocErrors(doc, context) {
   if (!isMapping(doc)) return ['cases.yaml is not a YAML mapping']
+  if (isSplit(doc)) return list(doc.split).length >= 2 && list(doc.split).every(nonEmpty) ? [] : [SPLIT_ERROR]
   const cases = list(doc.cases).filter(isMapping)
   const sentences = list(doc.sentences).filter(isMapping)
   const questions = list(doc.questions).filter(isMapping)
@@ -67,6 +73,10 @@ export function casesDocErrors(doc, context) {
     ...(cases.length > MAX_CASES ? [`cases: ${cases.length} cases; keep the ${MAX_CASES} riskiest`] : []),
     ...sentenceErrors(sentences, new Set(cases.map((c) => c.id)), context),
     ...caseErrors(cases),
+    // Once the user could not answer, an assumption is all that is left.
+    ...(questions.length < MAX_QUESTIONS && !context.unknownAnswers
+      ? cases.filter((c) => c.basis === 'assumed' && c.risk === 'high').map((c) => `case ${c.id} is high risk and assumed: ask about it (a question), or settle it from the request`)
+      : []),
     ...(questions.length > MAX_QUESTIONS ? [`questions: ${questions.length} questions; ask at most ${MAX_QUESTIONS} per round, the riskiest first`] : []),
     ...duplicates(questions.map((q) => q.id)).map((id) => `duplicate question id ${id}`),
     ...uiErrors(doc, questions, context),

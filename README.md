@@ -43,6 +43,9 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   application code. It returns `cases.yaml`: each request sentence with the cases that cover it,
   each case with `when`, `then`, its basis (`request`, `decision` or `assumed`), risk and layer, and
   questions only for high-risk points the request does not settle. Cases scale with risk: 8–15 at low risk, 15–25 at high risk, never more than 30 (more are refused).
+  A high-risk case may be assumed only when the round already asks four questions or its question
+  came back `unknown`. A request too large for 30 cases comes back as `split`: two to six smaller
+  requests, and the run ends there. The first QC pass runs on opus, later rounds on sonnet.
 - **ask** puts those questions to you (at most four per round); the answers become decisions and
   QC runs again. When the request touches a UI, the CLI asks for the UX source (a Figma link, a
   screenshot, an existing screen) if none was given.
@@ -50,7 +53,10 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   from the request and from your answers. You approve or reject with a reason.
 - **write-tests**: the test writer gets the cases, the knowledge file and the code. Every test
   name carries its case id; expectations are copied, never changed, and a case the writer thinks is
-  wrong is reported as disputed, as is one it can only test more weakly than written. A disputed case
+  wrong is reported as disputed, as is one it can only test more weakly than written. It lists the
+  interfaces its tests assume (routes, functions, labels that do not exist yet) for the user to
+  check, and may drop a case it cannot test in this repository at all, with a reason, up to a
+  third of the cases. A disputed case
   you agree cannot hold is dropped after its test is removed: `spec-gate tests drop --case <id>
   --reason "<why>"` records the reason, re-guards only the files that held the case, and verify
   lists it.
