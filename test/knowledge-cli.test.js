@@ -62,3 +62,10 @@ it('the learn-project prompt asks for the bug-reproduction skill line', () => {
   const { run } = setup()
   assert.match(readFileSync(run('draft').json.prompt_file, 'utf8'), /Bug-reproduction skill: <skill name>/)
 })
+
+it('knowledge path names the repository\'s test-writing skill when the file declares one', () => {
+  const { repo, run } = setup()
+  writeFile(repo, '.claude/testing.md', KNOWLEDGE_FULL.replace('## Run\n', '## Run\nTest-writing skill: write-shop-tests\n'))
+  assert.equal(run('path').json.test_skill, 'write-shop-tests')
+  assert.match(readFileSync(run('draft').json.prompt_file, 'utf8'), /Test-writing skill: <skill name>/)
+})

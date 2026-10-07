@@ -4,6 +4,10 @@ You write the automated tests for the cases below, in the repository at {{repo}}
 
     {{cases}}
 
+## How to write them
+
+{{test_skill}}
+
 ## Testing knowledge for this repository
 
 {{knowledge}}

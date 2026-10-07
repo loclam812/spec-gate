@@ -10,7 +10,7 @@ import { verifyRun } from './lib/verify.js'
 import { adoptTests, nextInstruction, submitStep } from './lib/tests-steps.js'
 import { dropCase } from './lib/drop-case.js'
 import { projectDir, repoSlug } from './lib/store.js'
-import { bugSkill, findKnowledge, knowledgeErrors, knowledgePaths } from './lib/knowledge.js'
+import { bugSkill, findKnowledge, testSkill, knowledgeErrors, knowledgePaths } from './lib/knowledge.js'
 import { renderPrompt } from './lib/candidate.js'
 
 const OPTIONS = {
@@ -120,7 +120,7 @@ export function runKnowledge(argv, { env = process.env, out = process.stdout } =
   if (command === 'path') {
     const paths = knowledgePaths(repo, slug, env)
     const found = findKnowledge(repo, slug, env)
-    print(out, { found: found !== null, path: found?.path ?? null, repo_path: paths.repo, store_path: paths.store, bug_skill: bugSkill(found?.text) })
+    print(out, { found: found !== null, path: found?.path ?? null, repo_path: paths.repo, store_path: paths.store, bug_skill: bugSkill(found?.text), test_skill: testSkill(found?.text) })
     return 0
   }
   if (command === 'check') {

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
 import { git } from '../cli/lib/exec.js'
-import { tempDir, writeFile } from './helpers.js'
+import { KNOWLEDGE_FULL, tempDir, writeFile } from './helpers.js'
 import { C1_TEST, CASES, REQUEST, setup } from './tests-helpers.js'
 
 it('spec-to-tests runs discover → blind QC → Ready → write-tests and ends with a suite snapshot', () => {
@@ -318,4 +318,12 @@ it('after three QC rounds the remaining questions are left unasked and the run g
   const dir = join(last.output, '..')
   assert.deepEqual(parse(readFileSync(join(dir, 'cases.yaml'), 'utf8')).questions, [])
   assert.match(readFileSync(join(dir, 'decisions.md'), 'utf8'), /- Not asked after 3 QC rounds: Q4 Question 4\?; the cases it concerns stay assumed\n/)
+})
+
+it('the writer is told to use the repository\'s own test-writing skill when the knowledge file names one, and only then', () => {
+  const { repo, cli } = setup()
+  assert.match(readFileSync(toWriter(cli).prompt_file, 'utf8'), /No repository test-writing skill is named/)
+  writeFile(repo, '.claude/testing.md', KNOWLEDGE_FULL.replace('## Run\n', '## Run\nTest-writing skill: write-shop-tests\n'))
+  const prompt = readFileSync(toWriter(cli).prompt_file, 'utf8')
+  assert.match(prompt, /Write the tests with the repository's own skill `write-shop-tests`/)
 })

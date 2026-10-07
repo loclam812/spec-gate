@@ -36,3 +36,8 @@ export function section(text, name) {
 export function bugSkill(text) {
   return /^Bug-reproduction skill:\s*(\S+)/m.exec(text ?? '')?.[1] ?? null
 }
+
+// A repository can name its own test-writing skill; spec-to-tests' writer then writes through it.
+export function testSkill(text) {
+  return /^Test-writing skill:\s*(\S+)/m.exec(text ?? '')?.[1] ?? null
+}

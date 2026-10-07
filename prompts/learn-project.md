@@ -17,7 +17,9 @@ one-line usages. Under each heading, start with `Source:` and the files you took
 
 If the repository has a skill that turns a bug report into a failing test (look in
 `.claude/skills/*/SKILL.md` for one whose description says so), put this line right under `## Run`:
-`Bug-reproduction skill: <skill name>`. Leave the line out when there is none.
+`Bug-reproduction skill: <skill name>`. Likewise, if it has a skill that writes tests for a feature
+or a list of cases, add `Test-writing skill: <skill name>` under `## Run`. Leave a line out when
+there is no such skill.
 
 Write only {{output}}; change nothing in the repository. Keep it under 200 lines. Write what is true of this repository only; leave a section with
 `Nothing found.` rather than guessing.

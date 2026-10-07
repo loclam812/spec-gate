@@ -6,7 +6,7 @@ import { renderPrompt } from './candidate.js'
 import { casesDocErrors, isSplit, readySummary, UX_SOURCE_UNASKED } from './cases.js'
 import { withoutCase } from './drop-case.js'
 import { readJson, writeJson } from './files.js'
-import { findKnowledge } from './knowledge.js'
+import { findKnowledge, testSkill } from './knowledge.js'
 import { discoverProfile, stackFor } from './profile.js'
 import { buildQcPacket } from './qc-packet.js'
 import { saveState } from './run-store.js'
@@ -284,6 +284,13 @@ const HANDLERS = {
   'write-tests': writeTests,
 }
 
+function writerSkill(knowledge) {
+  const skill = testSkill(knowledge)
+  return skill
+    ? `Write the tests with the repository's own skill \`${skill}\` (invoke it with the Skill tool and give it the cases above). It knows this repository's fixtures and conventions; every rule below still holds, and you check its output against them.`
+    : 'No repository test-writing skill is named; write the tests yourself.'
+}
+
 function promptVars(run, step) {
   const { signals } = run.state
   const request = readText(at(run, 'request.md')).trim()
@@ -297,6 +304,7 @@ function promptVars(run, step) {
     cases: readText(at(run, 'cases.yaml')).trim().replace(/\n/g, '\n    ') || 'None.',
     previous: readText(at(run, 'cases.yaml.prev')).trim() || 'None.',
     knowledge: readText(at(run, 'knowledge.md')).trim() || NO_KNOWLEDGE,
+    test_skill: writerSkill(readText(at(run, 'knowledge.md'))),
     profile: readText(at(run, 'profile.json')).trim() || '{}',
     errors: run.state.errors.length > 0 ? run.state.errors.map((error) => `- ${error}`).join('\n') : 'None.',
     output: at(run, AGENTS[step].output),

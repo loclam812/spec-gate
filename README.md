@@ -57,7 +57,9 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   screenshot, an existing screen) if none was given.
 - **ready** shows only the `assumed` cases, with their expectations, and counts the cases taken
   from the request and from your answers. You approve or reject with a reason.
-- **write-tests**: the test writer gets the cases, the knowledge file and the code. Every test
+- **write-tests**: the test writer gets the cases, the knowledge file and the code. When the
+  knowledge file names a `Test-writing skill:` (learn-project adds it when the repository has one),
+  the writer writes the tests through that skill and still applies every rule below. Every test
   name carries its case id; expectations are copied, never changed, and a case the writer thinks is
   wrong is reported as disputed, as is one it can only test more weakly than written. It lists the
   interfaces its tests assume (routes, functions, labels that do not exist yet) for the user to
