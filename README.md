@@ -25,6 +25,8 @@ claude plugin install spec-gate@spec-gate
 |---|---|---|
 | `/spec-gate:spec-to-tests <request>` | before implementing | a blind QC derives cases from the request, asks only about risky gaps, you approve once at Ready, then tests are written and proven red for the right reason |
 | `/spec-gate:verify-changes` | after implementing | the test files are unchanged, the new tests pass, the whole suite is compared with its state before the change, and a report traces every sentence of the request to a result |
+| `/spec-gate:fix-bug <evidence>` | a bug to fix | reproduce it as a failing test first (with the repository's own bug-reproduction skill when the knowledge file names one), adopt the test, fix, then verify-changes |
+| `/spec-gate:adopt-tests` | after another skill wrote a failing test (a bug reproduction), before the fix | each test must fail now for the right reason; the files are guarded and the suites snapshotted, so verify-changes can check the fix |
 | `/spec-gate:learn-project` | first use in a repository, or when migrating an old test-writing skill | drafts the repository's testing knowledge file for you to review |
 
 Each run spawns agents and costs money, so the skills offer themselves and ask before running.
@@ -128,6 +130,7 @@ steps spawn no agent. Under `eval`, every agent's cost is recorded in the run's 
 spec-gate tests start --request "<text>" | --request-file <path>
 spec-gate tests next | submit | status --run <id>
 spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test is removed
+spec-gate tests adopt --request "<text>" --file <test> [--file <test> ...]   # guard tests another skill wrote
 spec-gate verify --run <id>
 spec-gate knowledge path | check | draft
 spec-gate profile                              # the repository's test stacks
@@ -141,6 +144,7 @@ this into yours:
 
 ```markdown
 **Tests from a requirement / gate before merge** (spec-gate plugin):
+- Bug report, log or failing behaviour -> use `spec-gate:fix-bug`
 - Feature request or AC, tests before code -> offer `spec-gate:spec-to-tests` (ask first; ~$2/run)
 - After implementing against those tests -> offer `spec-gate:verify-changes`
 - Small fix, one behaviour -> test-driven development as today, not spec-gate

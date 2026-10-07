@@ -136,17 +136,17 @@ function testsReport(run, results) {
   ].join('\n')
 }
 
-function checkFiles(run, output) {
+function checkFiles(run, output, step = 'write-tests') {
   const files = list(output.value?.files).filter((file) => typeof file === 'string')
-  if (files.length === 0) return { errors: ['write-tests: tests.yaml lists no files'] }
+  if (files.length === 0) return { errors: [`${step}: tests.yaml lists no files`] }
   const outside = files.filter((file) => isAbsolute(file) || relative(run.repo, resolve(run.repo, file)).startsWith('..'))
-  if (outside.length > 0) return { errors: outside.map((file) => `write-tests: ${file} is outside the repository`) }
+  if (outside.length > 0) return { errors: outside.map((file) => `${step}: ${file} is outside the repository`) }
   const absent = files.filter((file) => !existsSync(join(run.repo, file)))
-  if (absent.length > 0) return { errors: absent.map((file) => `write-tests: ${file} does not exist`) }
+  if (absent.length > 0) return { errors: absent.map((file) => `${step}: ${file} does not exist`) }
   const profile = profileOf(run)
   const globs = [...new Set(profile.stacks.flatMap((stack) => stack.test_globs))].join(', ')
   const unrunnable = files.filter((file) => stackFor(profile, file) === null)
-  if (unrunnable.length > 0) return { errors: unrunnable.map((file) => `write-tests: no test stack runs ${file}; use a name these globs match: ${globs}`) }
+  if (unrunnable.length > 0) return { errors: unrunnable.map((file) => `${step}: no test stack runs ${file}; use a name these globs match: ${globs}`) }
   return { files }
 }
 
@@ -353,4 +353,35 @@ export function submitStep(run, options = {}) {
   if (step !== run.state.step && AGENTS[step]) setAside(run, step)
   saveState(run.dir, state)
   return { state, errors }
+}
+
+function redLabel(result) {
+  const first = Object.values(result.failures ?? {})[0]
+  return first ? `red (${failureKind(first)})` : result.status
+}
+
+// Tests another skill wrote (a bug reproduction) get the same guard as spec-to-tests' own: each
+// must fail now, for the right reason, and verify then checks them and the suites after the fix.
+export function adoptTests(run, files) {
+  const fail = (errors) => {
+    saveState(run.dir, { ...run.state, step: 'stuck', stuck_reason: errors.join('; '), errors })
+    return { step: 'stuck', errors }
+  }
+  const profile = discoverProfile(run.repo)
+  writeJson(at(run, 'profile.json'), profile)
+  if (profile.stacks.length === 0) return fail(['adopt: no test stack found in this repository'])
+  const checked = checkFiles(run, { value: { files } }, 'adopt')
+  if (checked.errors) return fail(checked.errors)
+  const results = runAll(run, checked.files)
+  const empty = results.filter((result) => result.status === 'no-tests').map((result) => `adopt: the runner found no tests in ${result.file}`)
+  const green = results.filter((result) => result.status === 'green').map((result) => `adopt: ${result.file} passes on the current code, so it does not reproduce the problem`)
+  const wrong = results.flatMap((result) => wrongReasons(result, [], { source: readText(join(run.repo, result.file)) })).map((line) => `adopt: ${line}`)
+  const errors = [...empty, ...green, ...wrong]
+  if (errors.length > 0) return fail(errors)
+  guardFiles(run, checked.files)
+  writeJson(at(run, 'results.json'), results)
+  writeJson(at(run, 'suite-baseline.json'), suiteFailures(run, checked.files))
+  writeFileSync(at(run, 'report.md'), ['# Tests adopted', '', '## Tests', '', ...results.map((result) => `- ${result.file}: ${redLabel(result)}`), ''].join('\n'))
+  saveState(run.dir, { ...run.state, step: 'done', adopted: true, errors: [] })
+  return { step: 'done', errors: [] }
 }

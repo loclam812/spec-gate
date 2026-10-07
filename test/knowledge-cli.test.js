@@ -49,3 +49,16 @@ it('knowledge draft accepts a SKILL.md file as the old skill', () => {
   const draft = run('draft', '--old-skill', join(repo, 'old-skill', 'SKILL.md')).json
   assert.match(readFileSync(draft.prompt_file, 'utf8'), /old-skill\/SKILL\.md/)
 })
+
+it('knowledge path names the repository\'s bug-reproduction skill when the file declares one', () => {
+  const { repo, run } = setup()
+  writeFile(repo, '.claude/testing.md', KNOWLEDGE_FULL)
+  assert.equal(run('path').json.bug_skill, null)
+  writeFile(repo, '.claude/testing.md', KNOWLEDGE_FULL.replace('## Run\n', '## Run\nBug-reproduction skill: bug-from-evidence\n'))
+  assert.equal(run('path').json.bug_skill, 'bug-from-evidence')
+})
+
+it('the learn-project prompt asks for the bug-reproduction skill line', () => {
+  const { run } = setup()
+  assert.match(readFileSync(run('draft').json.prompt_file, 'utf8'), /Bug-reproduction skill: <skill name>/)
+})

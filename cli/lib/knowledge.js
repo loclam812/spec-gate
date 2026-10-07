@@ -31,3 +31,8 @@ export function section(text, name) {
   const end = lines.findIndex((line, index) => index > start && line.startsWith('## '))
   return lines.slice(start + 1, end === -1 ? undefined : end).join('\n').trim()
 }
+
+// A repository can name its own skill for turning a bug report into a failing test; fix-bug uses it.
+export function bugSkill(text) {
+  return /^Bug-reproduction skill:\s*(\S+)/m.exec(text ?? '')?.[1] ?? null
+}

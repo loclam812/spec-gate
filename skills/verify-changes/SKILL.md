@@ -1,6 +1,6 @@
 ---
 name: verify-changes
-description: After implementing against tests that spec-to-tests wrote, check the change — the new tests pass, their files were not edited, no test that passed before now fails — and trace the request to results. Offer it when such a run exists, and ask before running.
+description: After implementing against tests that spec-to-tests wrote or adopt-tests guarded, check the change — the new tests pass, their files were not edited, no test that passed before now fails — and trace the request to results. Offer it when such a run exists, and ask before running.
 allowed-tools: Bash(node:*), Read
 ---
 
