@@ -1,23 +1,20 @@
 # spec-gate
 
-Three Claude Code skills that put tests before code and check the result afterwards, backed by a
-deterministic CLI, plus an evaluation harness that measures how many real, already-fixed bugs a
+Claude Code skills that guard changes with tests (reproduce a bug or specify a feature first, check
+the result afterwards), backed by a deterministic CLI, plus an evaluation harness that measures how many real, already-fixed bugs a
 test generator would have caught.
 
 ## Install
 
 ```bash
-npm install
-npm link            # puts `spec-gate` on PATH; or run `node cli/spec-gate.js`
-npm test
-```
-
-Requires Node 26+, git, tar, perl, and the Claude Code CLI for `generate`.
-
-```bash
-claude plugin marketplace add <path-to-spec-gate>
+claude plugin marketplace add loclam812/spec-gate      # or a local clone's path
 claude plugin install spec-gate@spec-gate
 ```
+
+Requires Node 26+, git, tar and perl. The CLI's one dependency (`yaml`) is committed under
+`node_modules/`, so an installed plugin runs without `npm install`. To work on the plugin itself:
+`npm test`; `npm link` puts `spec-gate` on PATH (or run `node cli/spec-gate.js`). The evaluation
+harness's `generate` also needs the Claude Code CLI.
 
 ## The skills
 

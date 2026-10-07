@@ -7,8 +7,8 @@
   "plugins": [
     {
       "name": "spec-gate",
-      "description": "Three skills around a feature request: spec-to-tests, verify-changes and learn-project.",
-      "version": "0.1.0",
+      "description": "Workflow skills that guard changes with tests: fix-bug reproduces a bug as a failing test before the fix, spec-to-tests turns a feature request into tests before the code, adopt-tests guards tests another skill wrote, verify-changes checks a change against them and the whole suite, and learn-project drafts the repository's testing knowledge.",
+      "version": "0.2.0",
       "source": "./",
       "author": {
         "name": "spec-gate maintainers"

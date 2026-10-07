@@ -1,2 +1,4 @@
 .superpowers/
-node_modules/
+# yaml is committed: an installed plugin gets no `npm install`, and it has no dependencies.
+node_modules/*
+!node_modules/yaml/
