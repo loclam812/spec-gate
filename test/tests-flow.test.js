@@ -2,7 +2,7 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { stringify } from 'yaml'
+import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
 import { git } from '../cli/lib/exec.js'
 import { tempDir, writeFile } from './helpers.js'
@@ -266,4 +266,56 @@ it('dropping more than a third of the cases, or without a reason, is refused', (
   writeFile(repo, 'test/total.test.js', C1_TEST)
   writeFileSync(writer.output, stringify({ files: ['test/total.test.js'], dropped: [{ case: 'C1', reason: 'hard' }] }))
   assert.match(cli('submit').json.errors.join('\n'), /write-tests: 1 of 1 cases dropped; drop at most a third/)
+})
+
+it('answers become project decisions that the next run\'s QC reads, except unknown ones', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  const qc = cli('next').json
+  writeFileSync(qc.output, stringify({ ...CASES, questions: [{ id: 'Q1', text: 'Do refunds need approval?', about: 'rule' }, { id: 'Q2', text: 'Who approves?', about: 'rule' }] }))
+  cli('submit')
+  const answers = join(qc.output, '..', 'answers.yaml')
+  writeFileSync(answers, stringify([{ id: 'Q1', answer: 'Yes, always.' }, { id: 'Q2', answer: 'unknown' }]))
+  cli('submit', '--answers', answers)
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  const next = readFileSync(cli('next').json.prompt_file, 'utf8')
+  assert.match(next, /Do refunds need approval\?[\s\S]*Answer: Yes, always\./)
+  assert.doesNotMatch(next, /Who approves\?/)
+})
+
+it('a question already answered in this run is refused', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  const qc = cli('next').json
+  const asking = { ...CASES, questions: [{ id: 'Q1', text: 'Do refunds need approval?', about: 'rule' }] }
+  writeFileSync(qc.output, stringify(asking))
+  cli('submit')
+  const answers = join(qc.output, '..', 'answers.yaml')
+  writeFileSync(answers, stringify([{ id: 'Q1', answer: 'Yes.' }]))
+  cli('submit', '--answers', answers)
+  writeFileSync(cli('next').json.output, stringify(asking))
+  assert.deepEqual(cli('submit').json.errors, ['question Q1 was already answered (see Decisions); use the answer instead of asking again'])
+})
+
+it('after three QC rounds the remaining questions are left unasked and the run goes to Ready', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  for (const round of [1, 2, 3]) {
+    const qc = cli('next').json
+    writeFileSync(qc.output, stringify({ ...CASES, questions: [{ id: `Q${round}`, text: `Question ${round}?`, about: 'rule' }] }))
+    assert.equal(cli('submit').json.step, 'ask')
+    const answers = join(qc.output, '..', 'answers.yaml')
+    writeFileSync(answers, stringify([{ id: `Q${round}`, answer: 'unknown' }]))
+    cli('submit', '--answers', answers)
+  }
+  const last = cli('next').json
+  writeFileSync(last.output, stringify({ ...CASES, questions: [{ id: 'Q4', text: 'Question 4?', about: 'rule' }] }))
+  assert.equal(cli('submit').json.step, 'ready')
+  const dir = join(last.output, '..')
+  assert.deepEqual(parse(readFileSync(join(dir, 'cases.yaml'), 'utf8')).questions, [])
+  assert.match(readFileSync(join(dir, 'decisions.md'), 'utf8'), /- Not asked after 3 QC rounds: Q4 Question 4\?; the cases it concerns stay assumed\n/)
 })

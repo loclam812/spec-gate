@@ -43,9 +43,16 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   application code. It returns `cases.yaml`: each request sentence with the cases that cover it,
   each case with `when`, `then`, its basis (`request`, `decision` or `assumed`), risk and layer, and
   questions only for high-risk points the request does not settle. Cases scale with risk: 8–15 at low risk, 15–25 at high risk, never more than 30 (more are refused).
+  A case's basis is `request`, `decision` (the user's answer), `domain` (what the plain purpose of
+  the feature or the rules of its field fix) or `assumed`; Ready lists the `domain` and `assumed`
+  ones. Answers are also kept per repository in the store's `decisions.md`, and later runs' QC
+  reads them instead of asking again; an `unknown` answer is not kept. A question already answered
+  in the run is refused, and so is an assumed case whose risk drops from high to low.
   A high-risk case may be assumed only when the round already asks four questions or its question
   came back `unknown`. A request too large for 30 cases comes back as `split`: two to six smaller
   requests, and the run ends there. The first QC pass runs on opus, later rounds on sonnet.
+  After three QC rounds the remaining questions are not asked: their cases stay assumed and the
+  run goes on to Ready.
 - **ask** puts those questions to you (at most four per round); the answers become decisions and
   QC runs again. When the request touches a UI, the CLI asks for the UX source (a Figma link, a
   screenshot, an existing screen) if none was given.

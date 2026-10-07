@@ -110,7 +110,7 @@ it('the answerer gets its prompt inline, outside the tree, with no Read tool', (
 it('an answers file from an earlier round is never reused', () => {
   const { sample, sides, candidate } = setup()
   const outDir = tempDir()
-  const { env } = stubEnv({ first: 'cases-question.yaml', then: 'cases-question.yaml', answerOnce: true })
+  const { env } = stubEnv({ first: 'cases-question.yaml', then: 'cases-question-2.yaml', answerOnce: true })
   driveSpecToTests(candidate, sample, sides.pre, outDir, { env, hide: [sides.post], watch: [sides.post] })
   assert.match(JSON.parse(readFileSync(join(outDir, 'stuck.json'), 'utf8')).reason, /^ask: /)
 })

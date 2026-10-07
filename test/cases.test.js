@@ -91,3 +91,14 @@ it('a high-risk case may stay assumed once a question about it came back unknown
   const risky = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
   assert.deepEqual(casesDocErrors(risky, { ...CONTEXT, unknownAnswers: true }), [])
 })
+
+it('a domain case is a rule of the field or the plain purpose: never refused as high-risk assumed, but listed at Ready', () => {
+  const ruled = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], basis: 'domain', risk: 'high' }] }
+  assert.deepEqual(casesDocErrors(ruled, CONTEXT), [])
+  assert.match(readySummary(ruled, { casesPath: '/run/cases.yaml' }), /## Check these\n\n- C2 \(domain, high\): when the refund is for 0, then it is refused/)
+})
+
+it('an assumed case may not lose its high risk between rounds to pass the check', () => {
+  const previous = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
+  assert.deepEqual(casesDocErrors(DOC, { ...CONTEXT, previous }), ['case C2 was high risk and is still assumed: ask about it or settle it, do not lower its risk'])
+})

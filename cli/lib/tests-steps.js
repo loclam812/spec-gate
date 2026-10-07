@@ -11,7 +11,7 @@ import { discoverProfile, stackFor } from './profile.js'
 import { buildQcPacket } from './qc-packet.js'
 import { saveState } from './run-store.js'
 import { didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
-import { repoSlug } from './store.js'
+import { projectDir, repoSlug } from './store.js'
 import { mentionsId, splitRequest } from './text.js'
 
 const PROMPTS = fileURLToPath(new URL('../../prompts', import.meta.url))
@@ -57,6 +57,8 @@ function qcContext(run) {
     uiRequest: run.state.signals.ui,
     uxSourceAgreed: /\(about: ux-source\)/.test(readText(at(run, 'decisions.md'))),
     unknownAnswers: /^\s*Answer: unknown\b/im.test(readText(at(run, 'decisions.md'))),
+    previous: readYaml(at(run, 'cases.yaml.prev')),
+    answeredIds: [...readText(at(run, 'decisions.md')).matchAll(/^- (Q\w+) /gm)].map((match) => match[1]),
   }
 }
 
@@ -204,8 +206,30 @@ function askUxSource(run, doc) {
     about: 'ux-source',
   }
   writeFileSync(at(run, 'cases.yaml'), stringify({ ...doc, questions: [...list(doc.questions).filter((q) => q?.id !== 'QUX'), question] }))
-  if (run.state.qc_rounds >= MAX_QC_ROUNDS) return stuck(`QC still had questions after ${MAX_QC_ROUNDS} rounds`)
+  if (run.state.qc_rounds >= MAX_QC_ROUNDS) return stopAsking(run)
   return { step: 'ask' }
+}
+
+// Endless questions would never end the run: after the last round the open points stay assumed,
+// and Ready shows them to the user.
+function stopAsking(run) {
+  const doc = readYaml(at(run, 'cases.yaml'))
+  const open = list(doc?.questions).map((q) => `${q.id} ${q.text}`).join('; ')
+  writeFileSync(at(run, 'cases.yaml'), stringify({ ...doc, questions: [] }))
+  appendFileSync(at(run, 'decisions.md'), `- Not asked after ${MAX_QC_ROUNDS} QC rounds: ${open}; the cases it concerns stay assumed\n`)
+  return advance(run)
+}
+
+const projectDecisions = (run) => join(projectDir(repoSlug(run.repo), run.env), 'decisions.md')
+
+// What the user settled holds for the next request in this repository too; an unknown settles nothing.
+function recordProjectDecisions(run, answered) {
+  const settled = answered.filter(({ answer }) => !/^unknown\b/i.test(answer.trim()))
+  if (settled.length === 0) return
+  const day = new Date().toISOString().slice(0, 10)
+  const lines = settled.map(({ question, answer }) => `- ${question.text} (about: ${question.about ?? 'rule'}, ${day})\n  Answer: ${answer}`)
+  mkdirSync(dirname(projectDecisions(run)), { recursive: true })
+  appendFileSync(projectDecisions(run), `${lines.join('\n')}\n`)
 }
 
 function recordAnswers(run, answers) {
@@ -224,6 +248,7 @@ function recordAnswers(run, answers) {
   if (missing.length > 0) return { errors: missing.map((question) => `ask: ${question.id} has no answer`) }
   const recorded = questions.map((question) => `- ${question.id} ${question.text} (about: ${question.about ?? 'rule'})\n  Answer: ${answerOf(question)}`)
   appendFileSync(at(run, 'decisions.md'), `${recorded.join('\n')}\n`)
+  recordProjectDecisions(run, questions.map((question) => ({ question, answer: String(answerOf(question)) })))
   return { step: 'qc', patch: { qc_rounds: run.state.qc_rounds + 1 } }
 }
 
@@ -245,7 +270,7 @@ const HANDLERS = {
     if (errors.length > 0) return { errors }
     if (isSplit(output.value)) return { step: 'split', patch: { split: list(output.value.split) } }
     if (list(output.value.questions).length === 0) return advance(run)
-    if (run.state.qc_rounds >= MAX_QC_ROUNDS) return stuck(`QC still had questions after ${MAX_QC_ROUNDS} rounds`)
+    if (run.state.qc_rounds >= MAX_QC_ROUNDS) return stopAsking(run)
     return { step: 'ask' }
   },
   ask: (run, { answers }) => recordAnswers(run, answers),
@@ -268,6 +293,7 @@ function promptVars(run, step) {
     risk: `level ${signals.level}; access: ${list(signals.access).join(', ') || 'none'}; features: ${list(signals.feature).join(', ') || 'none'}; screens: ${list(signals.screens).join(', ') || 'none'}`,
     sentences: sentences.join('\n    '),
     decisions: readText(at(run, 'decisions.md')).trim() || 'None yet.',
+    project_decisions: readText(projectDecisions(run)).trim() || 'None.',
     cases: readText(at(run, 'cases.yaml')).trim().replace(/\n/g, '\n    ') || 'None.',
     previous: readText(at(run, 'cases.yaml.prev')).trim() || 'None.',
     knowledge: readText(at(run, 'knowledge.md')).trim() || NO_KNOWLEDGE,

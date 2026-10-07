@@ -5,6 +5,12 @@ Read {{packet}} — the request, domain terms, the product's user-facing text, i
 routes, and the names of existing tests. Do not open implementation code (source files of the
 application). You may read docs, user-facing text and existing test names only.
 
+## Decisions from earlier requests in this repository
+
+These were settled by the user before; never ask about them again, and use them as `basis: decision`.
+
+{{project_decisions}}
+
 ## Decisions so far
 
 {{decisions}}
@@ -22,7 +28,7 @@ YAML with exactly these keys:
     sentences:   # exactly these ids
     {{sentences}}
     cases:
-      - { id: C1, when: "…", then: "…", basis: request | decision | assumed, risk: high | low, layer: unit | integration | e2e | ui }
+      - { id: C1, when: "…", then: "…", basis: request | decision | domain | assumed, risk: high | low, layer: unit | integration | e2e | ui }
     questions:
       - { id: Q1, text: "…", about: rule | ux-source }
 
@@ -39,6 +45,11 @@ each a sentence or two a user could ask for on its own, ordered so each builds o
   question instead of guessing. Smaller points you may assume: mark them `basis: assumed`. A
   high-risk case may be `assumed` only when this round already asks four questions, or when its
   question was answered `unknown`.
+- `basis: domain` is for what the plain purpose of the feature or the rules of its field fix
+  without asking (an order total cannot be negative, a private field stays hidden from other
+  users, a deleted item no longer shows). It is listed at Ready for the user to check. Do not use it
+  for a choice the product could reasonably make either way.
+- Never lower a case's risk to get past a check: ask about it or settle it.
 - An answer of `unknown` settles nothing: a case that rests on it stays `basis: assumed`, never
   `decision`.
 - Each `then` states one outcome a test can check. Never write "A or B", "either", or "is hidden

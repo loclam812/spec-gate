@@ -14,7 +14,7 @@ export function uxSourceErrors(source, asked, context) {
   return []
 }
 
-export const BASES = ['request', 'decision', 'assumed']
+export const BASES = ['request', 'decision', 'domain', 'assumed']
 export const RISKS = ['high', 'low']
 export const LAYERS = ['unit', 'integration', 'e2e', 'ui']
 export const MAX_CASES = 30
@@ -57,6 +57,14 @@ function uiErrors(doc, questions, context) {
 
 const MAX_QUESTIONS = 4
 
+// Lowering an assumed case from high to low risk would slip it past the ask-or-settle check.
+function loweredRisk(cases, previous) {
+  const before = new Map(list(previous?.cases).filter(isMapping).map((c) => [c.id, c.risk]))
+  return cases
+    .filter((c) => c.basis === 'assumed' && c.risk === 'low' && before.get(c.id) === 'high')
+    .map((c) => `case ${c.id} was high risk and is still assumed: ask about it or settle it, do not lower its risk`)
+}
+
 const SPLIT_ERROR = 'split: list at least two smaller requests, each one sentence or more'
 
 // A request too large to cover within MAX_CASES comes back as smaller requests to run one by one.
@@ -77,6 +85,8 @@ export function casesDocErrors(doc, context) {
     ...(questions.length < MAX_QUESTIONS && !context.unknownAnswers
       ? cases.filter((c) => c.basis === 'assumed' && c.risk === 'high').map((c) => `case ${c.id} is high risk and assumed: ask about it (a question), or settle it from the request`)
       : []),
+    ...loweredRisk(cases, context.previous),
+    ...questions.filter((q) => list(context.answeredIds).includes(q.id)).map((q) => `question ${q.id} was already answered (see Decisions); use the answer instead of asking again`),
     ...(questions.length > MAX_QUESTIONS ? [`questions: ${questions.length} questions; ask at most ${MAX_QUESTIONS} per round, the riskiest first`] : []),
     ...duplicates(questions.map((q) => q.id)).map((id) => `duplicate question id ${id}`),
     ...uiErrors(doc, questions, context),
@@ -88,7 +98,7 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
 export function readySummary(doc, { casesPath }) {
   const cases = list(doc?.cases).filter(isMapping)
   const count = (basis) => cases.filter((c) => c.basis === basis).length
-  const checkLines = cases.filter((c) => c.basis === 'assumed').map((c) => `- ${c.id} (${c.basis}, ${c.risk}): when ${c.when}, then ${c.then}`)
+  const checkLines = cases.filter((c) => c.basis === 'assumed' || c.basis === 'domain').map((c) => `- ${c.id} (${c.basis}, ${c.risk}): when ${c.when}, then ${c.then}`)
   return [
     '# Ready to write tests',
     '',
