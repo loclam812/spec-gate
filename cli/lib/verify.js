@@ -8,15 +8,19 @@ import { logEvent } from './run-log.js'
 import { buildTrace } from './trace.js'
 
 const at = (run, name) => join(run.dir, name)
+const NEW_FAILURES_TO_STOP = 5
 const bullets = (items) => (items.length > 0 ? items.join('\n') : 'None.')
 
 function suiteRegressions(run, profile, files) {
   const baseline = existsSync(at(run, 'suite-baseline.json')) ? readJson(at(run, 'suite-baseline.json')) : {}
   const checked = suiteTargets(profile, run.repo, files).map((target) => {
     const before = baseline[target.key]
-    const now = runSuite(run.repo, target)
+    // A handful of new failures proves a regression; running every broken browser test to its
+    // timeout only makes the user wait.
+    const now = runSuite(run.repo, target, undefined, { maxFailures: Array.isArray(before) ? before.length + NEW_FAILURES_TO_STOP : null })
     if (!Array.isArray(before) || now.failing === null) return { note: `suite not checked: ${target.key}` }
-    return { broken: now.failing.filter((name) => !before.includes(name)) }
+    const broken = now.failing.filter((name) => !before.includes(name))
+    return { broken, ...(now.stopped ? { note: `${target.key} stopped after ${now.failing.length} failures; more tests may be broken` } : {}) }
   })
   const comparable = new Set(suiteTargets(profile, run.repo, files).map((target) => target.stack.name))
   const unreported = [...new Set(files.map((file) => stackFor(profile, file)?.name).filter((name) => name && !comparable.has(name)))]

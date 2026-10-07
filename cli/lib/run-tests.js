@@ -71,10 +71,20 @@ export function suiteTargets(profile, repo, files) {
   return [...new Map(targets.map((target) => [target.key, target])).values()]
 }
 
-export function runSuite(repo, { stack, root }, timeoutS = 1800) {
-  const { run, tests } = runReported(stack, join(repo, root), stack.suite_command, timeoutS)
+const BAIL_FLAGS = { playwright: '--max-failures', vitest: '--bail' }
+
+// The flag goes last, so it reaches the runner even when the command first builds something.
+export function withBail(stack, command, maxFailures) {
+  const flag = BAIL_FLAGS[stack.name]
+  return flag && maxFailures ? `${command} ${flag}=${maxFailures}` : command
+}
+
+export function runSuite(repo, { stack, root }, timeoutS = 1800, { maxFailures = null } = {}) {
+  const command = withBail(stack, stack.suite_command, maxFailures)
+  const { run, tests } = runReported(stack, join(repo, root), command, timeoutS)
   const failing = run.timedOut || tests.length === 0 ? null : tests.filter((test) => test.status === 'fail').map((test) => test.name)
-  return { failing, output: run.output.slice(-4000) }
+  const stopped = maxFailures !== null && command !== stack.suite_command && failing !== null && failing.length >= maxFailures
+  return { failing, stopped, output: run.output.slice(-4000) }
 }
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
@@ -161,6 +171,10 @@ export function wrongReasons(result, caseIds, { source = '' } = {}) {
     const reason = first ? headline(first) : 'no failure reported'
     return accepted ? [] : [`${result.file}: no test ran (the file did not load: ${reason})`]
   }
+  // vitest reports a failed hook as a failure of the file itself while the file's tests are skipped.
+  const fileLevel = ([name]) => name.split(' > ').pop() === result.file && result.tests.some((test) => test.status === 'skip')
+  const hooks = failures.filter(fileLevel).filter(([, failure]) => failureKind(failure) !== 'missing')
+  if (hooks.length > 0) return hooks.map(([, failure]) => `${result.file}: a hook failed before the tests ran: ${headline(failure)} (setup)`)
   return failures
     .filter(([, failure]) => REFUSED_KINDS.includes(failureKind(failure)))
     .map(([name, failure]) => `${name.split(' > ').pop()}: fails on ${headline(failure)} (${failureKind(failure)}), not on the behaviour`)

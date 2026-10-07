@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
@@ -326,4 +326,38 @@ it('the writer is told to use the repository\'s own test-writing skill when the 
   writeFile(repo, '.claude/testing.md', KNOWLEDGE_FULL.replace('## Run\n', '## Run\nTest-writing skill: write-shop-tests\n'))
   const prompt = readFileSync(toWriter(cli).prompt_file, 'utf8')
   assert.match(prompt, /Write the tests with the repository's own skill `write-shop-tests`/)
+})
+
+it('a test that throws an error other than an assertion is reported as red (error)', () => {
+  const { repo, cli } = setup()
+  const writer = toWriter(cli)
+  writeFile(repo, 'test/total.test.js', C1_TEST.replace("assert.equal(total([{ price: 2, qty: 3 }]), 6)", "throw new Error('quantity is not a number')"))
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
+  assert.equal(cli('submit').json.step, 'done')
+  assert.match(readFileSync(cli('next').json.report, 'utf8'), /C1 .*red \(error\)/)
+})
+
+it('tests qc runs the blind QC headless, able to read only its run folder and write only cases.yaml', () => {
+  const { repo, env } = setup()
+  const bin = tempDir('sg-bin-')
+  const log = join(bin, 'args.log')
+  writeFile(bin, 'claude', `#!/bin/sh\nprintf '%s\\n' "$PWD" "$@" > '${log}'\nrun=$(dirname "$(dirname "$(printf '%s' "$2" | sed -e 's/^Read //' -e 's/ and do exactly.*$//')")")\ncp '${join(bin, 'cases.yaml')}' "$run/cases.yaml"\necho '{"type":"result","total_cost_usd":0.5}'\n`)
+  writeFileSync(join(bin, 'cases.yaml'), stringify(CASES))
+  chmodSync(join(bin, 'claude'), 0o755)
+  const withStub = { ...env, PATH: `${bin}:${env.PATH}` }
+  const call = (...argv) => {
+    const chunks = []
+    const code = runTests([...argv, '--repo', repo], { env: withStub, out: { write: (text) => chunks.push(text) } })
+    return { code, json: JSON.parse(chunks.join('')) }
+  }
+  call('start', '--request', REQUEST)
+  call('submit')
+  const qc = call('qc')
+  assert.deepEqual(qc.json, { step: 'ready', errors: [] })
+  const [cwd, ...args] = readFileSync(log, 'utf8').trim().split('\n')
+  const runDir = join(cwd)
+  assert.ok(!cwd.startsWith(repo))
+  assert.equal(args[args.indexOf('--allowedTools') + 1], `Read(/${runDir}/**),Edit(/${runDir}/cases.yaml)`)
+  assert.match(args[args.indexOf('--disallowedTools') + 1], /Bash.*Grep.*Glob/)
+  assert.equal(args[args.indexOf('--model') + 1], 'opus')
 })

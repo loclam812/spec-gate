@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverProfile } from '../cli/lib/profile.js'
-import { caseIdsMissing, changedSince, hashFiles, failureKind, runnerRoot, runTestFile, wrongReasons } from '../cli/lib/run-tests.js'
+import { caseIdsMissing, changedSince, hashFiles, failureKind, runnerRoot, runTestFile, withBail, wrongReasons } from '../cli/lib/run-tests.js'
 import { BUGGY_TOTAL, CATCHING_TEST, commitAll, makeFixtureRepo, writeFile } from './helpers.js'
 
 const { repo } = makeFixtureRepo()
@@ -190,4 +190,24 @@ it('failureKind reads a jest suite that failed to run by its cause', () => {
   const suite = (text) => failure('Test suite failed to run', { body: `Test suite failed to run\n\n  ${text}\n\n    at foo (a.js:1:1)` })
   assert.equal(failureKind(suite('Cannot find module ../src/refund from test/a.test.js')), 'missing')
   assert.equal(failureKind(suite('Error: DATABASE_URL is not set')), 'setup')
+})
+
+it('a vitest hook that throws is a setup failure, not a red test', () => {
+  const hooked = {
+    file: 'src/cart.test.ts',
+    status: 'red',
+    timedOut: false,
+    tests: [{ name: 'src/cart.test.ts > C1: works', status: 'skip' }, { name: 'src/cart.test.ts > src/cart.test.ts', status: 'fail' }],
+    failures: { 'src/cart.test.ts > src/cart.test.ts': failure('db is down', { type: 'Error', body: 'Error: db is down' }) },
+  }
+  const lines = wrongReasons(hooked, ['C1'], { source: "it('C1: works')" })
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /\(setup\)/)
+})
+
+it('a suite run can stop after a number of failures where its runner allows it', () => {
+  assert.equal(withBail({ name: 'playwright' }, 'npx playwright test --reporter=junit', 7), 'npx playwright test --reporter=junit --max-failures=7')
+  assert.equal(withBail({ name: 'vitest' }, 'npx vitest run --reporter=junit', 7), 'npx vitest run --reporter=junit --bail=7')
+  assert.equal(withBail({ name: 'node-test' }, 'node --test', 7), 'node --test')
+  assert.equal(withBail({ name: 'vitest' }, 'npx vitest run', null), 'npx vitest run')
 })

@@ -20,7 +20,8 @@ by hand, except the `answers_file` the CLI names, and never commit or push.
 | kind | Do |
 |---|---|
 | `cli` | `spec-gate tests submit --run <id>` |
-| `agent` | Spawn one Agent with the given `model`: "Read <prompt_file> and do exactly what it says." Then `submit`. For `qc`, add: "Do not open application source files." |
+| `agent`, step `qc` | Run `spec-gate tests qc --run <id>`: it runs the blind QC itself (headless `claude -p`, able to read only its run folder and write only `cases.yaml`) and submits; then `next`. |
+| `agent`, other steps | Spawn one Agent with the given `model`: "Read <prompt_file> and do exactly what it says." Then `submit`. |
 | `ask` | Ask the `questions` in AskUserQuestion calls of at most four, offering the likely answers as options (the user can always write their own); collect all answers, then write `[{ id, answer }]` YAML to `answers_file`; `submit --answers <answers_file>` |
 | `approve` | Show `summary_file`. On yes, `submit --approve`; otherwise `submit --reject "<what they said>"` |
 | `done` | Show `report` in five lines: cases, tests, red/green, assumed and disputed cases, and the interfaces the tests assume (the user checks those before implementing). Then: "Implement, then run /spec-gate:verify-changes." |

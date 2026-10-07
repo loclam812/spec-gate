@@ -2,7 +2,14 @@ export const REPORT_FORMATS = ['go-json', 'junit']
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
+// CDATA text is literal; everything outside it is entity-encoded.
 const decode = (text) =>
+  text
+    .split(/(<!\[CDATA\[[\s\S]*?\]\]>)/)
+    .map((part) => (part.startsWith('<![CDATA[') ? part.slice(9, -3) : decodeEntities(part)))
+    .join('')
+
+const decodeEntities = (text) =>
   text
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(parseInt(code, 16)))

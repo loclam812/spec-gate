@@ -37,7 +37,9 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
 
 - **discover** reads the repository's test stacks (Go, vitest, jest, `node --test`, Playwright) and
   scores the request's risk: access words, screen and feature signals.
-- **qc** is blind: the QC agent reads only a packet (the request, the knowledge file's Domain terms,
+- **qc** is blind: `spec-gate tests qc` runs the QC as a headless `claude -p` whose permissions allow
+  reading only its run folder and writing only `cases.yaml`, so it cannot open application code. It
+  reads only a packet (the request, the knowledge file's Domain terms,
   the repository's user-facing strings, route and screen names, the names of existing tests), never
   application code. It returns `cases.yaml`: each request sentence with the cases that cover it,
   each case with `when`, `then`, its basis (`request`, `decision` or `assumed`), risk and layer, and
@@ -136,6 +138,7 @@ cases, minutes taken, verify results and notes. Nothing leaves the machine.
 ```bash
 spec-gate tests start --request "<text>" | --request-file <path>
 spec-gate tests next | submit | status --run <id>
+spec-gate tests qc --run <id>                   # run the blind QC headless (reads only its run folder)
 spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test is removed
 spec-gate tests adopt --request "<text>" --file <test> [--file <test> ...]   # guard tests another skill wrote
 spec-gate verify --run <id>

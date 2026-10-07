@@ -62,3 +62,8 @@ it('junitFailures keeps the type, message and body of each failed or errored tes
     ['refund > C4: wraps', { type: 'testCodeFailure', message: 'Expected values:\n+ 1\n- 2', body: 'Error: a <b>\nstack' }],
   ])
 })
+
+it('junitFailures reads a failure body wrapped in CDATA as plain text', () => {
+  const xml = '<testsuite><testcase classname="a.spec.ts" name="C1: x"><failure message="a.spec.ts:3:5 C1: x"><![CDATA[Error: expect(locator).toHaveText("<b> & c") failed]]></failure></testcase></testsuite>'
+  assert.equal(junitFailures(xml).get('a.spec.ts > C1: x').body, 'Error: expect(locator).toHaveText("<b> & c") failed')
+})

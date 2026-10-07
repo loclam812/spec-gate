@@ -8,6 +8,7 @@ import { writeJson } from './lib/files.js'
 import { createRun, latestRunId, loadState, runsDir } from './lib/run-store.js'
 import { verifyRun } from './lib/verify.js'
 import { adoptTests, nextInstruction, submitStep } from './lib/tests-steps.js'
+import { runBlindQc } from './lib/qc-runner.js'
 import { dropCase } from './lib/drop-case.js'
 import { projectDir, repoSlug } from './lib/store.js'
 import { bugSkill, findKnowledge, testSkill, knowledgeErrors, knowledgePaths } from './lib/knowledge.js'
@@ -27,7 +28,7 @@ const OPTIONS = {
   'old-skill': { type: 'string' },
 }
 
-const USAGE = 'usage: spec-gate tests <start|next|submit|status|drop|adopt> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"] [--case <id> --reason "<why>"] [--file <test> ...]'
+const USAGE = 'usage: spec-gate tests <start|next|submit|qc|status|drop|adopt> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"] [--case <id> --reason "<why>"] [--file <test> ...]'
 
 const print = (out, value) => out.write(`${JSON.stringify(value, null, 2)}\n`)
 
@@ -50,6 +51,20 @@ function start(values, rest, env, out) {
   const { created, signals } = newRun('start', values, rest, env)
   print(out, { run: created.id, risk: signals })
   return 0
+}
+
+function blindQc(values, env, out) {
+  const run = openRun(values, env)
+  const instruction = nextInstruction(run)
+  if (instruction.kind !== 'agent' || instruction.step !== 'qc') throw new Error(`qc: run ${run.state.id} is at step ${run.state.step}, not waiting for the QC`)
+  const { failure } = runBlindQc(run, instruction, { env })
+  if (failure) {
+    print(out, { step: run.state.step, errors: [failure] })
+    return 1
+  }
+  const { state, errors } = submitStep(openRun(values, env))
+  print(out, { step: state.step, errors })
+  return errors.length > 0 ? 1 : 0
 }
 
 function adopt(values, rest, env, out) {
@@ -79,6 +94,7 @@ export function runTests(argv, { env = process.env, out = process.stdout } = {})
     print(out, dropCase(openRun(values, env), { id: values.case, reason: values.reason }))
     return 0
   }
+  if (command === 'qc') return blindQc(values, env, out)
   if (command === 'status') {
     print(out, openRun(values, env).state)
     return 0

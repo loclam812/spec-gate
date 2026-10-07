@@ -95,7 +95,7 @@ function caseStatus(run, result, id) {
   if (test.status === 'pass') return 'green (already holds)'
   const failure = Object.entries(result.failures ?? {}).find(([name]) => name === test.name || name.endsWith(` > ${test.name}`))?.[1]
   const kind = failure ? failureKind(failure) : 'other'
-  return kind === 'missing' ? 'red (missing)' : kind === 'assertion' || kind === 'other' ? 'red (assertion)' : 'not run'
+  return kind === 'missing' ? 'red (missing)' : kind === 'assertion' ? 'red (assertion)' : kind === 'other' ? 'red (error)' : 'not run'
 }
 
 function testsReport(run, results) {
