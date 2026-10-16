@@ -102,3 +102,8 @@ it('an assumed case may not lose its high risk between rounds to pass the check'
   const previous = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
   assert.deepEqual(casesDocErrors(DOC, { ...CONTEXT, previous }), ['case C2 was high risk and is still assumed: ask about it or settle it, do not lower its risk'])
 })
+
+it('after the first QC round a high-risk case may stay assumed, so a run cannot get stuck on it', () => {
+  const risky = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
+  assert.deepEqual(casesDocErrors(risky, { ...CONTEXT, round: 1 }), [])
+})

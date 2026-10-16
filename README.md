@@ -81,7 +81,9 @@ names a `testDir`. A test file its runner finds no tests in, because the runner'
 out, is refused, as is one no stack runs. `verify-changes` reruns the whole suite of each runner
 the new tests use; a test that passed in the snapshot and fails now is a regression, and tests
 already red at the start do not count. jest has no per-test report here, so its suite is noted,
-not compared. Gaps name each case without a green test. `spec-gate verify` exits non-zero when
+not compared. Gaps name each case without a green test. A new failure counts as a regression only if it fails
+again on a rerun; one that passes is listed as flaky. A guarded test the user agreed to change is
+re-guarded with `spec-gate tests amend` and listed in the report. `spec-gate verify` exits non-zero when
 anything is red. With many failing browser tests, each waits for its timeout, so verify can take
 minutes.
 
@@ -131,7 +133,7 @@ Each run keeps `events.jsonl` (a timestamped line per step change, failed check,
 next to its other files in the store, and `notes.md` for remarks added with `spec-gate note`.
 `spec-gate log --since 3d` summarises the runs of every repository in that window: where each
 stopped, why a run got stuck, how many checks failed, questions, assumed, disputed and dropped
-cases, minutes taken, verify results and notes. Nothing leaves the machine.
+cases, minutes to done and to the last verify, verify results and notes. Nothing leaves the machine.
 
 ### CLI
 
@@ -140,6 +142,7 @@ spec-gate tests start --request "<text>" | --request-file <path>
 spec-gate tests next | submit | status --run <id>
 spec-gate tests qc --run <id>                   # run the blind QC headless (reads only its run folder)
 spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test is removed
+spec-gate tests amend --run <id> --file <test> --reason "<what the user approved>"   # re-guard an approved test change
 spec-gate tests adopt --request "<text>" --file <test> [--file <test> ...]   # guard tests another skill wrote
 spec-gate verify --run <id>
 spec-gate knowledge path | check | draft

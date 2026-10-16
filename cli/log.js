@@ -42,12 +42,19 @@ function verifySummary(events) {
   return { runs: checks.length, last: last ? (last.ok ? 'pass' : 'fail') : null, regressions: last?.regressions ?? 0 }
 }
 
+// Minutes from the run's first event to the first (or last) event that matches; null when none does.
+function minutesUntil(events, matches, { last = false } = {}) {
+  const start = Date.parse(events[0]?.at)
+  const found = last ? events.findLast(matches) : events.find(matches)
+  const end = Date.parse(found?.at)
+  return Number.isNaN(start) || Number.isNaN(end) ? null : Math.round((end - start) / 60_000)
+}
+
 function entry(project, id, dir) {
   const state = readState(dir) ?? {}
   const events = readEvents(dir)
   const cases = list(readYaml(join(dir, 'cases.yaml')).cases)
   const written = readYaml(join(dir, 'tests.yaml'))
-  const times = events.map((event) => Date.parse(event.at)).filter((time) => !Number.isNaN(time))
   return {
     project,
     run: id,
@@ -61,7 +68,8 @@ function entry(project, id, dir) {
     disputed: list(written.disputed).length,
     dropped: list(written.dropped).length,
     failed_checks: events.filter((event) => list(event.errors).length > 0).length,
-    minutes: times.length > 1 ? Math.round((Math.max(...times) - Math.min(...times)) / 60_000) : 0,
+    minutes_to_done: minutesUntil(events, (event) => event.step === 'done'),
+    minutes_to_last_verify: minutesUntil(events, (event) => event.kind === 'verify', { last: true }),
     verify: verifySummary(events),
     notes: readText(join(dir, 'notes.md')).split('\n').filter(Boolean),
   }

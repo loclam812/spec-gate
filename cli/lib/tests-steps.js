@@ -58,6 +58,7 @@ function qcContext(run) {
     uxSourceAgreed: /\(about: ux-source\)/.test(readText(at(run, 'decisions.md'))),
     unknownAnswers: /^\s*Answer: unknown\b/im.test(readText(at(run, 'decisions.md'))),
     previous: readYaml(at(run, 'cases.yaml.prev')),
+    round: run.state.qc_rounds ?? 0,
     answeredIds: [...readText(at(run, 'decisions.md')).matchAll(/^- (Q\w+) /gm)].map((match) => match[1]),
   }
 }

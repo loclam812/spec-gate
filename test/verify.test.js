@@ -57,3 +57,29 @@ it('verify notes a suite it could not compare instead of passing it silently', (
   assert.equal(result.code, 0)
   assert.match(report(result), /## Notes\n\n- suite not checked: node-test has no per-test suite report\n/)
 })
+
+it('an approved change to a guarded test is amended with a reason, and verify then accepts it', () => {
+  const { repo, cli, verify } = setup()
+  toDone(cli, repo)
+  assert.throws(() => cli('amend', '--file', 'test/total.test.js', '--reason', 'x'), /amend: test\/total\.test\.js has not changed since it was guarded/)
+  writeFile(repo, 'test/total.test.js', C1_TEST.replace("'C1: total multiplies price by quantity'", "'C1: total multiplies the unit price by the quantity'"))
+  assert.throws(() => cli('amend', '--file', 'test/total.test.js'), /amend: give the reason with --reason/)
+  assert.throws(() => cli('amend', '--file', 'test/other.test.js', '--reason', 'x'), /amend: test\/other\.test\.js is not a guarded test of this run/)
+  assert.deepEqual(cli('amend', '--file', 'test/total.test.js', '--reason', 'the user approved a clearer name').json, { amended: 'test/total.test.js' })
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  const result = verify()
+  assert.equal(result.code, 0)
+  assert.match(report(result), /- Amended test\/total\.test\.js after the tests were written: the user approved a clearer name/)
+})
+
+it('a test that fails once and passes on a rerun is reported as flaky, not as a regression', () => {
+  const FLAKY = "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { existsSync, writeFileSync } from 'node:fs'\n\ntest('passes after its first run', () => {\n  const mark = new URL('./.ran', import.meta.url)\n  const first = !existsSync(mark)\n  writeFileSync(mark, 'x')\n  assert.equal(first, false)\n})\n"
+  const { repo, cli, verify } = setup({ extraTests: { 'test/flaky.test.js': "import { test } from 'node:test'\n\ntest('passes after its first run', () => {})\n" } })
+  toDone(cli, repo)
+  writeFile(repo, 'test/flaky.test.js', FLAKY)
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  const result = verify()
+  assert.equal(result.code, 0)
+  assert.match(report(result), /## Regressions\n\nNone\./)
+  assert.match(report(result), /flaky: test > passes after its first run failed once and passed on a rerun/)
+})

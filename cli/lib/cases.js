@@ -82,7 +82,9 @@ export function casesDocErrors(doc, context) {
     ...sentenceErrors(sentences, new Set(cases.map((c) => c.id)), context),
     ...caseErrors(cases),
     // Once the user could not answer, an assumption is all that is left.
-    ...(questions.length < MAX_QUESTIONS && !context.unknownAnswers
+    // Only the first round must ask: later rounds have used their questions, and refusing there
+    // would only get the run stuck.
+    ...(questions.length < MAX_QUESTIONS && !context.unknownAnswers && !context.round
       ? cases.filter((c) => c.basis === 'assumed' && c.risk === 'high').map((c) => `case ${c.id} is high risk and assumed: ask about it (a question), or settle it from the request`)
       : []),
     ...loweredRisk(cases, context.previous),

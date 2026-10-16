@@ -52,3 +52,13 @@ it('the log leaves out runs older than --since and lists stuck reasons', () => {
   assert.equal(runs.length, 1)
   assert.equal(runs[0].request, 'Totals are rounded.')
 })
+
+it('the log reports minutes to done and minutes to the last verify separately', () => {
+  const { repo, env, cli, verify } = setup()
+  toDone(cli, repo)
+  verify()
+  const [entry] = capture(runLog, ['--since', '1d'], env).json.runs
+  assert.equal(typeof entry.minutes_to_done, 'number')
+  assert.equal(typeof entry.minutes_to_last_verify, 'number')
+  assert.equal('minutes' in entry, false)
+})

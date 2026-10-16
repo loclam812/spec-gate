@@ -46,3 +46,18 @@ export function dropCase(run, { id, reason }) {
   logEvent(run.dir, { kind: 'drop', case: id })
   return { dropped: id, reguarded }
 }
+
+// A guarded test the user agreed to change (the design moved, an expectation was wrong) is
+// re-guarded with the reason on record, so verify accepts the new version and lists the change.
+export function amendTest(run, { file, reason }) {
+  if (run.state.step !== 'done') throw new Error(`amend: run ${run.state.id} is at step ${run.state.step}; a test is amended after it was guarded`)
+  if (!reason?.trim()) throw new Error('amend: give the reason with --reason "<what the user approved>"')
+  const guard = readJson(at(run, 'guard.json'))
+  if (!(file in guard)) throw new Error(`amend: ${file} is not a guarded test of this run`)
+  if (!changedSince(run.repo, { [file]: guard[file] }).includes(file)) throw new Error(`amend: ${file} has not changed since it was guarded`)
+  cpSync(join(run.repo, file), at(run, join('guard', file)))
+  writeJson(at(run, 'guard.json'), { ...guard, ...hashFiles(run.repo, [file]) })
+  appendFileSync(at(run, 'decisions.md'), `- Amended ${file} after the tests were written: ${reason.trim()}\n`)
+  logEvent(run.dir, { kind: 'amend', file })
+  return { amended: file }
+}

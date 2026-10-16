@@ -19,14 +19,19 @@ function suiteRegressions(run, profile, files) {
     // timeout only makes the user wait.
     const now = runSuite(run.repo, target, undefined, { maxFailures: Array.isArray(before) ? before.length + NEW_FAILURES_TO_STOP : null })
     if (!Array.isArray(before) || now.failing === null) return { note: `suite not checked: ${target.key}` }
-    const broken = now.failing.filter((name) => !before.includes(name))
-    return { broken, ...(now.stopped ? { note: `${target.key} stopped after ${now.failing.length} failures; more tests may be broken` } : {}) }
+    const suspects = now.failing.filter((name) => !before.includes(name))
+    // A new failure counts only if it fails again: a test that passes on a rerun is flaky.
+    const again = suspects.length > 0 ? runSuite(run.repo, target).failing : []
+    const broken = again === null ? suspects : suspects.filter((name) => again.includes(name))
+    const flaky = suspects.filter((name) => !broken.includes(name)).map((name) => `flaky: ${name} failed once and passed on a rerun`)
+    const stopped = now.stopped ? [`${target.key} stopped after ${now.failing.length} failures; more tests may be broken`] : []
+    return { broken, notes: [...flaky, ...stopped] }
   })
   const comparable = new Set(suiteTargets(profile, run.repo, files).map((target) => target.stack.name))
   const unreported = [...new Set(files.map((file) => stackFor(profile, file)?.name).filter((name) => name && !comparable.has(name)))]
   return {
     regressions: checked.flatMap((entry) => entry.broken ?? []),
-    notes: [...checked.flatMap((entry) => (entry.note ? [entry.note] : [])), ...unreported.map((name) => `suite not checked: ${name} has no per-test suite report`)],
+    notes: [...checked.flatMap((entry) => [...(entry.note ? [entry.note] : []), ...(entry.notes ?? [])]), ...unreported.map((name) => `suite not checked: ${name} has no per-test suite report`)],
   }
 }
 
@@ -64,7 +69,7 @@ export function verifyRun(run) {
   const { regressions, notes } = suiteRegressions(run, profile, files)
   const traced = run.state.adopted ? adoptedTrace(run, files, results) : buildTrace({ casesDoc: parse(readFileSync(at(run, 'cases.yaml'), 'utf8')), repo: run.repo, files, results })
   const ok = edited.length === 0 && red.length === 0 && regressions.length === 0 && traced.gaps.length === 0
-  const dropped = existsSync(at(run, 'decisions.md')) ? readFileSync(at(run, 'decisions.md'), 'utf8').split('\n').filter((line) => line.startsWith('- Dropped ')) : []
+  const dropped = existsSync(at(run, 'decisions.md')) ? readFileSync(at(run, 'decisions.md'), 'utf8').split('\n').filter((line) => line.startsWith('- Dropped ') || line.startsWith('- Amended ')) : []
   const markdown = renderVerify({ run, edited, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok })
   writeFileSync(at(run, 'verify.md'), markdown)
   logEvent(run.dir, { kind: 'verify', ok, red: red.length, regressions: regressions.length, edited: edited.length })
