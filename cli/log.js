@@ -50,6 +50,8 @@ function minutesUntil(events, matches, { last = false } = {}) {
   return Number.isNaN(start) || Number.isNaN(end) ? null : Math.round((end - start) / 60_000)
 }
 
+const versionsOf = (events) => [...new Set(events.map((event) => event.version).filter(Boolean))]
+
 function entry(project, id, dir) {
   const state = readState(dir) ?? {}
   const events = readEvents(dir)
@@ -58,6 +60,7 @@ function entry(project, id, dir) {
   return {
     project,
     run: id,
+    versions: versionsOf(events),
     request: readText(join(dir, 'request.md')).trim().split('\n')[0] ?? '',
     step: state.step ?? 'unknown',
     ...(state.stuck_reason ? { stuck_reason: state.stuck_reason } : {}),

@@ -65,7 +65,10 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   name carries its case id; expectations are copied, never changed, and a case the writer thinks is
   wrong is reported as disputed, as is one it can only test more weakly than written. It lists the
   interfaces its tests assume (routes, functions, labels that do not exist yet) for the user to
-  check, and may drop a case it cannot test in this repository at all, with a reason, up to a
+  check. It changes no existing non-test file; a new helper the tests import (a fixture, a builder)
+  is listed under `helpers:` and guarded with the tests. A helper git already tracks, one that was
+  already untracked when write-tests started, a directory, or a file a test runner would run is
+  refused. It may drop a case it cannot test in this repository at all, with a reason, up to a
   third of the cases. A disputed case
   you agree cannot hold is dropped after its test is removed: `spec-gate tests drop --case <id>
   --reason "<why>"` records the reason, re-guards only the files that held the case, and verify
@@ -83,7 +86,9 @@ the new tests use; a test that passed in the snapshot and fails now is a regress
 already red at the start do not count. jest has no per-test report here, so its suite is noted,
 not compared. Gaps name each case without a green test. A new failure counts as a regression only if it fails
 again on a rerun; one that passes is listed as flaky. A guarded test the user agreed to change is
-re-guarded with `spec-gate tests amend` and listed in the report. `spec-gate verify` exits non-zero when
+re-guarded with `spec-gate tests amend` and listed in the report; a changed helper fails verify the
+same way and is amended the same way, and amending a helper that was deleted stops guarding it. A
+drop re-guards only test files, so a helper edited for a drop needs its own amend. `spec-gate verify` exits non-zero when
 anything is red. With many failing browser tests, each waits for its timeout, so verify can take
 minutes.
 
@@ -91,7 +96,8 @@ minutes.
 
 The store (`~/.claude/spec-gate/projects/<slug>/runs/<id>/`, see below) holds everything of a run:
 `request.md`, `profile.json`, `risk.json`, `knowledge.md` (a snapshot), `qc-packet.md`,
-`cases.yaml`, `decisions.md`, `ready.md`, `tests.yaml`, `results.json`, the guarded test files,
+`cases.yaml`, `decisions.md`, `ready.md`, `tests.yaml`, `results.json`, the guarded test and helper
+files (`guard.json`, `guard-helpers.json`),
 `suite-baseline.json`, `report.md` and `verify.md`. The repository gets only the test files and,
 if you choose, the knowledge file. Run artifacts are single-use: they describe the request and the
 code at one moment, nothing keeps them in step with later changes, and a later request starts a new
@@ -129,11 +135,15 @@ steps spawn no agent. Under `eval`, every agent's cost is recorded in the run's 
 
 ### Logs
 
-Each run keeps `events.jsonl` (a timestamped line per step change, failed check, verify and drop)
+Each run keeps `events.jsonl` (a timestamped line per step change, failed check, verify and drop,
+each with the spec-gate version that wrote it)
 next to its other files in the store, and `notes.md` for remarks added with `spec-gate note`.
 `spec-gate log --since 3d` summarises the runs of every repository in that window: where each
 stopped, why a run got stuck, how many checks failed, questions, assumed, disputed and dropped
-cases, minutes to done and to the last verify, verify results and notes. Nothing leaves the machine.
+cases, minutes to done and to the last verify, verify results, the spec-gate versions that ran and
+notes. Nothing leaves the machine. Every CLI command warns on stderr when an older spec-gate is
+running than the one installed (a Claude Code session keeps the plugin it started with): start a
+new session to load the update.
 
 ### CLI
 
@@ -142,7 +152,7 @@ spec-gate tests start --request "<text>" | --request-file <path>
 spec-gate tests next | submit | status --run <id>
 spec-gate tests qc --run <id>                   # run the blind QC headless (reads only its run folder)
 spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test is removed
-spec-gate tests amend --run <id> --file <test> --reason "<what the user approved>"   # re-guard an approved test change
+spec-gate tests amend --run <id> --file <test or helper> --reason "<what the user approved>"   # re-guard an approved test or helper change
 spec-gate tests adopt --request "<text>" --file <test> [--file <test> ...]   # guard tests another skill wrote
 spec-gate verify --run <id>
 spec-gate knowledge path | check | draft

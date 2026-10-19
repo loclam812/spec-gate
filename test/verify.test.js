@@ -64,7 +64,7 @@ it('an approved change to a guarded test is amended with a reason, and verify th
   assert.throws(() => cli('amend', '--file', 'test/total.test.js', '--reason', 'x'), /amend: test\/total\.test\.js has not changed since it was guarded/)
   writeFile(repo, 'test/total.test.js', C1_TEST.replace("'C1: total multiplies price by quantity'", "'C1: total multiplies the unit price by the quantity'"))
   assert.throws(() => cli('amend', '--file', 'test/total.test.js'), /amend: give the reason with --reason/)
-  assert.throws(() => cli('amend', '--file', 'test/other.test.js', '--reason', 'x'), /amend: test\/other\.test\.js is not a guarded test of this run/)
+  assert.throws(() => cli('amend', '--file', 'test/other.test.js', '--reason', 'x'), /amend: test\/other\.test\.js is not a guarded test or helper of this run/)
   assert.deepEqual(cli('amend', '--file', 'test/total.test.js', '--reason', 'the user approved a clearer name').json, { amended: 'test/total.test.js' })
   writeFile(repo, 'src/total.js', FIXED_TOTAL)
   const result = verify()

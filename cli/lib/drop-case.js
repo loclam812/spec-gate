@@ -47,16 +47,27 @@ export function dropCase(run, { id, reason }) {
   return { dropped: id, reguarded }
 }
 
+function releaseHelper(run, guard, file, reason) {
+  const { [file]: _, ...rest } = guard
+  rmSync(at(run, join('guard', file)), { force: true })
+  writeJson(at(run, 'guard-helpers.json'), rest)
+  appendFileSync(at(run, 'decisions.md'), `- Removed helper ${file} after the tests were written: ${reason.trim()}\n`)
+  logEvent(run.dir, { kind: 'amend', file })
+  return { amended: file }
+}
+
 // A guarded test the user agreed to change (the design moved, an expectation was wrong) is
 // re-guarded with the reason on record, so verify accepts the new version and lists the change.
 export function amendTest(run, { file, reason }) {
   if (run.state.step !== 'done') throw new Error(`amend: run ${run.state.id} is at step ${run.state.step}; a test is amended after it was guarded`)
   if (!reason?.trim()) throw new Error('amend: give the reason with --reason "<what the user approved>"')
-  const guard = readJson(at(run, 'guard.json'))
-  if (!(file in guard)) throw new Error(`amend: ${file} is not a guarded test of this run`)
+  const guardName = ['guard.json', 'guard-helpers.json'].find((name) => existsSync(at(run, name)) && file in readJson(at(run, name)))
+  if (!guardName) throw new Error(`amend: ${file} is not a guarded test or helper of this run`)
+  const guard = readJson(at(run, guardName))
   if (!changedSince(run.repo, { [file]: guard[file] }).includes(file)) throw new Error(`amend: ${file} has not changed since it was guarded`)
+  if (guardName === 'guard-helpers.json' && !existsSync(join(run.repo, file))) return releaseHelper(run, guard, file, reason)
   cpSync(join(run.repo, file), at(run, join('guard', file)))
-  writeJson(at(run, 'guard.json'), { ...guard, ...hashFiles(run.repo, [file]) })
+  writeJson(at(run, guardName), { ...guard, ...hashFiles(run.repo, [file]) })
   appendFileSync(at(run, 'decisions.md'), `- Amended ${file} after the tests were written: ${reason.trim()}\n`)
   logEvent(run.dir, { kind: 'amend', file })
   return { amended: file }

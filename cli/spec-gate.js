@@ -2,6 +2,7 @@
 import { runEval } from './eval.js'
 import { runLog, runNote } from './log.js'
 import { runKnowledge, runProfile, runTests, runVerify } from './tests.js'
+import { staleVersionWarning } from './lib/version.js'
 
 const GROUPS = { eval: runEval, tests: runTests, verify: runVerify, knowledge: runKnowledge, profile: runProfile, log: runLog, note: runNote }
 
@@ -9,6 +10,8 @@ const [group, ...rest] = process.argv.slice(2)
 try {
   const handler = GROUPS[group]
   if (!handler) throw new Error('usage: spec-gate <tests|verify|knowledge|log|note|eval|profile> …')
+  const warning = staleVersionWarning()
+  if (warning) process.stderr.write(`${warning}\n`)
   process.exitCode = handler(rest)
 } catch (error) {
   process.stderr.write(`${error.message}\n`)

@@ -1,10 +1,11 @@
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { renderPrompt } from './candidate.js'
 import { casesDocErrors, isSplit, readySummary, UX_SOURCE_UNASKED } from './cases.js'
 import { withoutCase } from './drop-case.js'
+import { git, tryGit } from './exec.js'
 import { readJson, writeJson } from './files.js'
 import { findKnowledge, testSkill } from './knowledge.js'
 import { discoverProfile, stackFor } from './profile.js'
@@ -81,12 +82,17 @@ function suiteFailures(run, files) {
   return Object.fromEntries(targets.map((target) => [target.key, runSuite(run.repo, target).failing]))
 }
 
-function guardFiles(run, files) {
+function copyToGuard(run, files) {
   for (const file of files) {
     mkdirSync(dirname(at(run, join('guard', file))), { recursive: true })
     cpSync(join(run.repo, file), at(run, join('guard', file)))
   }
+}
+
+function guardFiles(run, files, helpers = []) {
+  copyToGuard(run, [...files, ...helpers])
   writeJson(at(run, 'guard.json'), hashFiles(run.repo, files))
+  if (helpers.length > 0) writeJson(at(run, 'guard-helpers.json'), hashFiles(run.repo, helpers))
 }
 
 function caseStatus(run, result, id) {
@@ -137,18 +143,46 @@ function testsReport(run, results) {
   ].join('\n')
 }
 
+const strings = (value) => list(value).filter((entry) => typeof entry === 'string')
+const normalized = (run, file) => relative(run.repo, resolve(run.repo, file))
+const isOutside = (run, file) => isAbsolute(file) || relative(run.repo, resolve(run.repo, file)).startsWith('..')
+const isTracked = (run, file) => git(run.repo, ['--literal-pathspecs', 'ls-files', '--', file]) !== ''
+const untrackedNow = (repo) => (tryGit(repo, ['ls-files', '--others', '--exclude-standard']) ?? '').split('\n').filter(Boolean)
+const isRegularFile = (run, file) => statSync(join(run.repo, file)).isFile()
+
+function helperErrors(run, helpers, profile, step) {
+  const outside = helpers.filter((file) => isOutside(run, file))
+  if (outside.length > 0) return outside.map((file) => `${step}: ${file} is outside the repository`)
+  const absent = helpers.filter((file) => !existsSync(join(run.repo, file)))
+  if (absent.length > 0) return absent.map((file) => `${step}: ${file} does not exist`)
+  const irregular = helpers.filter((file) => !isRegularFile(run, file))
+  if (irregular.length > 0) return irregular.map((file) => `${step}: ${file} is not a regular file; list each helper file by its own path`)
+  const runnable = helpers.filter((file) => stackFor(profile, file) !== null)
+  if (runnable.length > 0) return runnable.map((file) => `${step}: ${file} is run by a test stack; list it under files`)
+  const tracked = helpers.filter((file) => isTracked(run, file)).map((file) => `${step}: ${file} is already tracked by git; ${step} changes no existing non-test file`)
+  const before = existsSync(at(run, 'untracked-before.json')) ? readJson(at(run, 'untracked-before.json')) : []
+  const preexisting = helpers.filter((file) => list(before).includes(file)).map((file) => `${step}: ${file} already existed before the tests were written; ${step} changes no existing non-test file`)
+  return [...tracked, ...preexisting]
+}
+
 function checkFiles(run, output, step = 'write-tests') {
-  const files = list(output.value?.files).filter((file) => typeof file === 'string')
+  const files = strings(output.value?.files)
   if (files.length === 0) return { errors: [`${step}: tests.yaml lists no files`] }
-  const outside = files.filter((file) => isAbsolute(file) || relative(run.repo, resolve(run.repo, file)).startsWith('..'))
+  const outside = files.filter((file) => isOutside(run, file))
   if (outside.length > 0) return { errors: outside.map((file) => `${step}: ${file} is outside the repository`) }
   const absent = files.filter((file) => !existsSync(join(run.repo, file)))
   if (absent.length > 0) return { errors: absent.map((file) => `${step}: ${file} does not exist`) }
   const profile = profileOf(run)
   const globs = [...new Set(profile.stacks.flatMap((stack) => stack.test_globs))].join(', ')
+  const hint = step === 'write-tests' ? '. A helper the tests import goes under helpers:' : ''
   const unrunnable = files.filter((file) => stackFor(profile, file) === null)
-  if (unrunnable.length > 0) return { errors: unrunnable.map((file) => `${step}: no test stack runs ${file}; use a name these globs match: ${globs}`) }
-  return { files }
+  if (unrunnable.length > 0) return { errors: unrunnable.map((file) => `${step}: no test stack runs ${file}; use a name these globs match: ${globs}${hint}`) }
+  const raw = output.value?.helpers
+  if (raw !== undefined && raw !== null && !(Array.isArray(raw) && raw.every((entry) => typeof entry === 'string'))) return { errors: [`${step}: helpers must be a list of file paths`] }
+  const helpers = strings(raw).map((file) => normalized(run, file))
+  const errors = helperErrors(run, helpers, profile, step)
+  if (errors.length > 0) return { errors }
+  return { files, helpers }
 }
 
 function droppedCaseErrors(dropped, caseIds) {
@@ -172,7 +206,7 @@ function writeTests(run) {
   if (output.errors) return output
   const checked = checkFiles(run, output)
   if (checked.errors) return checked
-  const { files } = checked
+  const { files, helpers } = checked
   const results = runAll(run, files)
   const empty = results.filter((result) => result.status === 'no-tests')
   if (empty.length > 0) {
@@ -193,7 +227,7 @@ function writeTests(run) {
   const missing = caseIdsUntested(run, results, caseIds)
   if (missing.length > 0) return { errors: missing.map((id) => `write-tests: no test names ${id}`) }
   recordDropped(run, dropped)
-  guardFiles(run, files)
+  guardFiles(run, files, helpers)
   writeJson(at(run, 'results.json'), results)
   writeJson(at(run, 'suite-baseline.json'), suiteFailures(run, files))
   writeFileSync(at(run, 'report.md'), testsReport(run, results))
@@ -280,6 +314,7 @@ const HANDLERS = {
       appendFileSync(at(run, 'decisions.md'), `- Rejected at Ready: ${reject}\n`)
       return { step: 'qc', patch: { qc_rounds: run.state.qc_rounds + 1 } }
     }
+    if (approve) writeJson(at(run, 'untracked-before.json'), untrackedNow(run.repo))
     return approve ? advance(run) : { errors: ['ready: pass --approve, or --reject "<what is wrong>"'] }
   },
   'write-tests': writeTests,

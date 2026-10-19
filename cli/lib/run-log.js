@@ -1,11 +1,12 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { VERSION } from './version.js'
 
 const EVENTS = 'events.jsonl'
 
 // One line per state change or check, so a later review can see where runs stall or repeat.
 export function logEvent(dir, event) {
-  appendFileSync(join(dir, EVENTS), `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`)
+  appendFileSync(join(dir, EVENTS), `${JSON.stringify({ at: new Date().toISOString(), version: VERSION, ...event })}\n`)
 }
 
 export function readEvents(dir) {

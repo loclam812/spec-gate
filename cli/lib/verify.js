@@ -40,7 +40,7 @@ function renderVerify({ run, edited, red, regressions, traced, notes, ok }) {
     `# spec-gate verify ${run.state.id}`,
     `**Result:** ${ok ? 'pass' : 'fail'}`,
     traced.section,
-    `## Changed test files\n\n${bullets(edited.map((file) => `- ${file} changed after the tests were written`))}`,
+    `## Changed test and helper files\n\n${bullets(edited.map((file) => `- ${file} changed after the tests were written`))}`,
     `## Red tests\n\n${bullets(red.map((result) => `- ${result.file}: ${result.status}`))}`,
     `## Regressions\n\n${bullets(regressions.map((name) => `- ${name}`))}`,
     `## Gaps\n\n${bullets(traced.gaps)}`,
@@ -63,7 +63,8 @@ export function verifyRun(run) {
   const guard = readJson(at(run, 'guard.json'))
   const files = Object.keys(guard)
   const profile = readJson(at(run, 'profile.json'))
-  const edited = changedSince(run.repo, guard)
+  const helpers = existsSync(at(run, 'guard-helpers.json')) ? readJson(at(run, 'guard-helpers.json')) : {}
+  const edited = [...changedSince(run.repo, guard), ...changedSince(run.repo, helpers)]
   const results = files.map((file) => runTestFile(profile, run.repo, file))
   const red = results.filter((result) => result.status !== 'green')
   const { regressions, notes } = suiteRegressions(run, profile, files)

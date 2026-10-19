@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { runLog, runNote } from '../cli/log.js'
 import { repoSlug } from '../cli/lib/store.js'
+import { VERSION } from '../cli/lib/version.js'
 import { FIXED_TOTAL, writeFile } from './helpers.js'
 import { setup, toDone } from './tests-helpers.js'
 
@@ -22,6 +23,7 @@ it('every state change and verify is logged with a time, and the log summarises 
   const events = readFileSync(join(dir, 'events.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
   assert.deepEqual(events.map((event) => event.step ?? event.kind), ['discover', 'qc', 'ready', 'write-tests', 'done', 'verify'])
   assert.ok(events.every((event) => !Number.isNaN(Date.parse(event.at))))
+  assert.ok(events.every((event) => event.version === VERSION))
   const { runs, summary } = capture(runLog, ['--since', '1d'], env).json
   assert.equal(runs.length, 1)
   assert.deepEqual(
@@ -61,4 +63,21 @@ it('the log reports minutes to done and minutes to the last verify separately', 
   assert.equal(typeof entry.minutes_to_done, 'number')
   assert.equal(typeof entry.minutes_to_last_verify, 'number')
   assert.equal('minutes' in entry, false)
+})
+
+it('the log lists the distinct versions that wrote a run, and none for older runs', () => {
+  const { repo, env, cli, verify } = setup()
+  toDone(cli, repo)
+  verify()
+  const dir = dirname(cli('next').json.report)
+  const events = readFileSync(join(dir, 'events.jsonl'), 'utf8').trim().split('\n')
+  writeFileSync(join(dir, 'events.jsonl'), [events[0].replace(VERSION, '0.5.0'), ...events].join('\n') + '\n')
+  const [entry] = capture(runLog, ['--since', '1d'], env).json.runs
+  assert.deepEqual(entry.versions, ['0.5.0', VERSION])
+  const old = join(env.SPEC_GATE_HOME, 'projects', repoSlug(repo), 'runs', '20200101-000000-000-bbbb')
+  mkdirSync(old, { recursive: true })
+  writeFileSync(join(old, 'state.json'), JSON.stringify({ id: 'x', repo, step: 'done' }))
+  writeFileSync(join(old, 'events.jsonl'), JSON.stringify({ at: new Date().toISOString(), step: 'done' }) + '\n')
+  const runs = capture(runLog, ['--since', '3650d'], env).json.runs
+  assert.deepEqual(runs.find((run) => run.run.endsWith('bbbb')).versions, [])
 })
