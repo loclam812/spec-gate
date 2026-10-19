@@ -130,18 +130,23 @@ spec-gate knowledge draft [--old-skill <dir>] # the prompt and output path for t
 ### What a run costs
 
 Two kinds of agent run: the QC (opus, once per round) and the test writer (sonnet, once, plus a
-retry per failed check). A `spec-to-tests` run is estimated at about $2, not yet measured; `verify-changes` and the CLI
-steps spawn no agent. Under `eval`, every agent's cost is recorded in the run's `cost.json`.
+retry per failed check). Each QC round logs its cost from `claude -p`. The writer runs as an Agent in
+your session, so `tests submit` prices its Claude Code transcript
+(`~/.claude/projects/<cwd>/<session>/subagents/agent-*.jsonl`) at Anthropic list prices built into
+the CLI; a resumed writer counts only what it added, and a transcript that cannot be found or read is
+not counted. `spec-gate log` adds both into each run's `usd`. `verify-changes` and the CLI steps
+spawn no agent. Under `eval`, every agent's cost is recorded in the run's `cost.json`.
 
 ### Logs
 
-Each run keeps `events.jsonl` (a timestamped line per step change, failed check, verify and drop,
+Each run keeps `events.jsonl` (a timestamped line per step change, failed check, verify, drop and
+agent cost,
 each with the spec-gate version that wrote it)
 next to its other files in the store, and `notes.md` for remarks added with `spec-gate note`.
 `spec-gate log --since 3d` summarises the runs of every repository in that window: where each
 stopped, why a run got stuck, how many checks failed, questions, assumed, disputed and dropped
-cases, minutes to done and to the last verify, verify results, the spec-gate versions that ran and
-notes. Nothing leaves the machine. Every CLI command warns on stderr when an older spec-gate is
+cases, minutes to done and to the last verify, verify results, the measured cost in USD, the spec-gate
+versions that ran and notes. Nothing leaves the machine. Every CLI command warns on stderr when an older spec-gate is
 running than the one installed (a Claude Code session keeps the plugin it started with): start a
 new session to load the update.
 

@@ -2,6 +2,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
+import { addsTokens, agentCost, costSince, findTranscripts } from './agent-cost.js'
 import { renderPrompt } from './candidate.js'
 import { casesDocErrors, isSplit, readySummary, UX_SOURCE_UNASKED } from './cases.js'
 import { withoutCase } from './drop-case.js'
@@ -10,6 +11,7 @@ import { readJson, writeJson } from './files.js'
 import { findKnowledge, testSkill } from './knowledge.js'
 import { discoverProfile, stackFor } from './profile.js'
 import { buildQcPacket } from './qc-packet.js'
+import { logEvent, readEvents } from './run-log.js'
 import { saveState } from './run-store.js'
 import { didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
 import { projectDir, repoSlug } from './store.js'
@@ -378,9 +380,27 @@ function setAside(run, step) {
   if (existsSync(path)) renameSync(path, `${path}.prev`)
 }
 
+// The writer runs as an Agent in the user's session, so its cost is read from its transcript; each
+// attempt's agent is found by the prompt file it read since the step was last entered or retried.
+function logWriterCost(run) {
+  try {
+    const events = readEvents(run.dir)
+    const since = Date.parse(events.findLast((event) => event.step === 'write-tests')?.at) || 0
+    const logged = events.filter((event) => event.kind === 'write-tests')
+    for (const file of findTranscripts(run.env ?? process.env, at(run, join('prompts', 'write-tests.md')), { since })) {
+      const cost = agentCost(file)
+      const added = costSince(cost, logged.filter((event) => event.transcript === cost.transcript))
+      if (addsTokens(added)) logEvent(run.dir, { kind: 'write-tests', ...added })
+    }
+  } catch {
+    // Cost is a measurement, never a reason to fail the run.
+  }
+}
+
 export function submitStep(run, options = {}) {
   const handler = HANDLERS[run.state.step]
   if (!handler) throw new Error(`nothing to submit at step ${run.state.step}`)
+  if (run.state.step === 'write-tests') logWriterCost(run)
   const outcome = handler(run, options)
   const errors = outcome.errors ?? []
   const attempts = errors.length > 0 ? (run.state.attempts ?? 0) + 1 : 0

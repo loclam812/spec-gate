@@ -26,7 +26,7 @@ export function setup({ extraTests = {} } = {}) {
   writeFile(repo, 'src/total.js', BUGGY_TOTAL)
   for (const [path, text] of Object.entries(extraTests)) writeFile(repo, path, text)
   commitAll(repo, 'test script, total not yet multiplying by quantity')
-  const env = { ...process.env, SPEC_GATE_HOME: tempDir('sg-home-') }
+  const env = { ...process.env, SPEC_GATE_HOME: tempDir('sg-home-'), CLAUDE_CONFIG_DIR: tempDir('sg-claude-') }
   const cli = (...argv) => capture(runTests, argv, repo, env)
   const verify = (...argv) => capture(runVerify, argv, repo, env)
   return { repo, env, cli, verify }

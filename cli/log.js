@@ -50,6 +50,8 @@ function minutesUntil(events, matches, { last = false } = {}) {
   return Number.isNaN(start) || Number.isNaN(end) ? null : Math.round((end - start) / 60_000)
 }
 
+const centsOf = (amounts) => Math.round(amounts.reduce((sum, usd) => sum + usd, 0) * 100) / 100
+
 const versionsOf = (events) => [...new Set(events.map((event) => event.version).filter(Boolean))]
 
 function entry(project, id, dir) {
@@ -74,6 +76,7 @@ function entry(project, id, dir) {
     minutes_to_done: minutesUntil(events, (event) => event.step === 'done'),
     minutes_to_last_verify: minutesUntil(events, (event) => event.kind === 'verify', { last: true }),
     verify: verifySummary(events),
+    usd: centsOf(events.map((event) => event.usd).filter((usd) => typeof usd === 'number')),
     notes: readText(join(dir, 'notes.md')).split('\n').filter(Boolean),
   }
 }
@@ -86,6 +89,7 @@ function summary(runs) {
     stuck_reasons: runs.flatMap((run) => (run.stuck_reason ? [run.stuck_reason] : [])),
     verify_failed: runs.filter((run) => run.verify.last === 'fail').length,
     regressions_caught: runs.reduce((total, run) => total + run.verify.regressions, 0),
+    usd: centsOf(runs.map((run) => run.usd)),
   }
 }
 
