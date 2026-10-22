@@ -6,7 +6,8 @@ import { runLog, runNote } from '../cli/log.js'
 import { repoSlug } from '../cli/lib/store.js'
 import { VERSION } from '../cli/lib/version.js'
 import { FIXED_TOTAL, writeFile } from './helpers.js'
-import { setup, toDone } from './tests-helpers.js'
+import { stringify } from 'yaml'
+import { C1_TEST, CASES, REQUEST, setup, toDone } from './tests-helpers.js'
 
 const capture = (run, argv, env, repo) => {
   const chunks = []
@@ -80,4 +81,40 @@ it('the log lists the distinct versions that wrote a run, and none for older run
   writeFileSync(join(old, 'events.jsonl'), JSON.stringify({ at: new Date().toISOString(), step: 'done' }) + '\n')
   const runs = capture(runLog, ['--since', '3650d'], env).json.runs
   assert.deepEqual(runs.find((run) => run.run.endsWith('bbbb')).versions, [])
+})
+
+it('the log counts QC rounds and Ready rejections, leaving runs that never reached QC out of the round counts', () => {
+  const { repo, env, cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  cli('submit', '--reject', 'C1 misses the empty cart')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  cli('submit', '--approve')
+  writeFile(repo, 'test/total.test.js', C1_TEST)
+  writeFileSync(cli('next').json.output, stringify({ files: ['test/total.test.js'] }))
+  assert.equal(cli('submit').json.step, 'done')
+  cli('start', '--request', 'Totals are rounded.')
+  const { runs, summary } = capture(runLog, ['--since', '1d'], env).json
+  const done = runs.find((run) => run.step === 'done')
+  const fresh = runs.find((run) => run.step !== 'done')
+  assert.deepEqual({ qc_rounds: done.qc_rounds, ready_rejections: done.ready_rejections }, { qc_rounds: 1, ready_rejections: 1 })
+  assert.deepEqual({ qc_rounds: fresh.qc_rounds, ready_rejections: fresh.ready_rejections }, { qc_rounds: null, ready_rejections: 0 })
+  assert.deepEqual({ by_qc_rounds: summary.by_qc_rounds, ready_rejections: summary.ready_rejections }, { by_qc_rounds: { 1: 1 }, ready_rejections: 1 })
+})
+
+it('a run from before events were logged takes its QC rounds from its state, unless it was adopted or never left discover', () => {
+  const { env } = setup()
+  const runs = join(env.SPEC_GATE_HOME, 'projects', 'p', 'runs')
+  const legacy = (id, state) => {
+    mkdirSync(join(runs, id), { recursive: true })
+    writeFileSync(join(runs, id, 'state.json'), JSON.stringify({ id, qc_rounds: 0, ...state }))
+  }
+  legacy('20200101-000000-000-done', { step: 'done', qc_rounds: 2 })
+  legacy('20200101-000000-000-adop', { step: 'done', adopted: true })
+  legacy('20200101-000000-000-disc', { step: 'discover' })
+  const rounds = Object.fromEntries(capture(runLog, ['--since', '3650d'], env).json.runs.map((run) => [run.run.slice(-4), run.qc_rounds]))
+  assert.deepEqual(rounds, { done: 2, adop: null, disc: null })
 })

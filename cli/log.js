@@ -54,11 +54,16 @@ const centsOf = (amounts) => Math.round(amounts.reduce((sum, usd) => sum + usd, 
 
 const versionsOf = (events) => [...new Set(events.map((event) => event.version).filter(Boolean))]
 
+// Runs from before events.jsonl existed only have their state to go by.
+const reachedQc = (state, events) =>
+  events.length > 0 ? events.some((event) => event.step === 'qc') : state.adopted !== true && state.step !== 'discover'
+
 function entry(project, id, dir) {
   const state = readState(dir) ?? {}
   const events = readEvents(dir)
   const cases = list(readYaml(join(dir, 'cases.yaml')).cases)
   const written = readYaml(join(dir, 'tests.yaml'))
+  const decisions = readText(join(dir, 'decisions.md'))
   return {
     project,
     run: id,
@@ -69,7 +74,9 @@ function entry(project, id, dir) {
     adopted: state.adopted === true,
     cases: cases.length,
     assumed: cases.filter((c) => c?.basis === 'assumed').length,
-    questions: (readText(join(dir, 'decisions.md')).match(/^- Q\w+ /gm) ?? []).length,
+    questions: (decisions.match(/^- Q\w+ /gm) ?? []).length,
+    qc_rounds: reachedQc(state, events) ? (state.qc_rounds ?? 0) : null,
+    ready_rejections: (decisions.match(/^- Rejected at Ready: /gm) ?? []).length,
     disputed: list(written.disputed).length,
     dropped: list(written.dropped).length,
     failed_checks: events.filter((event) => list(event.errors).length > 0).length,
@@ -82,10 +89,12 @@ function entry(project, id, dir) {
 }
 
 function summary(runs) {
-  const count = (key) => runs.reduce((counts, run) => ({ ...counts, [run[key]]: (counts[run[key]] ?? 0) + 1 }), {})
+  const count = (key, from = runs) => from.reduce((counts, run) => ({ ...counts, [run[key]]: (counts[run[key]] ?? 0) + 1 }), {})
   return {
     runs: runs.length,
     by_step: count('step'),
+    by_qc_rounds: count('qc_rounds', runs.filter((run) => run.qc_rounds !== null)),
+    ready_rejections: runs.reduce((total, run) => total + run.ready_rejections, 0),
     stuck_reasons: runs.flatMap((run) => (run.stuck_reason ? [run.stuck_reason] : [])),
     verify_failed: runs.filter((run) => run.verify.last === 'fail').length,
     regressions_caught: runs.reduce((total, run) => total + run.verify.regressions, 0),

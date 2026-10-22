@@ -150,8 +150,9 @@ agent cost,
 each with the spec-gate version that wrote it)
 next to its other files in the store, and `notes.md` for remarks added with `spec-gate note`.
 `spec-gate log --since 3d` summarises the runs of every repository in that window: where each
-stopped, why a run got stuck, how many checks failed, questions, assumed, disputed and dropped
-cases, minutes to done and to the last verify, verify results, the measured cost in USD, the spec-gate
+stopped, why a run got stuck, how many checks failed, QC rounds after the first (`by_qc_rounds`
+counts runs per round, leaving out runs that never reached QC), Ready rejections, questions,
+assumed, disputed and dropped cases, minutes to done and to the last verify, verify results, the measured cost in USD, the spec-gate
 versions that ran and notes. Nothing leaves the machine. Every CLI command warns on stderr when an older spec-gate is
 running than the one installed (a Claude Code session keeps the plugin it started with): start a
 new session to load the update.
