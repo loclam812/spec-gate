@@ -361,3 +361,35 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   assert.match(args[args.indexOf('--disallowedTools') + 1], /Bash.*Grep.*Glob/)
   assert.equal(args[args.indexOf('--model') + 1], 'opus')
 })
+
+it('a QC that keeps assuming a high-risk case asks the user about it on its last attempt instead of getting stuck', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  const qc = cli('next').json
+  const assumed = { ...CASES, cases: [{ ...CASES.cases[0], basis: 'assumed' }] }
+  writeFileSync(qc.output, stringify(assumed))
+  assert.equal(cli('submit').json.step, 'qc')
+  writeFileSync(qc.output, stringify(assumed))
+  assert.equal(cli('submit').json.step, 'qc')
+  writeFileSync(qc.output, stringify(assumed))
+  assert.equal(cli('submit').json.step, 'ask')
+  const ask = cli('next').json
+  assert.deepEqual(ask.questions.map((q) => q.id), ['QC1'])
+  assert.match(ask.questions[0].text, /an item has price 2 and quantity 3/)
+  assert.match(ask.questions[0].text, /the total is 6/)
+})
+
+it('the last-attempt rescue does not hide another error such as a duplicate case id', () => {
+  const { cli } = setup()
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  const qc = cli('next').json
+  const assumed = { ...CASES, cases: [{ ...CASES.cases[0], basis: 'assumed' }, CASES.cases[0]] }
+  for (let i = 0; i < 2; i++) {
+    writeFileSync(qc.output, stringify(assumed))
+    cli('submit')
+  }
+  writeFileSync(qc.output, stringify(assumed))
+  assert.equal(cli('submit').json.step, 'stuck')
+})

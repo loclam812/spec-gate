@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { FIXED_TOTAL, writeFile } from './helpers.js'
-import { C1_TEST, LEGACY_RED, OLD_TEST, setup, toDone } from './tests-helpers.js'
+import { stringify } from 'yaml'
+import { C1_TEST, CASES, LEGACY_RED, OLD_TEST, REQUEST, setup, toDone } from './tests-helpers.js'
 
 const report = (result) => readFileSync(result.json.report, 'utf8')
 
@@ -82,4 +83,37 @@ it('a test that fails once and passes on a rerun is reported as flaky, not as a 
   assert.equal(result.code, 0)
   assert.match(report(result), /## Regressions\n\nNone\./)
   assert.match(report(result), /flaky: test > passes after its first run failed once and passed on a rerun/)
+})
+
+it('verify lists an existing test the change edited, without failing on it', () => {
+  const { repo, cli, verify } = setup({ extraTests: { 'test/old.test.js': OLD_TEST } })
+  toDone(cli, repo)
+  writeFile(repo, 'test/old.test.js', OLD_TEST.replace('assert.equal(total([{ price: 2, qty: 1 }]), 2)', 'assert.ok(true)'))
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  const result = verify()
+  assert.equal(result.code, 0)
+  assert.match(report(result), /## Existing tests changed\n\n- test\/old\.test\.js changed since spec-gate recorded it; check it was not weakened\n/)
+})
+
+it('verify says none when no existing test was edited', () => {
+  const { repo, cli, verify } = setup({ extraTests: { 'test/old.test.js': OLD_TEST } })
+  toDone(cli, repo)
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  assert.match(report(verify()), /## Existing tests changed\n\nNone\.\n/)
+})
+
+it('verify lists an existing test the writer edited before the tests were guarded', () => {
+  const { repo, cli, verify } = setup({ extraTests: { 'test/old.test.js': OLD_TEST } })
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  cli('submit', '--approve')
+  const writer = cli('next').json
+  writeFile(repo, 'test/old.test.js', OLD_TEST.replace('assert.equal(total([{ price: 2, qty: 1 }]), 2)', 'assert.ok(true)'))
+  writeFile(repo, 'test/total.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
+  assert.equal(cli('submit').json.step, 'done')
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  assert.match(report(verify()), /## Existing tests changed\n\n- test\/old\.test\.js changed since spec-gate recorded it/)
 })

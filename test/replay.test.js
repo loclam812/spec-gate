@@ -11,6 +11,7 @@ import {
   FIXED_TOTAL,
   HANGING_TEST,
   MISSING_TEST,
+  commitAll,
   makeFixtureRepo,
   tempDir,
   writeFile,
@@ -90,9 +91,10 @@ it('non-test changes are kept under ignored/ but never scored', () => {
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
     tests: ['test/total.test.js'],
     support: [],
-    ignored: ['ASSUMPTIONS.md', 'src/total.js'],
+    helpers: ['ASSUMPTIONS.md'],
+    ignored: ['src/total.js'],
   })
-  assert.equal(readFileSync(join(outDir, 'ignored', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
+  assert.equal(readFileSync(join(outDir, 'helpers', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
   assert.equal(readFileSync(join(outDir, 'ignored', 'src/total.js'), 'utf8'), FIXED_TOTAL)
   assert.equal(record.verdict, 'missed')
 })
@@ -140,8 +142,25 @@ const HELPER_TEST = CATCHING_TEST.replace(
 ).replace('total([{ price: 2, qty: 3 }])', 'total([LINE])')
 const HELPER = 'export const LINE = { price: 2, qty: 3 }\n'
 
-it('a test that imports a helper it wrote cannot run without support_globs', () => {
-  assert.equal(candidateRun({ 'test/total.test.js': HELPER_TEST, 'test/support/line.js': HELPER }).record.verdict, 'broken')
+it('a new helper file a test imports is copied into both sides without support_globs', () => {
+  const { outDir, record } = candidateRun({ 'test/total.test.js': HELPER_TEST, 'test/support/line.js': HELPER })
+  assert.equal(record.verdict, 'caught')
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')).helpers, ['test/support/line.js'])
+})
+
+it('a new helper never replaces a file the fix added at the same path', () => {
+  const { repo: fixRepo, preFix: before } = makeFixtureRepo()
+  writeFile(fixRepo, 'src/line.js', HELPER)
+  writeFile(fixRepo, 'src/total.js', FIXED_TOTAL)
+  const after = commitAll(fixRepo, 'fix: add line')
+  const fixSample = { ...sample, pre_fix: before, post_fix: after }
+  const fixSides = prepareWorkspace(fixSample, fixRepo, tempDir())
+  const usesLine = HELPER_TEST.replace("'./support/line.js'", "'../src/line.js'")
+  writeFile(fixSides.pre, 'test/total.test.js', usesLine)
+  writeFile(fixSides.pre, 'src/line.js', 'export const LINE = { price: 1, qty: 1 }\n')
+  const outDir = tempDir()
+  collectTests(fixSample, fixSides.pre, outDir)
+  assert.equal(scoreRun(fixSample, fixSides, outDir).verdict, 'caught')
 })
 
 it('support files are copied into every run but never scored', () => {
@@ -151,6 +170,7 @@ it('support files are copied into every run but never scored', () => {
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
     tests: ['test/total.test.js'],
     support: ['test/support/line.js'],
+    helpers: [],
     ignored: [],
   })
 })

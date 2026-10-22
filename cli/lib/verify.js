@@ -35,12 +35,24 @@ function suiteRegressions(run, profile, files) {
   }
 }
 
-function renderVerify({ run, edited, red, regressions, traced, notes, ok }) {
+// Editing an old test can be right (a changed interface), so it is listed for review, not failed.
+function existingTestsChanged(run) {
+  if (!existsSync(at(run, 'existing-tests.json'))) return null
+  return changedSince(run.repo, readJson(at(run, 'existing-tests.json'))).map((file) =>
+    existsSync(join(run.repo, file)) ? `- ${file} changed since spec-gate recorded it; check it was not weakened` : `- ${file} was deleted since spec-gate recorded it`,
+  )
+}
+
+const existingSection = (lines) =>
+  `## Existing tests changed\n\n${lines === null ? 'Not checked: this run was written before spec-gate recorded the existing tests.' : bullets(lines)}`
+
+function renderVerify({ run, edited, existing, red, regressions, traced, notes, ok }) {
   return `${[
     `# spec-gate verify ${run.state.id}`,
     `**Result:** ${ok ? 'pass' : 'fail'}`,
     traced.section,
     `## Changed test and helper files\n\n${bullets(edited.map((file) => `- ${file} changed after the tests were written`))}`,
+    existingSection(existing),
     `## Red tests\n\n${bullets(red.map((result) => `- ${result.file}: ${result.status}`))}`,
     `## Regressions\n\n${bullets(regressions.map((name) => `- ${name}`))}`,
     `## Gaps\n\n${bullets(traced.gaps)}`,
@@ -65,14 +77,15 @@ export function verifyRun(run) {
   const profile = readJson(at(run, 'profile.json'))
   const helpers = existsSync(at(run, 'guard-helpers.json')) ? readJson(at(run, 'guard-helpers.json')) : {}
   const edited = [...changedSince(run.repo, guard), ...changedSince(run.repo, helpers)]
+  const existing = existingTestsChanged(run)
   const results = files.map((file) => runTestFile(profile, run.repo, file))
   const red = results.filter((result) => result.status !== 'green')
   const { regressions, notes } = suiteRegressions(run, profile, files)
   const traced = run.state.adopted ? adoptedTrace(run, files, results) : buildTrace({ casesDoc: parse(readFileSync(at(run, 'cases.yaml'), 'utf8')), repo: run.repo, files, results })
   const ok = edited.length === 0 && red.length === 0 && regressions.length === 0 && traced.gaps.length === 0
   const dropped = existsSync(at(run, 'decisions.md')) ? readFileSync(at(run, 'decisions.md'), 'utf8').split('\n').filter((line) => line.startsWith('- Dropped ') || line.startsWith('- Amended ')) : []
-  const markdown = renderVerify({ run, edited, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok })
+  const markdown = renderVerify({ run, edited, existing, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok })
   writeFileSync(at(run, 'verify.md'), markdown)
-  logEvent(run.dir, { kind: 'verify', ok, red: red.length, regressions: regressions.length, edited: edited.length })
+  logEvent(run.dir, { kind: 'verify', ok, red: red.length, regressions: regressions.length, edited: edited.length, existing_edited: existing?.length ?? null })
   return { ok, markdown }
 }

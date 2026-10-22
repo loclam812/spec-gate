@@ -107,6 +107,35 @@ function renderCandidate({ candidate, overall, cost: spent, runs, spread, sample
   return `## ${candidate}\n\n${rateLine}${costLine}\n\n${table}\n`
 }
 
+// A catch rate over a handful of samples hides which bugs each candidate caught; comparing the
+// two on the same samples shows whether one is better or the difference is noise.
+export function comparePaired(records, first, second) {
+  // broken counts as a miss here: a candidate that writes wrong tests must not win on fewer runs.
+  const tally = (rows) => ({
+    caught: rows.filter((row) => row.verdict === 'caught').length,
+    conclusive: rows.filter((row) => CONCLUSIVE.includes(row.verdict) || row.verdict === 'broken').length,
+  })
+  const all = Object.entries(groupBy(records, (row) => `${row.project}/${row.sample}`))
+    .map(([key, rows]) => ({ key, a: tally(rows.filter((row) => row.candidate === first)), b: tally(rows.filter((row) => row.candidate === second)) }))
+  const paired = (sample) => sample.a.conclusive > 0 && sample.b.conclusive > 0
+  const samples = all
+    .filter(paired)
+    .map((sample) => {
+      const diff = sample.a.caught / sample.a.conclusive - sample.b.caught / sample.b.conclusive
+      return { ...sample, better: diff > 0 ? first : diff < 0 ? second : 'tie' }
+    })
+  const count = (name) => samples.filter((sample) => sample.better === name).length
+  return { first, second, samples, unpaired: all.filter((sample) => !paired(sample)).map((sample) => sample.key), wins: count(first), losses: count(second), ties: count('tie') }
+}
+
+export function renderPaired({ first, second, samples, unpaired = [], wins, losses, ties }) {
+  const header = ['Sample', first, second, 'Better']
+  const rows = samples.map((s) => [s.key, `${s.a.caught}/${s.a.conclusive}`, `${s.b.caught}/${s.b.conclusive}`, s.better])
+  const table = [header, header.map(() => '---'), ...rows].map((cells) => `| ${cells.join(' | ')} |`).join('\n')
+  const left = unpaired.length > 0 ? `\n\nNot paired (no conclusive run for one of them): ${unpaired.join(', ')}` : ''
+  return `## ${first} vs ${second}\n\nOn ${samples.length} paired samples, broken counted as a miss: ${first} catches more on ${wins}, ${second} on ${losses}, tie on ${ties}.${left}\n\n${table}\n`
+}
+
 export function renderReport(summaries) {
   if (summaries.length === 0) return 'No verdicts yet.\n'
   return summaries.map(renderCandidate).join('\n')

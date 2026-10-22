@@ -55,7 +55,9 @@ function uiErrors(doc, questions, context) {
   return uxSourceErrors(isMapping(doc.ux) ? String(doc.ux.source ?? '').trim() : '', asked, context)
 }
 
-const MAX_QUESTIONS = 4
+export const MAX_QUESTIONS = 4
+
+export const highRiskAssumed = (id) => `case ${id} is high risk and assumed: ask about it (a question), or settle it from the request`
 
 // Lowering an assumed case from high to low risk would slip it past the ask-or-settle check.
 function loweredRisk(cases, previous) {
@@ -85,7 +87,7 @@ export function casesDocErrors(doc, context) {
     // Only the first round must ask: later rounds have used their questions, and refusing there
     // would only get the run stuck.
     ...(questions.length < MAX_QUESTIONS && !context.unknownAnswers && !context.round
-      ? cases.filter((c) => c.basis === 'assumed' && c.risk === 'high').map((c) => `case ${c.id} is high risk and assumed: ask about it (a question), or settle it from the request`)
+      ? cases.filter((c) => c.basis === 'assumed' && c.risk === 'high').map((c) => highRiskAssumed(c.id))
       : []),
     ...loweredRisk(cases, context.previous),
     ...questions.filter((q) => list(context.answeredIds).includes(q.id)).map((q) => `question ${q.id} was already answered (see Decisions); use the answer instead of asking again`),

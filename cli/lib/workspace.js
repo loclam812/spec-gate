@@ -34,9 +34,9 @@ export function snapshot(dest) {
   writeFileSync(join(dest, '.git', IGNORED_BASELINE), ignoredEntries(dest).join('\0'))
 }
 
-export function changedFiles(dest) {
+export function changedFiles(dest, filter = 'AM') {
   git(dest, ['add', '-A'])
-  const listed = git(dest, ['diff', '--cached', '--name-only', '--diff-filter=AM', '-z'])
+  const listed = git(dest, ['diff', '--cached', '--name-only', `--diff-filter=${filter}`, '-z'])
   git(dest, ['reset', '-q'])
   return listed.split('\0').filter(Boolean).sort()
 }

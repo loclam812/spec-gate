@@ -32,7 +32,7 @@ Each run spawns agents and costs money, so the skills offer themselves and ask b
 
 ```
 spec-to-tests:   discover → qc ⇄ ask → ready → write-tests → check → done
-verify-changes:  guarded files unchanged → new tests green → suites compared → verify.md
+verify-changes:  guarded files unchanged → existing tests edited listed → new tests green → suites compared → verify.md
 ```
 
 - **discover** reads the repository's test stacks (Go, vitest, jest, `node --test`, Playwright) and
@@ -53,7 +53,9 @@ verify-changes:  guarded files unchanged → new tests green → suites compared
   came back `unknown`. A request too large for 30 cases comes back as `split`: two to six smaller
   requests, and the run ends there. The first QC pass runs on opus, later rounds on sonnet.
   After three QC rounds the remaining questions are not asked: their cases stay assumed and the
-  run goes on to Ready.
+  run goes on to Ready. A QC whose third attempt still assumes a high-risk case without asking does
+  not end the run stuck: the CLI turns those cases into questions itself (`Q<case id>`, at most four
+  in the round) and asks you.
 - **ask** puts those questions to you (at most four per round); the answers become decisions and
   QC runs again. When the request touches a UI, the CLI asks for the UX source (a Figma link, a
   screenshot, an existing screen) if none was given.
@@ -88,7 +90,11 @@ not compared. Gaps name each case without a green test. A new failure counts as 
 again on a rerun; one that passes is listed as flaky. A guarded test the user agreed to change is
 re-guarded with `spec-gate tests amend` and listed in the report; a changed helper fails verify the
 same way and is amended the same way, and amending a helper that was deleted stops guarding it. A
-drop re-guards only test files, so a helper edited for a drop needs its own amend. `spec-gate verify` exits non-zero when
+drop re-guards only test files, so a helper edited for a drop needs its own amend. Every other test
+file is hashed when Ready is approved, before the writer starts (`existing-tests.json`; adopt hashes
+them when it adopts, so edits made before that are its baseline). verify lists each one edited or
+deleted since under "Existing tests changed", without failing on it, because an old test may
+rightly change with an interface but may also have been weakened to let the change through. `spec-gate verify` exits non-zero when
 anything is red. With many failing browser tests, each waits for its timeout, so verify can take
 minutes.
 
@@ -98,7 +104,7 @@ The store (`~/.claude/spec-gate/projects/<slug>/runs/<id>/`, see below) holds ev
 `request.md`, `profile.json`, `risk.json`, `knowledge.md` (a snapshot), `qc-packet.md`,
 `cases.yaml`, `decisions.md`, `ready.md`, `tests.yaml`, `results.json`, the guarded test and helper
 files (`guard.json`, `guard-helpers.json`),
-`suite-baseline.json`, `report.md` and `verify.md`. The repository gets only the test files and,
+`existing-tests.json`, `suite-baseline.json`, `report.md` and `verify.md`. The repository gets only the test files and,
 if you choose, the knowledge file. Run artifacts are single-use: they describe the request and the
 code at one moment, nothing keeps them in step with later changes, and a later request starts a new
 run. The tests stay in the repository and keep guarding the behaviour.
@@ -260,11 +266,18 @@ QC read in `qc-reads.json`. A sample's `knowledge.md`, when present, is placed a
 spec-gate eval batch --runs 3                 # every sample in the store × every candidate
 spec-gate eval batch --candidate plain --sample shop-1234
 spec-gate eval report
+spec-gate eval report --candidate plain --candidate spec-to-tests   # those two, compared per sample
 ```
 
 The report gives each candidate's catch rate, its `broken` count (red on both sides: a wrong test,
 the closest thing to a false positive here), and what a run costs: dollars and minutes per run,
 summed over every `claude` result in the run's transcript.
+
+With two `--candidate` names it adds a paired comparison: on each sample both have a conclusive
+run on, which one caught the bug in a larger share of its runs (a `broken` run counts as a miss),
+the count of samples each wins and ties, and the samples it could not pair. A name with no verdicts
+is refused. On a few samples two catch rates can differ by luck alone; a candidate that only
+wins as often as it loses is not better.
 
 `batch` prepares each sample once, skips runs that already have a verdict (so it can be rerun
 after an interruption without paying again), and stops after two `leaked` runs. It finds each
@@ -273,7 +286,9 @@ can be limited to some repositories with `applies_to: [<slug>, …]` in its `can
 
 `generate` clears the run directory, then runs `claude -p` inside the exported pre-fix tree with
 user settings, MCP servers, session history and auto memory switched off. It keeps the full
-transcript in `transcript.jsonl` and every non-test change the candidate made under `ignored/`.
+transcript in `transcript.jsonl`. New non-test files the candidate wrote (helpers its tests import)
+go under `helpers/` and are copied into both trees when scoring, except where the fix added a file at
+the same path. Edits to existing files go under `ignored/` and are never scored.
 
 To drive a candidate by hand instead, open
 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude --setting-sources project --strict-mcp-config` in the

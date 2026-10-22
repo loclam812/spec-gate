@@ -5,7 +5,7 @@ import { runBatch } from './lib/batch.js'
 import { loadCandidate } from './lib/candidate.js'
 import { contextFor, generateRun, rememberRepo, requirePrepared } from './lib/eval-steps.js'
 import { collectTests, scoreRun } from './lib/replay.js'
-import { loadVerdicts, renderReport, summarize } from './lib/report.js'
+import { comparePaired, loadVerdicts, renderPaired, renderReport, summarize } from './lib/report.js'
 import { sampleErrors } from './lib/sample.js'
 import { repoSlug, runDir, sampleDir, storeRoot } from './lib/store.js'
 import { prepareWorkspace } from './lib/workspace.js'
@@ -23,7 +23,7 @@ const USAGE = [
   'usage: spec-gate eval <where|validate|prepare|generate|collect|score> <sample-id> [--repo <path>]',
   '                      [--candidate <name> --run <n>] [--fresh]',
   '       spec-gate eval batch [--runs <n>] [--candidate <name>]... [--sample <id>]...',
-  '       spec-gate eval report',
+  '       spec-gate eval report [--candidate <name>]...   (two names add a paired comparison)',
 ].join('\n')
 
 function outDirFor(ctx, values, env) {
@@ -34,8 +34,8 @@ function outDirFor(ctx, values, env) {
   return runDir(ctx.slug, ctx.sample.id, candidate, values.run, env)
 }
 
-const collectedLine = ({ tests, ignored }) =>
-  `collected ${tests.length} test file(s), ignored ${ignored.length} other change(s)\n`
+const collectedLine = ({ tests, helpers, ignored }) =>
+  `collected ${tests.length} test file(s) and ${helpers.length} new helper file(s), ignored ${ignored.length} other change(s)\n`
 
 const COMMANDS = {
   validate(ctx, values, out) {
@@ -82,7 +82,18 @@ export function runEval(argv, { env = process.env, out = process.stdout } = {}) 
   const { values, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true })
   const [command, id] = positionals
   if (command === 'report') {
-    out.write(renderReport(summarize(loadVerdicts(storeRoot(env)))))
+    const named = values.candidate ? [...new Set(values.candidate)] : null
+    const all = loadVerdicts(storeRoot(env))
+    const unknown = (named ?? []).filter((name) => !all.some((row) => row.candidate === name))
+    if (unknown.length > 0) throw new Error(`no verdicts for candidate ${unknown.join(', ')}`)
+    const records = all.filter((row) => !named || named.includes(row.candidate))
+    const paired =
+      named?.length === 2
+        ? `\n${renderPaired(comparePaired(records, named[0], named[1]))}`
+        : named
+          ? '\nA paired comparison needs exactly two --candidate names.\n'
+          : ''
+    out.write(`${renderReport(summarize(records))}${paired}`)
     return 0
   }
   if (command === 'batch') {

@@ -14,10 +14,15 @@ function copyInto(from, to) {
 
 export function collectTests(sample, preDir, outDir) {
   const changed = changedFiles(preDir)
+  const added = new Set(changedFiles(preDir, 'A'))
   const tests = changed.filter((path) => isTestPath(sample, path))
   const support = changed.filter((path) => isSupportPath(sample, path))
-  const ignored = changed.filter((path) => !tests.includes(path) && !support.includes(path))
-  const kept = { tests, support, ignored }
+  // A new file a test imports (a helper outside support_globs) must reach both sides, or the test
+  // fails to load there and scores as broken. An edited existing file stays ignored: copying it
+  // into the post-fix tree would overwrite the fix.
+  const helpers = changed.filter((path) => added.has(path) && !tests.includes(path) && !support.includes(path))
+  const ignored = changed.filter((path) => !tests.includes(path) && !support.includes(path) && !added.has(path))
+  const kept = { tests, support, helpers, ignored }
   for (const [folder, paths] of Object.entries(kept)) {
     rmSync(join(outDir, folder), { recursive: true, force: true })
     for (const path of paths) copyInto(join(preDir, path), join(outDir, folder, path))
@@ -47,8 +52,10 @@ function runReported(sample, command, root) {
   return { ...run, tests: parseReport(sample.report, { output: run.output, xml }) }
 }
 
-function placeCollected(root, outDir, { tests, support }) {
+function placeCollected(root, outDir, { tests, support, helpers }) {
   for (const file of support) copyInto(join(outDir, 'support', file), join(root, file))
+  // The fix may add a file at the same path; the side's own file wins.
+  for (const file of helpers.filter((path) => !existsSync(join(root, path)))) copyInto(join(outDir, 'helpers', file), join(root, file))
   for (const file of tests) copyInto(join(outDir, 'tests', file), join(root, file))
 }
 
@@ -90,10 +97,10 @@ function scoreFile(sample, sides, outDir, path, collected) {
 }
 
 export function scoreRun(sample, sides, outDir) {
-  const { tests, support = [] } = readJson(join(outDir, 'collected.json'))
+  const { tests, support = [], helpers = [] } = readJson(join(outDir, 'collected.json'))
   const leaksPath = join(outDir, 'leaks.json')
   const leaks = existsSync(leaksPath) ? readJson(leaksPath).outside : []
-  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support }))
+  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support, helpers }))
   const record = {
     sample: sample.id,
     pre_fix: sample.pre_fix,

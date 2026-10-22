@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeJson } from '../cli/lib/files.js'
-import { loadVerdicts, parseRunName, renderReport, summarize } from '../cli/lib/report.js'
+import { comparePaired, loadVerdicts, parseRunName, renderPaired, renderReport, summarize } from '../cli/lib/report.js'
 import { tempDir } from './helpers.js'
 
 const records = [
@@ -90,4 +90,43 @@ it('the report prints what a run costs in money and time', () => {
   const [summary] = summarize(priced)
   assert.deepEqual(summary.cost, { measured: 2, totalUsd: 1.5, usdPerRun: 0.75, minutesPerRun: 3 })
   assert.match(renderReport([summary]), /Cost: \$0\.75 per run, \$1\.50 in total over 2 measured runs · 3 min per run/)
+})
+
+it('comparePaired counts, per shared sample, which candidate caught more often', () => {
+  const rows = [
+    { project: 'p', sample: 'a', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'a', candidate: 'x', run: 2, verdict: 'caught' },
+    { project: 'p', sample: 'a', candidate: 'y', run: 1, verdict: 'missed' },
+    { project: 'p', sample: 'b', candidate: 'x', run: 1, verdict: 'missed' },
+    { project: 'p', sample: 'b', candidate: 'y', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'c', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'c', candidate: 'y', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'd', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'e', candidate: 'y', run: 1, verdict: 'leaked' },
+    { project: 'p', sample: 'e', candidate: 'x', run: 1, verdict: 'caught' },
+  ]
+  const paired = comparePaired(rows, 'x', 'y')
+  assert.deepEqual(
+    { wins: paired.wins, losses: paired.losses, ties: paired.ties, shared: paired.samples.length },
+    { wins: 1, losses: 1, ties: 1, shared: 3 },
+  )
+  const text = renderPaired(paired)
+  assert.match(text, /## x vs y\n\nOn 3 paired samples, broken counted as a miss: x catches more on 1, y on 1, tie on 1\./)
+  assert.match(text, /\| p\/a \| 2\/2 \| 0\/1 \| x \|/)
+})
+
+it('comparePaired counts broken runs as misses and lists the samples it could not pair', () => {
+  const rows = [
+    { project: 'p', sample: 'a', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'a', candidate: 'x', run: 2, verdict: 'broken' },
+    { project: 'p', sample: 'a', candidate: 'y', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'b', candidate: 'x', run: 1, verdict: 'broken' },
+    { project: 'p', sample: 'b', candidate: 'y', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'c', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'c', candidate: 'y', run: 1, verdict: 'leaked' },
+  ]
+  const paired = comparePaired(rows, 'x', 'y')
+  assert.deepEqual({ wins: paired.wins, losses: paired.losses, ties: paired.ties }, { wins: 0, losses: 2, ties: 0 })
+  assert.match(renderPaired(paired), /\| p\/a \| 1\/2 \| 1\/1 \| y \|/)
+  assert.match(renderPaired(paired), /Not paired \(no conclusive run for one of them\): p\/c/)
 })

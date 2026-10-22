@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { addsTokens, agentCost, costSince, findTranscripts } from './agent-cost.js'
 import { renderPrompt } from './candidate.js'
-import { casesDocErrors, isSplit, readySummary, UX_SOURCE_UNASKED } from './cases.js'
+import { casesDocErrors, highRiskAssumed, isSplit, MAX_QUESTIONS, readySummary, UX_SOURCE_UNASKED } from './cases.js'
 import { withoutCase } from './drop-case.js'
 import { git, tryGit } from './exec.js'
 import { readJson, writeJson } from './files.js'
@@ -91,10 +91,31 @@ function copyToGuard(run, files) {
   }
 }
 
-function guardFiles(run, files, helpers = []) {
+// Only the new tests are guarded; without a snapshot of the others, weakening an old test to get
+// the change through would pass verify unseen. Taken at Ready, before the writer touches anything.
+// git filters by the stacks' globs, so a large repository is not matched path by path here.
+function snapshotExistingTests(run) {
+  const profile = profileOf(run)
+  const globs = [...new Set(profile.stacks.flatMap((stack) => stack.test_globs))].map((glob) => `:(glob)${glob}`)
+  if (globs.length === 0) return
+  const listed = tryGit(run.repo, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...globs])
+  // Without a listing, no snapshot: verify then says it could not check, instead of "None."
+  if (listed === null) return
+  const existing = [...new Set(listed.split('\0'))].filter((file) => file && stackFor(profile, file) !== null && existsSync(join(run.repo, file)))
+  writeJson(at(run, 'existing-tests.json'), hashFiles(run.repo, existing))
+}
+
+function guardFiles(run, files, helpers = [], { adopted = false } = {}) {
   copyToGuard(run, [...files, ...helpers])
   writeJson(at(run, 'guard.json'), hashFiles(run.repo, files))
   if (helpers.length > 0) writeJson(at(run, 'guard-helpers.json'), hashFiles(run.repo, helpers))
+  // adopt has no Ready step, so its snapshot is taken here: edits made before adopt are its baseline.
+  // A write-tests run without the Ready snapshot is left unchecked: one taken now would hide the writer's edits.
+  if (adopted) snapshotExistingTests(run)
+  if (!existsSync(at(run, 'existing-tests.json'))) return
+  const guarded = [...files, ...helpers]
+  const existing = readJson(at(run, 'existing-tests.json'))
+  writeJson(at(run, 'existing-tests.json'), Object.fromEntries(Object.entries(existing).filter(([file]) => !guarded.includes(file))))
 }
 
 function caseStatus(run, result, id) {
@@ -247,6 +268,23 @@ function askUxSource(run, doc) {
   return { step: 'ask' }
 }
 
+// A QC that keeps assuming a high-risk case would end the run stuck; on its last attempt the CLI
+// asks the user about those cases itself.
+function askAboutAssumed(run, doc, cases) {
+  const kept = list(doc.questions)
+  const open = cases.filter((c) => !kept.some((q) => mentionsId(String(q?.text ?? ''), c.id)))
+  const fits = open.slice(0, Math.max(0, MAX_QUESTIONS - kept.length))
+  const asked = fits.map((c) => ({
+    id: `Q${c.id}`,
+    text: `${String(c.when).replace(/^when\s+/i, '')}: is it right that ${c.then}? If not, what should happen instead?`,
+    about: 'rule',
+  }))
+  const left = open.filter((c) => !fits.includes(c)).map((c) => c.id)
+  if (left.length > 0) appendFileSync(at(run, 'decisions.md'), `- Not asked (at most ${MAX_QUESTIONS} questions a round): ${left.join(', ')} stay assumed\n`)
+  writeFileSync(at(run, 'cases.yaml'), stringify({ ...doc, questions: [...kept, ...asked] }))
+  return { step: 'ask' }
+}
+
 // Endless questions would never end the run: after the last round the open points stay assumed,
 // and Ready shows them to the user.
 function stopAsking(run) {
@@ -304,6 +342,12 @@ const HANDLERS = {
     if (output.errors) return output
     const errors = casesDocErrors(output.value, qcContext(run))
     if (errors.length > 0 && errors.every((error) => UX_SOURCE_UNASKED.includes(error))) return askUxSource(run, output.value)
+    const assumedIds = [...new Set(list(output.value?.cases).map((c) => c?.id).filter((id) => errors.includes(highRiskAssumed(id))))]
+    const onlyAssumed = errors.every((error) => assumedIds.some((id) => error === highRiskAssumed(id)))
+    const lastAttempt = (run.state.attempts ?? 0) + 1 >= MAX_ATTEMPTS
+    if (errors.length > 0 && lastAttempt && onlyAssumed) {
+      return askAboutAssumed(run, output.value, assumedIds.map((id) => list(output.value.cases).find((c) => c?.id === id)))
+    }
     if (errors.length > 0) return { errors }
     if (isSplit(output.value)) return { step: 'split', patch: { split: list(output.value.split) } }
     if (list(output.value.questions).length === 0) return advance(run)
@@ -316,7 +360,10 @@ const HANDLERS = {
       appendFileSync(at(run, 'decisions.md'), `- Rejected at Ready: ${reject}\n`)
       return { step: 'qc', patch: { qc_rounds: run.state.qc_rounds + 1 } }
     }
-    if (approve) writeJson(at(run, 'untracked-before.json'), untrackedNow(run.repo))
+    if (approve) {
+      writeJson(at(run, 'untracked-before.json'), untrackedNow(run.repo))
+      snapshotExistingTests(run)
+    }
     return approve ? advance(run) : { errors: ['ready: pass --approve, or --reject "<what is wrong>"'] }
   },
   'write-tests': writeTests,
@@ -442,7 +489,7 @@ export function adoptTests(run, files) {
   const wrong = results.flatMap((result) => wrongReasons(result, [], { source: readText(join(run.repo, result.file)) })).map((line) => `adopt: ${line}`)
   const errors = [...empty, ...green, ...wrong]
   if (errors.length > 0) return fail(errors)
-  guardFiles(run, checked.files)
+  guardFiles(run, checked.files, [], { adopted: true })
   writeJson(at(run, 'results.json'), results)
   writeJson(at(run, 'suite-baseline.json'), suiteFailures(run, checked.files))
   writeFileSync(at(run, 'report.md'), ['# Tests adopted', '', '## Tests', '', ...results.map((result) => `- ${result.file}: ${redLabel(result)}`), ''].join('\n'))
