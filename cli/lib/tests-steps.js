@@ -134,10 +134,17 @@ function testsReport(run, results) {
   const disputed = list(written?.disputed)
   const assumes = list(written?.assumes).filter((line) => typeof line === 'string')
   const dropped = list(written?.dropped)
+  const resultOf = (c) => results.find((entry) => entry.tests.some((test) => mentionsId(test.name, c.id)) || mentionsId(readText(join(run.repo, entry.file)), c.id))
   const lines = cases.map((c) => {
-    const result = results.find((entry) => entry.tests.some((test) => mentionsId(test.name, c.id)) || mentionsId(readText(join(run.repo, entry.file)), c.id))
+    const result = resultOf(c)
     const name = result?.tests.find((test) => mentionsId(test.name, c.id))?.name ?? result?.file ?? 'no test'
     return `- ${c.id} ${c.then} — ${name}: ${caseStatus(run, result, c.id)}`
+  })
+  const profile = profileOf(run)
+  const belowLayer = cases.flatMap((c) => {
+    const file = resultOf(c)?.file
+    const runner = file && c.layer === 'e2e' ? stackFor(profile, file)?.name : undefined
+    return runner && runner !== 'playwright' ? [`- ${c.id} (e2e): ${file} runs on ${runner}, not in a browser`] : []
   })
   const assumed = cases.filter((c) => c.basis === 'assumed').map((c) => `- ${c.id}: ${c.then}`)
   return [
@@ -162,6 +169,10 @@ function testsReport(run, results) {
     '## Dropped',
     '',
     ...(dropped.length > 0 ? dropped.map((entry) => `- ${entry?.case}: ${entry?.reason}`) : ['None.']),
+    '',
+    '## Below their layer',
+    '',
+    ...(belowLayer.length > 0 ? belowLayer : ['None.']),
     '',
   ].join('\n')
 }

@@ -6,7 +6,7 @@ import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
 import { git } from '../cli/lib/exec.js'
 import { KNOWLEDGE_FULL, tempDir, writeFile } from './helpers.js'
-import { C1_TEST, CASES, REQUEST, setup } from './tests-helpers.js'
+import { C1_TEST, CASES, REQUEST, setup, toDone } from './tests-helpers.js'
 
 it('spec-to-tests runs discover → blind QC → Ready → write-tests and ends with a suite snapshot', () => {
   const { repo, cli } = setup()
@@ -392,4 +392,13 @@ it('the last-attempt rescue does not hide another error such as a duplicate case
   }
   writeFileSync(qc.output, stringify(assumed))
   assert.equal(cli('submit').json.step, 'stuck')
+})
+
+it('the report lists e2e cases whose test runs outside a browser, and none when every case keeps its layer', () => {
+  const below = setup()
+  toDone(below.cli, below.repo, { cases: { ...CASES, cases: [{ ...CASES.cases[0], layer: 'e2e' }] } })
+  assert.match(readFileSync(below.cli('next').json.report, 'utf8'), /## Below their layer\n\n- C1 \(e2e\): test\/total\.test\.js runs on node-test, not in a browser\n/)
+  const kept = setup()
+  toDone(kept.cli, kept.repo)
+  assert.match(readFileSync(kept.cli('next').json.report, 'utf8'), /## Below their layer\n\nNone\.\n/)
 })

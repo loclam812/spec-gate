@@ -79,7 +79,9 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   fails on an assertion or on code that does not exist yet, not on a syntax error, a timeout, the network or setup. Green tests
   are allowed and listed. Otherwise the writer gets the failures and up to two more attempts, then the run is
   `stuck` with the reason.
-- **done** snapshots the failing tests of each runner's whole suite and writes `report.md`.
+- **done** snapshots the failing tests of each runner's whole suite and writes `report.md`. Its
+  "Below their layer" section lists each `e2e` case whose test runs outside a browser (any runner
+  but Playwright): the test passes or fails without proving the flow a user clicks through.
 
 Test files run with Go, vitest, jest or `node --test`, and with Playwright when `playwright.config.*`
 names a `testDir`. A test file its runner finds no tests in, because the runner's config leaves it

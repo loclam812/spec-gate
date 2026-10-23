@@ -32,10 +32,10 @@ export function setup({ extraTests = {} } = {}) {
   return { repo, env, cli, verify }
 }
 
-export function toDone(cli, repo, { testFile = 'test/total.test.js', source = C1_TEST } = {}) {
+export function toDone(cli, repo, { testFile = 'test/total.test.js', source = C1_TEST, cases = CASES } = {}) {
   cli('start', '--request', REQUEST)
   cli('submit')
-  writeFileSync(cli('next').json.output, stringify(CASES))
+  writeFileSync(cli('next').json.output, stringify(cases))
   cli('submit')
   cli('submit', '--approve')
   const writer = cli('next').json
