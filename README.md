@@ -308,8 +308,12 @@ install: the check step refuses it rather than counting it as code not written y
 
 Each collected test file is run alone on both trees. With `report` set, every test the file adds
 is judged on its own and the file takes its best test verdict — a test that is missing from one
-side, because it did not compile there, counts as failing on that side. Without `report`, the file
-is judged by the command's exit code. A run takes its best file verdict.
+side, because it did not compile there, counts as failing on that side. Go subtests are judged
+like any other test, except one renamed between the trees under a parent that ran on both. A
+directory runner builds every collected file in a directory together, so when no test is reported
+on either side the file is scored again without its collected neighbours (`alone: true` in
+`verdict.json`). Without `report`, the file is judged by the command's exit code. A run takes its
+best file verdict.
 
 Set `report` whenever the runner can produce it: `go test -json {dir}` with `report: go-json`;
 `vitest run {file} --reporter=junit --outputFile=report.xml` or

@@ -188,3 +188,20 @@ it('a test file that imports another collected test file is scored with it prese
     [['test/a.test.js', 'missed'], ['test/b.test.js', 'caught']],
   )
 })
+
+it('a neighbour that does not compile takes the whole directory down, so the file is judged alone', () => {
+  // Like a Go package: one file that does not build means no test in the directory runs.
+  const packaged = {
+    ...sample,
+    test_command:
+      "sh -c 'grep -q DOES_NOT_COMPILE \"$0\"/*.test.js && exit 2; node --test --test-reporter=junit --test-reporter-destination=report.xml \"$0\"/*.test.js' {dir}",
+    report: 'junit',
+    report_file: 'report.xml',
+  }
+  const { record } = candidateRun({ 'test/a.test.js': CATCHING_TEST, 'test/b.test.js': '// DOES_NOT_COMPILE\n' }, packaged)
+  assert.equal(record.verdict, 'caught')
+  assert.deepEqual(
+    record.files.map((file) => [file.path, file.verdict, file.alone === true]),
+    [['test/a.test.js', 'caught', true], ['test/b.test.js', 'inconclusive', true]],
+  )
+})

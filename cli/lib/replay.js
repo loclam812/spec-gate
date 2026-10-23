@@ -86,7 +86,7 @@ function briefRuns(runs) {
   )
 }
 
-function scoreFile(sample, sides, outDir, path, collected) {
+function scoreWith(sample, sides, outDir, path, collected) {
   const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, collected)
   const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, collected)
   const runs = { preWith, preWithout, postWith, postWithout }
@@ -94,6 +94,18 @@ function scoreFile(sample, sides, outDir, path, collected) {
   if (!sample.report) return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
   const { verdict, tests } = reportedFileVerdict(runs)
   return { path, verdict, tests, runs: briefRuns(runs) }
+}
+
+// A directory runner (a Go package) builds every file in it together, so one neighbour that does
+// not compile leaves no test reported on either side. The file is then judged without the other
+// collected tests of its directory; a neighbour it needs is still missing, which is no worse.
+function scoreFile(sample, sides, outDir, path, collected) {
+  const scored = scoreWith(sample, sides, outDir, path, collected)
+  const nothingRan = scored.tests?.length === 0 && !scored.runs.postWith.timedOut
+  const neighbours = collected.tests.filter((other) => other !== path && dirname(other) === dirname(path))
+  if (!nothingRan || neighbours.length === 0) return scored
+  const alone = collected.tests.filter((other) => !neighbours.includes(other))
+  return { ...scoreWith(sample, sides, outDir, path, { ...collected, tests: alone }), alone: true }
 }
 
 export function scoreRun(sample, sides, outDir) {

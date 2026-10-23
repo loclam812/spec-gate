@@ -16,13 +16,22 @@ export function fileVerdict({ preWith, postWith, preWithout = null, postWithout 
 const reported = (run) => (run?.tests ? [...run.tests.keys()] : [])
 const passed = (status) => status === 'pass' || status === 'skip'
 
+// A Go subtest missing on a side where its parent ran was renamed, not lost to a compile error:
+// its name can come from the code under test, so its absence proves nothing.
+const renamedOn = (run, name) => {
+  const slash = name.indexOf('/')
+  return slash > 0 && run.tests?.has(name.slice(0, slash)) === true && !run.tests.has(name)
+}
+
 // With a per-test report, the candidate's tests are the ones its file added to the run; a test
 // absent from a side (it did not compile there) counts as failing on that side. Control runs only
 // separate those tests from the directory's existing ones, they no longer veto the file.
 export function reportedFileVerdict({ preWith, postWith, preWithout = null, postWithout = null }) {
   if (postWith.timedOut) return { verdict: 'inconclusive', tests: [] }
   const existing = new Set([...reported(preWithout), ...reported(postWithout)])
-  const names = [...new Set([...reported(preWith), ...reported(postWith)])].filter((name) => !existing.has(name)).sort()
+  const names = [...new Set([...reported(preWith), ...reported(postWith)])]
+    .filter((name) => !existing.has(name) && !renamedOn(preWith, name) && !renamedOn(postWith, name))
+    .sort()
   const tests = names.map((name) => {
     const pre = preWith.tests?.get(name) ?? 'missing'
     const post = postWith.tests?.get(name) ?? 'missing'

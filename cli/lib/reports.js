@@ -39,7 +39,7 @@ export function junitFailures(xml) {
   )
 }
 
-function parseGoJson(output, { subtests = false } = {}) {
+function parseGoJson(output) {
   const events = output.split('\n').flatMap((line) => {
     try {
       return [JSON.parse(line)]
@@ -48,7 +48,7 @@ function parseGoJson(output, { subtests = false } = {}) {
     }
   })
   const finals = events.filter(
-    (event) => typeof event.Test === 'string' && (subtests || !event.Test.includes('/')) && ['pass', 'fail', 'skip'].includes(event.Action),
+    (event) => typeof event.Test === 'string' && ['pass', 'fail', 'skip'].includes(event.Action),
   )
   return new Map(finals.map((event) => [event.Test, event.Action]))
 }
@@ -62,9 +62,10 @@ function parseJunit(xml) {
   )
 }
 
-// Eval scores top-level tests only; a run also reads subtests, since a case id often names a t.Run.
-export function parseReport(format, { output, xml }, { subtests = false } = {}) {
-  if (format === 'go-json') return parseGoJson(output, { subtests })
+// Go subtests are read like junit leaves: a case id often names a t.Run, and a table test whose
+// parent fails on both trees can still hold the subtest that catches the bug.
+export function parseReport(format, { output, xml }) {
+  if (format === 'go-json') return parseGoJson(output)
   if (format === 'junit') return parseJunit(xml)
   throw new Error(`unknown report format "${format}"`)
 }

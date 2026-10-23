@@ -51,6 +51,20 @@ it('a test missing from one side counts as failing there', () => {
   assert.equal(verdict, 'caught')
 })
 
+it('a Go subtest renamed between the trees, under a parent that ran on both, is not a catch', () => {
+  const { verdict, tests } = reportedFileVerdict({
+    preWith: ran(0, { TestFormat: 'pass', 'TestFormat/got_09:undefined': 'pass' }),
+    postWith: ran(0, { TestFormat: 'pass', 'TestFormat/got_09:00': 'pass' }),
+  })
+  assert.equal(verdict, 'missed')
+  assert.deepEqual(tests.map((test) => test.name), ['TestFormat'])
+})
+
+it('a Go subtest whose parent did not compile on a side still counts as failing there', () => {
+  const { verdict } = reportedFileVerdict({ preWith: ran(2, {}), postWith: ran(0, { TestDob: 'pass', 'TestDob/utc': 'pass' }) })
+  assert.equal(verdict, 'caught')
+})
+
 it('a file with no reported test on either side is inconclusive: the runner never ran it', () => {
   assert.equal(reportedFileVerdict({ preWith: ran(2, {}), postWith: ran(2, {}) }).verdict, 'inconclusive')
 })
