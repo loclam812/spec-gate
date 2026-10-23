@@ -13,7 +13,7 @@ const FIXTURES = fileURLToPath(new URL('./fixtures/drive', import.meta.url))
 
 // The stub plays every agent: it reads the prompt path from its -p argument and writes that
 // step's output next to the run, as the real agents would.
-function stubEnv({ first = 'cases.yaml', then = 'cases.yaml', sleep = 0, failOn = '', answerOnce = false, qcReads = '', qcGlob = '', qcGrep = '' }) {
+function stubEnv({ first = 'cases.yaml', then = 'cases.yaml', sleep = 0, failOn = '', answerOnce = false, splitOnce = false, qcReads = '', qcGlob = '', qcGrep = '' }) {
   const bin = tempDir('sg-bin-')
   const log = join(bin, 'calls.log')
   writeFile(bin, 'claude', `#!/bin/sh
@@ -34,7 +34,8 @@ case "$path" in
 esac
 case "$path" in
   */prompts/qc.md)
-    if [ -f "$run/decisions.md" ]; then cp "$FIXTURES/${then}" "$run/cases.yaml"; else cp "$FIXTURES/${first}" "$run/cases.yaml"; fi
+    if [ "${splitOnce}" = "true" ] && [ ! -f "${bin}/split" ]; then cp "$FIXTURES/cases-split.yaml" "$run/cases.yaml"; touch "${bin}/split"
+    elif [ -f "$run/decisions.md" ]; then cp "$FIXTURES/${then}" "$run/cases.yaml"; else cp "$FIXTURES/${first}" "$run/cases.yaml"; fi
     [ -n "${qcReads}" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"%s/${qcReads}"}}]}}\\n' "$PWD"
     [ "${qcGrep}" = "dir" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"refund","path":"%s/src"}}]}}\\n' "$PWD"
     [ "${qcGrep}" = "bare" ] && printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Grep","input":{"pattern":"refund"}}]}}\\n'
@@ -85,6 +86,26 @@ it('a loop that gets stuck is recorded, not thrown', () => {
   const outDir = tempDir()
   driveSpecToTests(candidate, sample, sides.pre, outDir, { env: stubEnv({ first: 'cases-broken.yaml' }).env, hide: [sides.post], watch: [sides.post] })
   assert.match(JSON.parse(readFileSync(join(outDir, 'stuck.json'), 'utf8')).reason, /^qc: output failed its checks 3 times .*the request has nothing to test/)
+})
+
+it('a request the QC splits is driven one smaller request at a time, as the skill tells a user to', () => {
+  const { sample, sides, candidate } = setup()
+  const outDir = tempDir()
+  driveSpecToTests(candidate, sample, sides.pre, outDir, { env: stubEnv({ splitOnce: true }).env, hide: [sides.post], watch: [sides.post] })
+  assert.ok(existsSync(join(sides.pre, 'test/c1.test.js')))
+  assert.match(readFileSync(join(outDir, 'spec-to-tests/cases.yaml'), 'utf8'), /^split:/)
+  assert.match(readFileSync(join(outDir, 'spec-to-tests/part-1/report.md'), 'utf8'), /Tests written/)
+  assert.match(readFileSync(join(outDir, 'spec-to-tests/part-2/report.md'), 'utf8'), /Tests written/)
+  assert.equal(JSON.parse(readFileSync(join(outDir, 'cost.json'), 'utf8')).usd, 1.25)
+  assert.equal(existsSync(join(outDir, 'stuck.json')), false)
+})
+
+it('a split part that gets stuck is recorded, and the other parts still run', () => {
+  const { sample, sides, candidate } = setup()
+  const outDir = tempDir()
+  driveSpecToTests(candidate, sample, sides.pre, outDir, { env: stubEnv({ splitOnce: true, first: 'cases-broken.yaml' }).env, hide: [sides.post], watch: [sides.post] })
+  assert.match(JSON.parse(readFileSync(join(outDir, 'stuck.json'), 'utf8')).reason, /^part 1: qc: output failed its checks 3 times/)
+  assert.ok(existsSync(join(outDir, 'spec-to-tests/part-2/state.json')))
 })
 
 it('a claude that exits non-zero fails the run like a prompted candidate, and keeps what it has', () => {

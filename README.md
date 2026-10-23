@@ -260,7 +260,10 @@ headlessly in the pre-fix tree, until the tests are written. The spec files are 
 questions are answered from `answers.yaml` (a question it does not settle gets `unknown — assumed:
 …`), Ready is approved, and each run keeps the flow's cases, decisions and report under
 `spec-to-tests/`, the cost of every agent in `cost.json`, and the application source files the blind
-QC read in `qc-reads.json`. A sample's `knowledge.md`, when present, is placed as the repository's
+QC read in `qc-reads.json`. A request the QC splits is driven part by part in the same tree, as a
+user would run them; each part keeps its artifacts under `spec-to-tests/part-<n>/` and gets its own
+deadline, and a part that ends stuck is named in `stuck.json` while the others still run. A
+sample's `knowledge.md`, when present, is placed as the repository's
 `.claude/testing.md` before the run. `batch` runs it only when named with `--candidate spec-to-tests`.
 
 ## Running

@@ -120,12 +120,17 @@ function qcReads(agents, preDir, runDir) {
   return [...new Set(reads)].sort()
 }
 
-function saveArtifacts({ home, run, outDir, agents, watch, preDir, stuck }) {
+function copyArtifacts(runDir, dest) {
+  mkdirSync(dest, { recursive: true })
+  for (const name of ARTIFACTS.filter((file) => existsSync(join(runDir, file)))) cpSync(join(runDir, name), join(dest, name))
+}
+
+// The first run is the whole request; after a split, each later run is one part of it.
+function saveArtifacts({ home, runs, outDir, agents, watch, preDir, stuck }) {
   mkdirSync(join(outDir, 'spec-to-tests'), { recursive: true })
-  const runDir = run ? runDirOf(home, run) : null
-  for (const name of ARTIFACTS.filter((file) => runDir && existsSync(join(runDir, file)))) {
-    cpSync(join(runDir, name), join(outDir, 'spec-to-tests', name))
-  }
+  const [runDir, ...partDirs] = runs.map((run) => runDirOf(home, run))
+  if (runDir) copyArtifacts(runDir, join(outDir, 'spec-to-tests'))
+  partDirs.forEach((dir, index) => copyArtifacts(dir, join(outDir, 'spec-to-tests', `part-${index + 1}`)))
   const transcript = agents.map((agent) => agent.transcript).join('\n')
   writeFileSync(join(outDir, 'transcript.jsonl'), transcript)
   writeJson(join(outDir, 'leaks.json'), { outside: watchedPaths(transcript, preDir, watch) })
@@ -143,10 +148,17 @@ function saveArtifacts({ home, run, outDir, agents, watch, preDir, stuck }) {
   }
 }
 
+function endReason(last) {
+  if (last.kind === 'stuck') return last.reason
+  if (last.kind === 'split') return 'driver: a part of a split request split again'
+  return last.kind === 'done' ? null : `driver: no end after ${MAX_STEPS} steps`
+}
+
 // Runs the tests flow headless inside the pre-fix tree until the tests are written. Its
 // run store lives in a temporary home outside the watched paths, so agents reading their own
 // prompt files are not leaks. A claude that fails ends the run with an error, as a prompted
-// candidate's does, so batch retries it instead of scoring it empty.
+// candidate's does, so batch retries it instead of scoring it empty. A split request is driven
+// part by part in the same tree, as the skill tells a user to; each part gets its own deadline.
 export function driveSpecToTests(candidate, sample, preDir, outDir, { env = process.env, hide = [], watch = [] } = {}) {
   resetTree(preDir)
   rmSync(outDir, { recursive: true, force: true })
@@ -156,16 +168,17 @@ export function driveSpecToTests(candidate, sample, preDir, outDir, { env = proc
   writeFileSync(requestFile, requestText(sample))
   const placed = placeKnowledge(sample, preDir)
   const cli = cliFor(preDir, runEnv)
-  const remainingS = timeLeft(candidate.timeout_s)
   const agents = []
   const record = (agent) => {
     agents.push(agent)
     if (agent.failure) throw new Error(agent.failure)
   }
-  let run = null
+  const runs = []
   let stuck = null
-  try {
-    run = cli('start', '--request-file', requestFile).run
+  const driveOne = (file) => {
+    const remainingS = timeLeft(candidate.timeout_s)
+    const run = cli('start', '--request-file', file).run
+    runs.push(run)
     const act = (instruction) => {
       if (instruction.kind === 'cli') return cli('submit', '--run', run)
       if (instruction.kind === 'approve') return cli('submit', '--run', run, '--approve')
@@ -181,16 +194,31 @@ export function driveSpecToTests(candidate, sample, preDir, outDir, { env = proc
       }
       throw new Error(`driver: unexpected instruction ${instruction.kind}`)
     }
-    const last = Array.from({ length: MAX_STEPS }).reduce((previous) => {
+    return Array.from({ length: MAX_STEPS }).reduce((previous) => {
       if (END_KINDS.includes(previous?.kind)) return previous
       const instruction = cli('next', '--run', run)
       if (!END_KINDS.includes(instruction.kind)) act(instruction)
       return instruction
     }, null)
-    stuck = last.kind === 'stuck' ? last.reason : END_KINDS.includes(last.kind) ? null : `driver: no end after ${MAX_STEPS} steps`
+  }
+  try {
+    const last = driveOne(requestFile)
+    // shortcut: parts share the tree and restart case ids at C1, so a later part may rewrite an
+    // earlier part's test file; give each part its own test directory if that loses catches.
+    if (last.kind === 'split') {
+      const reasons = last.requests.flatMap((request, index) => {
+        const partFile = join(home, `request-part-${index + 1}.md`)
+        writeFileSync(partFile, request)
+        const reason = endReason(driveOne(partFile))
+        return reason ? [`part ${index + 1}: ${reason}`] : []
+      })
+      stuck = reasons.length > 0 ? reasons.join('; ') : null
+    } else {
+      stuck = endReason(last)
+    }
   } finally {
     try {
-      saveArtifacts({ home, run, outDir, agents, watch, preDir, stuck })
+      saveArtifacts({ home, runs, outDir, agents, watch, preDir, stuck })
     } finally {
       restoreKnowledge(placed, preDir)
     }

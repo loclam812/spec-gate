@@ -67,14 +67,18 @@ function loweredRisk(cases, previous) {
     .map((c) => `case ${c.id} was high risk and is still assumed: ask about it or settle it, do not lower its risk`)
 }
 
-const SPLIT_ERROR = 'split: list at least two smaller requests, each one sentence or more'
+const SPLIT_ERROR = 'split: list two to six smaller requests, each one sentence or more'
+const MAX_SPLIT = 6
 
 // A request too large to cover within MAX_CASES comes back as smaller requests to run one by one.
 export const isSplit = (doc) => isMapping(doc) && doc.split !== undefined
 
 export function casesDocErrors(doc, context) {
   if (!isMapping(doc)) return ['cases.yaml is not a YAML mapping']
-  if (isSplit(doc)) return list(doc.split).length >= 2 && list(doc.split).every(nonEmpty) ? [] : [SPLIT_ERROR]
+  if (isSplit(doc)) {
+    const parts = list(doc.split)
+    return parts.length >= 2 && parts.length <= MAX_SPLIT && parts.every(nonEmpty) ? [] : [SPLIT_ERROR]
+  }
   const cases = list(doc.cases).filter(isMapping)
   const sentences = list(doc.sentences).filter(isMapping)
   const questions = list(doc.questions).filter(isMapping)

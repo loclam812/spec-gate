@@ -84,7 +84,10 @@ it('a high-risk case may be assumed only once the round has used its four questi
 it('a request too large for one run may be split instead of covered', () => {
   const split = { split: ['Show the duel board.', 'Feed duel results into rewards.'] }
   assert.deepEqual(casesDocErrors(split, CONTEXT), [])
-  assert.deepEqual(casesDocErrors({ split: ['Only one part.'] }, CONTEXT), ['split: list at least two smaller requests, each one sentence or more'])
+  assert.deepEqual(casesDocErrors({ split: ['Only one part.'] }, CONTEXT), ['split: list two to six smaller requests, each one sentence or more'])
+  assert.deepEqual(casesDocErrors({ split: Array.from({ length: 7 }, (_, i) => `Part ${i + 1}.`) }, CONTEXT), [
+    'split: list two to six smaller requests, each one sentence or more',
+  ])
 })
 
 it('a high-risk case may stay assumed once a question about it came back unknown', () => {
