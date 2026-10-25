@@ -326,6 +326,7 @@ Set `report` whenever the runner can produce it: `go test -json {dir}` with `rep
 | Verdict | Meaning | In the rate |
 |---|---|---|
 | `caught` | Failed before the fix, passed after it | caught |
+| `caught-below-layer` | Caught, but only by tests of `e2e` cases run outside a browser (with `report`, by case id in the test name, from the `spec-to-tests` run's `cases.yaml`) | miss, counted apart |
 | `missed` | Passed on both sides | miss |
 | `inverted` | Passed before the fix, failed after it: the test pins the buggy behaviour | miss |
 | `empty` | The candidate wrote no test file | miss |
@@ -333,8 +334,9 @@ Set `report` whenever the runner can produce it: `go test -json {dir}` with `rep
 | `inconclusive` | Timed out after the fix, a control run of the directory was red, or, with `report`, no test of the file ran on either side (a broken install, a file the runner's config leaves out) | excluded |
 | `leaked` | The candidate's tools touched a path outside its working tree | excluded |
 
-The report gives the catch rate as caught ÷ (caught + missed + inverted + empty), and again with
-`broken` counted as a miss; the truth lies between the two.
+The report gives the catch rate as caught ÷ (caught + caught-below-layer + missed + inverted +
+empty), and again with `broken` counted as a miss; the truth lies between the two. A sample
+`test_command` that runs Playwright counts every case at its layer.
 
 ## Leak control
 

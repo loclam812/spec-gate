@@ -1,5 +1,6 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { parse } from 'yaml'
 import { runShell, shellQuote } from './exec.js'
 import { readJson, writeJson } from './files.js'
 import { parseReport } from './reports.js'
@@ -86,33 +87,48 @@ function briefRuns(runs) {
   )
 }
 
-function scoreWith(sample, sides, outDir, path, collected) {
+function scoreWith(sample, sides, outDir, path, collected, e2eCases) {
   const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, collected)
   const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, collected)
   const runs = { preWith, preWithout, postWith, postWithout }
   writeLogs(outDir, path, runs)
   if (!sample.report) return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
-  const { verdict, tests } = reportedFileVerdict(runs)
+  const { verdict, tests } = reportedFileVerdict({ ...runs, e2eCases })
   return { path, verdict, tests, runs: briefRuns(runs) }
 }
 
 // A directory runner (a Go package) builds every file in it together, so one neighbour that does
 // not compile leaves no test reported on either side. The file is then judged without the other
 // collected tests of its directory; a neighbour it needs is still missing, which is no worse.
-function scoreFile(sample, sides, outDir, path, collected) {
-  const scored = scoreWith(sample, sides, outDir, path, collected)
+function scoreFile(sample, sides, outDir, path, collected, e2eCases) {
+  const scored = scoreWith(sample, sides, outDir, path, collected, e2eCases)
   const nothingRan = scored.tests?.length === 0 && !scored.runs.postWith.timedOut
   const neighbours = collected.tests.filter((other) => other !== path && dirname(other) === dirname(path))
   if (!nothingRan || neighbours.length === 0) return scored
   const alone = collected.tests.filter((other) => !neighbours.includes(other))
-  return { ...scoreWith(sample, sides, outDir, path, { ...collected, tests: alone }), alone: true }
+  return { ...scoreWith(sample, sides, outDir, path, { ...collected, tests: alone }, e2eCases), alone: true }
+}
+
+const list = (value) => (Array.isArray(value) ? value : [])
+
+// The spec-to-tests candidate keeps the cases it wrote tests for, one cases.yaml per part of a split request.
+function e2eCases(sample, outDir) {
+  if (/\bplaywright\b/.test(sample.test_command)) return []
+  const dir = join(outDir, 'spec-to-tests')
+  const parts = existsSync(dir) ? readdirSync(dir).filter((name) => /^part-\d+$/.test(name)) : []
+  return [join(dir, 'cases.yaml'), ...parts.map((part) => join(dir, part, 'cases.yaml'))]
+    .filter(existsSync)
+    .flatMap((path) => list(parse(readFileSync(path, 'utf8'))?.cases))
+    .filter((c) => c?.layer === 'e2e')
+    .map((c) => c.id)
 }
 
 export function scoreRun(sample, sides, outDir) {
   const { tests, support = [], helpers = [] } = readJson(join(outDir, 'collected.json'))
   const leaksPath = join(outDir, 'leaks.json')
   const leaks = existsSync(leaksPath) ? readJson(leaksPath).outside : []
-  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support, helpers }))
+  const e2e = e2eCases(sample, outDir)
+  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support, helpers }, e2e))
   const record = {
     sample: sample.id,
     pre_fix: sample.pre_fix,

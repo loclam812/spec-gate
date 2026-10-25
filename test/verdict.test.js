@@ -73,3 +73,24 @@ it('a timeout after the fix stays inconclusive with per-test reports', () => {
   const hungWithReport = { code: -1, timedOut: true, tests: new Map() }
   assert.equal(reportedFileVerdict({ preWith: ran(1, { TestDob: 'fail' }), postWith: hungWithReport }).verdict, 'inconclusive')
 })
+
+it('a catch by a test of an e2e case, run outside a browser, is caught below its layer', () => {
+  const { verdict, tests } = reportedFileVerdict({
+    preWith: ran(1, { 'C1: opens the detail': 'fail', 'C2: shows the title': 'pass' }),
+    postWith: ran(0, { 'C1: opens the detail': 'pass', 'C2: shows the title': 'pass' }),
+    e2eCases: ['C1'],
+  })
+  assert.equal(verdict, 'caught-below-layer')
+  assert.deepEqual(tests.map((test) => test.verdict), ['caught-below-layer', 'missed'])
+})
+
+it('a catch at its own layer outranks one below it', () => {
+  const { verdict } = reportedFileVerdict({
+    preWith: ran(1, { 'C1: opens the detail': 'fail', 'C2: shows the title': 'fail' }),
+    postWith: ran(0, { 'C1: opens the detail': 'pass', 'C2: shows the title': 'pass' }),
+    e2eCases: ['C1'],
+  })
+  assert.equal(verdict, 'caught')
+  assert.equal(sampleVerdict(['caught-below-layer', 'caught']), 'caught')
+  assert.equal(sampleVerdict(['missed', 'caught-below-layer']), 'caught-below-layer')
+})

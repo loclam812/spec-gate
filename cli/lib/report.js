@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { resultTotals } from './candidate.js'
 import { readJson } from './files.js'
 
-const CONCLUSIVE = ['caught', 'missed', 'empty', 'inverted']
+const CONCLUSIVE = ['caught', 'caught-below-layer', 'missed', 'empty', 'inverted']
 
 const listDir = (path) => (existsSync(path) ? readdirSync(path).sort() : [])
 
@@ -46,11 +46,13 @@ function groupBy(items, keyOf) {
 function rate(rows) {
   const conclusive = rows.filter((row) => CONCLUSIVE.includes(row.verdict))
   const caught = conclusive.filter((row) => row.verdict === 'caught').length
+  const belowLayer = conclusive.filter((row) => row.verdict === 'caught-below-layer').length
   const broken = rows.filter((row) => row.verdict === 'broken').length
   const withBroken = conclusive.length + broken
   return {
     caught,
     conclusive: conclusive.length,
+    belowLayer,
     broken,
     excluded: rows.length - withBroken,
     rate: conclusive.length > 0 ? caught / conclusive.length : null,
@@ -97,6 +99,7 @@ function renderCandidate({ candidate, overall, cost: spent, runs, spread, sample
   const spreadText = spread ? ` · spread across runs ${pct(spread.min)}–${pct(spread.max)}` : ''
   const rateLine = [
     `Catch rate: ${overall.caught}/${overall.conclusive} (${pct(overall.rate)})`,
+    ...(overall.belowLayer > 0 ? [`caught below their layer ${overall.belowLayer}`] : []),
     `broken counted as misses: ${overall.caught}/${overall.conclusive + overall.broken} (${pct(overall.rateWithBroken)})`,
     `broken ${overall.broken}`,
     `excluded ${overall.excluded}`,

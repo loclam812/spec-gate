@@ -20,14 +20,15 @@ it('summarize counts empty as a miss, brackets broken, and excludes inconclusive
   assert.deepEqual(summary.overall, {
     caught: 1,
     conclusive: 3,
+    belowLayer: 0,
     broken: 1,
     excluded: 2,
     rate: 1 / 3,
     rateWithBroken: 1 / 4,
   })
   assert.deepEqual(summary.runs, [
-    { run: 1, caught: 1, conclusive: 2, broken: 1, excluded: 0, rate: 0.5, rateWithBroken: 1 / 3 },
-    { run: 2, caught: 0, conclusive: 1, broken: 0, excluded: 2, rate: 0, rateWithBroken: 0 },
+    { run: 1, caught: 1, conclusive: 2, belowLayer: 0, broken: 1, excluded: 0, rate: 0.5, rateWithBroken: 1 / 3 },
+    { run: 2, caught: 0, conclusive: 1, belowLayer: 0, broken: 0, excluded: 2, rate: 0, rateWithBroken: 0 },
   ])
   assert.deepEqual(summary.spread, { min: 0, max: 0.5 })
 })
@@ -129,4 +130,17 @@ it('comparePaired counts broken runs as misses and lists the samples it could no
   assert.deepEqual({ wins: paired.wins, losses: paired.losses, ties: paired.ties }, { wins: 0, losses: 2, ties: 0 })
   assert.match(renderPaired(paired), /\| p\/a \| 1\/2 \| 1\/1 \| y \|/)
   assert.match(renderPaired(paired), /Not paired \(no conclusive run for one of them\): p\/c/)
+})
+
+it('a catch below its layer is conclusive but not caught, and the report counts it apart', () => {
+  const rows = [
+    { project: 'p', sample: 'a', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'b', candidate: 'x', run: 1, verdict: 'caught-below-layer' },
+    { project: 'p', sample: 'b', candidate: 'y', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'a', candidate: 'y', run: 1, verdict: 'caught' },
+  ]
+  const [summary] = summarize(rows.filter((row) => row.candidate === 'x'))
+  assert.deepEqual([summary.overall.caught, summary.overall.conclusive, summary.overall.belowLayer], [1, 2, 1])
+  assert.match(renderReport([summary]), /Catch rate: 1\/2 \(50%\) · caught below their layer 1 · broken counted as misses/)
+  assert.deepEqual(comparePaired(rows, 'x', 'y').samples.map((s) => [s.key, s.better]), [['p/a', 'tie'], ['p/b', 'y']])
 })

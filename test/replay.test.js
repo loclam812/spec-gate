@@ -205,3 +205,28 @@ it('a neighbour that does not compile takes the whole directory down, so the fil
     [['test/a.test.js', 'caught', true], ['test/b.test.js', 'inconclusive', true]],
   )
 })
+
+const reportedSample = (command) => ({
+  ...sample,
+  test_command: `${command}node --test --test-reporter=junit --test-reporter-destination=report.xml {file}`,
+  report: 'junit',
+  report_file: 'report.xml',
+})
+const E2E_CASES = 'cases:\n  - { id: C1, layer: e2e }\n  - { id: C2, layer: unit }\n'
+
+function layeredRun(runSample, casesPath) {
+  writeFile(sides.pre, 'test/total.test.js', CATCHING_TEST.replace("test('total", "test('C1: total"))
+  const outDir = tempDir()
+  collectTests(runSample, sides.pre, outDir)
+  writeFile(outDir, casesPath, E2E_CASES)
+  return scoreRun(runSample, sides, outDir)
+}
+
+it('a catch by a test of an e2e case that runs outside a browser is caught below its layer', () => {
+  assert.equal(layeredRun(reportedSample(''), 'spec-to-tests/cases.yaml').verdict, 'caught-below-layer')
+  assert.equal(layeredRun(reportedSample(''), 'spec-to-tests/part-2/cases.yaml').verdict, 'caught-below-layer')
+})
+
+it('a catch by a test of an e2e case that runs in a browser is caught', () => {
+  assert.equal(layeredRun(reportedSample(': playwright; '), 'spec-to-tests/cases.yaml').verdict, 'caught')
+})
