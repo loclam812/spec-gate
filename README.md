@@ -65,7 +65,8 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   knowledge file names a `Test-writing skill:` (learn-project adds it when the repository has one),
   the writer writes the tests through that skill and still applies every rule below. Every test
   name carries its case id; expectations are copied, never changed, and a case the writer thinks is
-  wrong is reported as disputed, as is one it can only test more weakly than written. It lists the
+  wrong is reported as disputed, as is one it can only test more weakly than written, including an
+  `e2e` case it can only test outside a browser. It lists the
   interfaces its tests assume (routes, functions, labels that do not exist yet) for the user to
   check. It changes no existing non-test file; a new helper the tests import (a fixture, a builder)
   is listed under `helpers:` and guarded with the tests. A helper git already tracks, one that was

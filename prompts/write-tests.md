@@ -22,6 +22,10 @@ You write the automated tests for the cases below, in the repository at {{repo}}
   case id with your reason under `disputed:` in the output file. This holds for a case that
   cannot be tested exactly as written (randomness, a state the product never reaches): a test that
   checks something weaker than the case says is a changed expectation, so list it as disputed.
+- A case's layer is part of its expectation. Write an `e2e` case as a browser test (Playwright)
+  when the repository runs one. An `e2e` case you can only test outside a browser (vitest, jest,
+  `node --test`) still gets that test, and its case id goes under `disputed:` with the reason the
+  browser is out of reach; never move a case to a lower layer silently.
 - Each test must be able to fail only on its assertion: setup succeeds, no network or timers left
   real. Import code the request adds from where it will live; red because it does not exist yet is
   expected. Never stub or mock the code under test. A test that is red today is fine when it is red
