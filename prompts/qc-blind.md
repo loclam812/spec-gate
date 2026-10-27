@@ -40,6 +40,10 @@ each a sentence or two a user could ask for on its own, ordered so each builds o
 - Risk signals for this request: {{risk}}. Aim for 8–15 cases when the level is low and 15–25 when
   it is high; never more than 30. Spend them on edges: empty and initial values, each
   status or role, the first and the last item, what a user without access sees, failures.
+- When the request states what an output always or never is (a code is always upper case, a
+  quantity is never negative), add a case for each action that produces that output starting from
+  an empty or unreadable current value, whose `then` is that rule: "the quantity is still 0 or
+  more", never just "nothing breaks".
 - `then` comes from the request, a decision above, or the plain purpose of the feature. When none
   of those settles a behaviour that a user sees or that concerns access (risk: high), ask a
   question instead of guessing. Smaller points you may assume: mark them `basis: assumed`. A
@@ -51,7 +55,10 @@ each a sentence or two a user could ask for on its own, ordered so each builds o
   for a choice the product could reasonably make either way.
 - Never lower a case's risk to get past a check: ask about it or settle it.
 - An answer of `unknown` settles nothing: a case that rests on it stays `basis: assumed`, never
-  `decision`.
+  `decision`. It does not drop the behaviour either: when the question covered several variants
+  (each status, role or kind of item), write one assumed case per variant, each with the outcome
+  the purpose of the feature implies (a discount the request applies to orders applies to every
+  order type, unless the request names one it skips).
 - Each `then` states one outcome a test can check. Never write "A or B", "either", or "is hidden
   or shows …": pick the outcome the purpose of the feature implies and mark it `basis: assumed`,
   or ask.
