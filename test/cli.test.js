@@ -37,7 +37,7 @@ it('where, validate, prepare, generate, score and report run end to end with a s
   assert.deepEqual(run('validate', 'demo-1'), { code: 0, text: 'ok\n' })
   assert.equal(run('prepare', 'demo-1').code, 0)
   const generated = run('generate', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
-  assert.match(generated.text, /collected 1 test file\(s\) and 1 new helper file\(s\), ignored 0 other change\(s\)/)
+  assert.match(generated.text, /collected 1 test file\(s\) and 0 new helper file\(s\), ignored 1 other change\(s\)/)
   const scored = run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
   assert.match(scored.text, /^demo-1: caught\n {2}caught +test\/total\.test\.js\n$/)
   assert.match(run('report').text, /Catch rate: 1\/1 \(100%\)/)

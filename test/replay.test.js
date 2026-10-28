@@ -82,7 +82,7 @@ it('one caught file makes the run caught, and every file keeps its own verdict',
   )
 })
 
-it('non-test changes are kept under ignored/ but never scored', () => {
+it('non-test changes no test refers to are kept under ignored/ but never scored', () => {
   const { outDir, record } = candidateRun({
     'ASSUMPTIONS.md': 'Quantity defaults to 1.\n',
     'src/total.js': FIXED_TOTAL,
@@ -91,10 +91,10 @@ it('non-test changes are kept under ignored/ but never scored', () => {
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
     tests: ['test/total.test.js'],
     support: [],
-    helpers: ['ASSUMPTIONS.md'],
-    ignored: ['src/total.js'],
+    helpers: [],
+    ignored: ['ASSUMPTIONS.md', 'src/total.js'],
   })
-  assert.equal(readFileSync(join(outDir, 'helpers', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
+  assert.equal(readFileSync(join(outDir, 'ignored', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
   assert.equal(readFileSync(join(outDir, 'ignored', 'src/total.js'), 'utf8'), FIXED_TOTAL)
   assert.equal(record.verdict, 'missed')
 })
@@ -146,6 +146,27 @@ it('a new helper file a test imports is copied into both sides without support_g
   const { outDir, record } = candidateRun({ 'test/total.test.js': HELPER_TEST, 'test/support/line.js': HELPER })
   assert.equal(record.verdict, 'caught')
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')).helpers, ['test/support/line.js'])
+})
+
+it('a helper imported through a path alias, and a file that helper imports, are helpers too', () => {
+  const aliased = HELPER_TEST.replace("'./support/line.js'", "'@/test-utils/line'")
+  const { outDir } = candidateRun({
+    'test/total.test.js': aliased,
+    'src/test-utils/line.ts': "export { LINE } from './line-data'\n",
+    'src/test-utils/line-data.ts': HELPER,
+    'SPEC_BLIND.md': 'A line costs price times quantity.\n',
+  })
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')), {
+    tests: ['test/total.test.js'],
+    support: [],
+    helpers: ['src/test-utils/line-data.ts', 'src/test-utils/line.ts'],
+    ignored: ['SPEC_BLIND.md'],
+  })
+})
+
+it('a new source file beside a test with the same extension is a helper, as in a Go package', () => {
+  const { outDir } = candidateRun({ 'test/total.test.js': MISSING_TEST, 'test/fixture.js': HELPER })
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')).helpers, ['test/fixture.js'])
 })
 
 it('a new helper never replaces a file the fix added at the same path', () => {

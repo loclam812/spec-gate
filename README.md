@@ -296,9 +296,12 @@ can be limited to some repositories with `applies_to: [<slug>, …]` in its `can
 
 `generate` clears the run directory, then runs `claude -p` inside the exported pre-fix tree with
 user settings, MCP servers, session history and auto memory switched off. It keeps the full
-transcript in `transcript.jsonl`. New non-test files the candidate wrote (helpers its tests import)
-go under `helpers/` and are copied into both trees when scoring, except where the fix added a file at
-the same path. Edits to existing files go under `ignored/` and are never scored.
+transcript in `transcript.jsonl`. A new non-test file the candidate wrote is a helper when a test,
+or another helper, names it in an import or a path string (through an alias such as `@/` too), or
+when it sits beside a test with the same extension (a Go package file). Helpers go under `helpers/`
+and are copied into both trees when scoring, except where the fix added a file at the same path.
+Other new files (notes such as `ASSUMPTIONS.md`) and edits to existing files go under `ignored/` and
+are never scored.
 
 To drive a candidate by hand instead, open
 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude --setting-sources project --strict-mcp-config` in the

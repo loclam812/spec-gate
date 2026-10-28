@@ -1,5 +1,5 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 import { parse } from 'yaml'
 import { runShell, shellQuote } from './exec.js'
 import { readJson, writeJson } from './files.js'
@@ -13,6 +13,27 @@ function copyInto(from, to) {
   cpSync(from, to)
 }
 
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Matches an import or a path string ending in the file's name, through any alias (`@/x/line`).
+function refersTo(text, path) {
+  const stem = basename(path, extname(path))
+  const name = stem === 'index' ? basename(dirname(path)) : stem
+  return new RegExp(`['"\`/]${escapeRegExp(name)}(\\.\\w+)?['"\`]`).test(text)
+}
+
+// A file beside a test with its extension shares its package (Go) without being named in it.
+function newHelpers(preDir, tests, candidates) {
+  const helpers = new Set(candidates.filter((path) => tests.some((test) => dirname(test) === dirname(path) && extname(test) === extname(path))))
+  let sources = [...tests, ...helpers]
+  while (sources.length > 0) {
+    const texts = sources.map((path) => readFileSync(join(preDir, path), 'utf8'))
+    sources = candidates.filter((path) => !helpers.has(path) && texts.some((text) => refersTo(text, path)))
+    for (const path of sources) helpers.add(path)
+  }
+  return candidates.filter((path) => helpers.has(path))
+}
+
 export function collectTests(sample, preDir, outDir) {
   const changed = changedFiles(preDir)
   const added = new Set(changedFiles(preDir, 'A'))
@@ -20,9 +41,10 @@ export function collectTests(sample, preDir, outDir) {
   const support = changed.filter((path) => isSupportPath(sample, path))
   // A new file a test imports (a helper outside support_globs) must reach both sides, or the test
   // fails to load there and scores as broken. An edited existing file stays ignored: copying it
-  // into the post-fix tree would overwrite the fix.
-  const helpers = changed.filter((path) => added.has(path) && !tests.includes(path) && !support.includes(path))
-  const ignored = changed.filter((path) => !tests.includes(path) && !support.includes(path) && !added.has(path))
+  // into the post-fix tree would overwrite the fix. So does a new file no test refers to.
+  const newFiles = changed.filter((path) => added.has(path) && !tests.includes(path) && !support.includes(path))
+  const helpers = newHelpers(preDir, tests, newFiles)
+  const ignored = changed.filter((path) => !tests.includes(path) && !support.includes(path) && !helpers.includes(path))
   const kept = { tests, support, helpers, ignored }
   for (const [folder, paths] of Object.entries(kept)) {
     rmSync(join(outDir, folder), { recursive: true, force: true })
