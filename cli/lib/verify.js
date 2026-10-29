@@ -14,18 +14,24 @@ const bullets = (items) => (items.length > 0 ? items.join('\n') : 'None.')
 function suiteRegressions(run, profile, files) {
   const baseline = existsSync(at(run, 'suite-baseline.json')) ? readJson(at(run, 'suite-baseline.json')) : {}
   const checked = suiteTargets(profile, run.repo, files).map((target) => {
-    const before = baseline[target.key]
+    // Runs recorded before 0.7.7 kept only the failing names, so any new failure there is a suspect.
+    const before = Array.isArray(baseline[target.key]) ? { failing: baseline[target.key], passing: null } : baseline[target.key]
     // A handful of new failures proves a regression; running every broken browser test to its
     // timeout only makes the user wait.
-    const now = runSuite(run.repo, target, undefined, { maxFailures: Array.isArray(before) ? before.length + NEW_FAILURES_TO_STOP : null })
-    if (!Array.isArray(before) || now.failing === null) return { note: `suite not checked: ${target.key}` }
-    const suspects = now.failing.filter((name) => !before.includes(name))
+    const now = runSuite(run.repo, target, undefined, { maxFailures: Array.isArray(before?.failing) ? before.failing.length + NEW_FAILURES_TO_STOP : null })
+    if (!Array.isArray(before?.failing) || now.failing === null) return { note: `suite not checked: ${target.key}` }
+    const newFailures = now.failing.filter((name) => !before.failing.includes(name))
+    // A test that did not pass when the suite was recorded, such as one another run added since,
+    // cannot have been broken by this change.
+    const unrecorded = before.passing ? newFailures.filter((name) => !before.passing.includes(name)) : []
+    const suspects = newFailures.filter((name) => !unrecorded.includes(name))
     // A new failure counts only if it fails again: a test that passes on a rerun is flaky.
     const again = suspects.length > 0 ? runSuite(run.repo, target).failing : []
     const broken = again === null ? suspects : suspects.filter((name) => again.includes(name))
     const flaky = suspects.filter((name) => !broken.includes(name)).map((name) => `flaky: ${name} failed once and passed on a rerun`)
     const stopped = now.stopped ? [`${target.key} stopped after ${now.failing.length} failures; more tests may be broken`] : []
-    return { broken, notes: [...flaky, ...stopped] }
+    const notCompared = unrecorded.map((name) => `not compared: ${name} fails now but did not pass when the suite was recorded`)
+    return { broken, notes: [...notCompared, ...flaky, ...stopped] }
   })
   const comparable = new Set(suiteTargets(profile, run.repo, files).map((target) => target.stack.name))
   const unreported = [...new Set(files.map((file) => stackFor(profile, file)?.name).filter((name) => name && !comparable.has(name)))]

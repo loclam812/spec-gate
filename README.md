@@ -83,7 +83,7 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   fails on an assertion or on code that does not exist yet, not on a syntax error, a timeout, the network or setup. Green tests
   are allowed and listed. Otherwise the writer gets the failures and up to two more attempts, then the run is
   `stuck` with the reason.
-- **done** snapshots the failing tests of each runner's whole suite and writes `report.md`. Its
+- **done** snapshots the failing and passing tests of each runner's whole suite and writes `report.md`. Its
   "Below their layer" section lists each `e2e` case whose test runs outside a browser (any runner
   but Playwright): the test passes or fails without proving the flow a user clicks through.
 
@@ -91,7 +91,9 @@ Test files run with Go, vitest, jest or `node --test`, and with Playwright when 
 names a `testDir`. A test file its runner finds no tests in, because the runner's config leaves it
 out, is refused, as is one no stack runs. `verify-changes` reruns the whole suite of each runner
 the new tests use; a test that passed in the snapshot and fails now is a regression, and tests
-already red at the start do not count. jest has no per-test report here, so its suite is noted,
+already red at the start do not count. A failing test that did not pass in the snapshot, such as
+one another run added since, is listed under Notes as not compared; a run snapshotted before 0.7.7
+kept only the failing tests, so there every new failure is still a suspect. jest has no per-test report here, so its suite is noted,
 not compared. Gaps name each case without a green test. A new failure counts as a regression only if it fails
 again on a rerun; one that passes is listed as flaky. A guarded test the user agreed to change is
 re-guarded with `spec-gate tests amend` and listed in the report; a changed helper fails verify the

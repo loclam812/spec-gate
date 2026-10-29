@@ -81,7 +81,10 @@ function caseIdsUntested(run, results, caseIds) {
 
 function suiteFailures(run, files) {
   const targets = suiteTargets(profileOf(run), run.repo, files)
-  return Object.fromEntries(targets.map((target) => [target.key, runSuite(run.repo, target).failing]))
+  return Object.fromEntries(targets.map((target) => {
+    const { failing, passing } = runSuite(run.repo, target)
+    return [target.key, failing === null ? null : { failing, passing }]
+  }))
 }
 
 function copyToGuard(run, files) {

@@ -82,9 +82,10 @@ export function withBail(stack, command, maxFailures) {
 export function runSuite(repo, { stack, root }, timeoutS = 1800, { maxFailures = null } = {}) {
   const command = withBail(stack, stack.suite_command, maxFailures)
   const { run, tests } = runReported(stack, join(repo, root), command, timeoutS)
-  const failing = run.timedOut || tests.length === 0 ? null : tests.filter((test) => test.status === 'fail').map((test) => test.name)
+  const named = (status) => (run.timedOut || tests.length === 0 ? null : tests.filter((test) => test.status === status).map((test) => test.name))
+  const failing = named('fail')
   const stopped = maxFailures !== null && command !== stack.suite_command && failing !== null && failing.length >= maxFailures
-  return { failing, stopped, output: run.output.slice(-4000) }
+  return { failing, passing: named('pass'), stopped, output: run.output.slice(-4000) }
 }
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')

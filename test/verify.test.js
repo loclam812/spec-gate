@@ -85,6 +85,32 @@ it('a test that fails once and passes on a rerun is reported as flaky, not as a 
   assert.match(report(result), /flaky: test > passes after its first run failed once and passed on a rerun/)
 })
 
+const LATER_RED = "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\n\ntest('a later feature not built yet', () => {\n  assert.fail('not built')\n})\n"
+
+it('a failing test added after the tests were written is noted, not counted as a regression', () => {
+  const { repo, cli, verify } = setup()
+  toDone(cli, repo)
+  writeFile(repo, 'test/later.test.js', LATER_RED)
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  const result = verify()
+  assert.equal(result.code, 0)
+  assert.match(report(result), /## Regressions\n\nNone\./)
+  assert.match(report(result), /- not compared: test > a later feature not built yet fails now but did not pass when the suite was recorded/)
+})
+
+it('a run recorded before passing tests were kept counts every new failure as a regression', () => {
+  const { repo, cli, verify } = setup()
+  toDone(cli, repo)
+  const baselinePath = join(dirname(cli('next').json.report), 'suite-baseline.json')
+  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'))
+  writeFileSync(baselinePath, JSON.stringify(Object.fromEntries(Object.entries(baseline).map(([key, suite]) => [key, suite.failing]))))
+  writeFile(repo, 'test/later.test.js', LATER_RED)
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  const result = verify()
+  assert.equal(result.code, 1)
+  assert.match(report(result), /## Regressions\n\n- test > a later feature not built yet\n/)
+})
+
 it('verify lists an existing test the change edited, without failing on it', () => {
   const { repo, cli, verify } = setup({ extraTests: { 'test/old.test.js': OLD_TEST } })
   toDone(cli, repo)
