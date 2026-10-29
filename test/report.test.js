@@ -93,6 +93,15 @@ it('renderPaired warns when the two sides were scored by different versions', ()
   assert.doesNotMatch(renderPaired(comparePaired(rows('0.7.4'), 'x', 'y')), /Scored by different/)
 })
 
+it('renderPaired warns when one side has only runs scored before versions were stamped', () => {
+  const rows = [
+    { project: 'p', sample: 'a', candidate: 'x', run: 1, verdict: 'caught' },
+    { project: 'p', sample: 'a', candidate: 'y', run: 1, verdict: 'missed', scored_by: '0.7.10' },
+  ]
+  assert.match(renderPaired(comparePaired(rows, 'x', 'y')), /Scored by different spec-gate versions: x unknown, y 0\.7\.10/)
+  assert.doesNotMatch(renderPaired(comparePaired(rows.map(({ scored_by, ...row }) => row), 'x', 'y')), /Scored by different/)
+})
+
 it('parseRunName rejects a directory without a run number', () => {
   assert.deepEqual(parseRunName('my-skill-12'), { candidate: 'my-skill', run: 12 })
   assert.throws(() => parseRunName('single-prompt'), /not <candidate>-<n>/)

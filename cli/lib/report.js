@@ -207,7 +207,7 @@ export function comparePaired(records, first, second) {
       return { ...sample, better: diff > 0 ? first : diff < 0 ? second : 'tie' }
     })
   const count = (name) => samples.filter((sample) => sample.better === name).length
-  const scoredBy = (name) => [...new Set(records.filter((row) => row.candidate === name && row.scored_by).map((row) => row.scored_by))].sort()
+  const scoredBy = (name) => [...new Set(records.filter((row) => row.candidate === name).map((row) => row.scored_by ?? 'unknown'))].sort()
   return { first, second, scoredBy: { [first]: scoredBy(first), [second]: scoredBy(second) }, samples, unpaired: all.filter((sample) => !paired(sample)).map((sample) => sample.key), wins: count(first), losses: count(second), ties: count('tie') }
 }
 
