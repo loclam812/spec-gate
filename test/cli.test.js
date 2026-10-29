@@ -41,6 +41,7 @@ it('where, validate, prepare, generate, score and report run end to end with a s
   const scored = run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
   assert.match(scored.text, /^demo-1: caught\n {2}caught +test\/total\.test\.js\n$/)
   assert.match(run('report').text, /Catch rate: 1\/1 \(100%\)/)
+  assert.match(run('report').text, /\| unlabelled \| 1 \|\n\nLayers: n\/a \(not a driver candidate\)/)
 })
 
 it('score before prepare says which command to run', () => {

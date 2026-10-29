@@ -2,9 +2,10 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { stringify } from 'yaml'
 import { writeJson } from '../cli/lib/files.js'
-import { comparePaired, loadVerdicts, parseRunName, renderPaired, renderReport, summarize } from '../cli/lib/report.js'
-import { tempDir } from './helpers.js'
+import { attributeRecords, comparePaired, loadVerdicts, parseRunName, renderPaired, renderReport, summarize } from '../cli/lib/report.js'
+import { tempDir, writeFile } from './helpers.js'
 
 const records = [
   { project: 'p1', sample: 's1', candidate: 'single-prompt', run: 1, verdict: 'caught' },
@@ -143,4 +144,77 @@ it('a catch below its layer is conclusive but not caught, and the report counts 
   assert.deepEqual([summary.overall.caught, summary.overall.conclusive, summary.overall.belowLayer], [1, 2, 1])
   assert.match(renderReport([summary]), /Catch rate: 1\/2 \(50%\) · caught below their layer 1 · broken counted as misses/)
   assert.deepEqual(comparePaired(rows, 'x', 'y').samples.map((s) => [s.key, s.better]), [['p/a', 'tie'], ['p/b', 'y']])
+})
+
+function storeWithLabel(truth) {
+  const root = tempDir()
+  const sample = join(root, 'projects/p1/eval/s1')
+  writeFile(sample, 'spec/feature.md', 'The toast hides after 5 seconds.\n')
+  if (truth) writeFile(sample, 'truth.yaml', typeof truth === 'string' ? truth : stringify(truth))
+  writeJson(join(sample, 'runs/s2t-1/verdict.json'), { verdict: 'missed' })
+  writeJson(join(sample, 'runs/s2t-1/spec-to-tests/state.json'), { step: 'done' })
+  writeFile(sample, 'runs/s2t-1/spec-to-tests/cases.yaml', stringify({ sentences: [{ id: 'S1', text: 'The toast hides after 5 seconds.', cases: [] }], cases: [] }))
+  writeJson(join(sample, 'runs/plain-1/verdict.json'), { verdict: 'caught' })
+  return root
+}
+
+const pick = (row) => ({ candidate: row.candidate, bucket: row.bucket, group: row.group, layer: row.layer, driver: row.driver })
+
+it('attributeRecords puts each run in a bucket and a group', () => {
+  const root = storeWithLabel({ bug_quote: 'hides after 5 seconds', reviewed: true })
+  assert.deepEqual(attributeRecords(loadVerdicts(root), root).map(pick), [
+    { candidate: 'plain', bucket: 'specified', group: 'caught', layer: null, driver: false },
+    { candidate: 's2t', bucket: 'specified', group: 'missed@done', layer: 'qc-no-case', driver: true },
+  ])
+})
+
+it('a sample with an unreviewed or broken truth.yaml is unlabelled and does not throw', () => {
+  for (const truth of [{ bug_quote: 'hides after 5 seconds', reviewed: false }, 'bug_quote: [unclosed\n', null]) {
+    const root = storeWithLabel(truth)
+    const rows = attributeRecords(loadVerdicts(root), root)
+    assert.deepEqual(rows.map((row) => [row.bucket, row.layer]), [['unlabelled', null], ['unlabelled', 'unattributed']])
+  }
+})
+
+const attributed = [
+  { project: 'p', sample: 'a', candidate: 'd', run: 1, verdict: 'missed', bucket: 'specified', group: 'missed@done', layer: 'qc-no-case', touched: null, driver: true },
+  { project: 'p', sample: 'a', candidate: 'd', run: 2, verdict: 'caught', bucket: 'specified', group: 'caught', layer: null, touched: null, driver: true },
+  { project: 'p', sample: 'b', candidate: 'd', run: 1, verdict: 'missed', bucket: 'spec_gap', group: 'missed@done', layer: 'gap-touched', touched: true, driver: true },
+  { project: 'p', sample: 'b', candidate: 'd', run: 2, verdict: 'empty', bucket: 'spec_gap', group: 'incomplete@split', layer: null, touched: false, driver: true },
+  { project: 'p', sample: 'c', candidate: 'd', run: 1, verdict: 'missed', bucket: 'unlabelled', group: 'missed@done', layer: 'unattributed', touched: null, driver: true },
+  { project: 'p', sample: 'c', candidate: 'd', run: 2, verdict: 'leaked', bucket: 'unlabelled', group: null, layer: null, touched: null, driver: true },
+]
+
+it('summarize counts groups per bucket and how many driver misses are explained', () => {
+  const [summary] = summarize(attributed)
+  assert.deepEqual(summary.breakdown, {
+    specified: { 'missed@done': 1, caught: 1 },
+    spec_gap: { 'missed@done': 1, 'incomplete@split': 1 },
+    unlabelled: { 'missed@done': 1 },
+  })
+  assert.deepEqual(summary.layers, { 'qc-no-case': 1, 'gap-touched': 1, unattributed: 1 })
+  assert.deepEqual(summary.explained, { explained: 3, misses: 4 })
+  assert.deepEqual(summary.gapTouched, { touched: 1, runs: 1 })
+})
+
+it('renderReport prints the breakdown, the layers and the explained share for a driver candidate', () => {
+  const text = renderReport(summarize(attributed.slice(0, 5).map((row, index) => (index === 3 ? { ...row, group: 'caught', verdict: 'caught' } : row))))
+  assert.match(text, /\| Bucket \| caught \| missed@done \|\n/)
+  assert.match(text, /\| specified \| 1 \| 1 \|/)
+  assert.match(text, /\| spec_gap \| 1 \| 1 \|/)
+  assert.match(text, /\| gap-touched \| 1 \|/)
+  assert.match(text, /Explained: 2\/3 driver misses \(67%\)/)
+  assert.match(text, /spec_gap: QC touched the gap in 1\/2 runs/)
+})
+
+it('renderReport says layers are n/a for a prompt candidate', () => {
+  const rows = [{ project: 'p', sample: 'a', candidate: 'plain', run: 1, verdict: 'missed', bucket: 'specified', group: 'missed@done', layer: null, touched: null, driver: false }]
+  const text = renderReport(summarize(rows))
+  assert.match(text, /\| specified \| 1 \|/)
+  assert.match(text, /Layers: n\/a \(not a driver candidate\)/)
+  assert.doesNotMatch(text, /Explained:/)
+})
+
+it('a report over records without attribution prints no breakdown', () => {
+  assert.doesNotMatch(renderReport(summarize(records)), /Breakdown|Layers/)
 })

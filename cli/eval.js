@@ -5,7 +5,7 @@ import { runBatch } from './lib/batch.js'
 import { loadCandidate } from './lib/candidate.js'
 import { contextFor, generateRun, rememberRepo, requirePrepared } from './lib/eval-steps.js'
 import { collectTests, scoreRun } from './lib/replay.js'
-import { comparePaired, loadVerdicts, renderPaired, renderReport, summarize } from './lib/report.js'
+import { attributeRecords, comparePaired, loadVerdicts, renderPaired, renderReport, summarize } from './lib/report.js'
 import { sampleErrors } from './lib/sample.js'
 import { repoSlug, runDir, sampleDir, storeRoot } from './lib/store.js'
 import { prepareWorkspace } from './lib/workspace.js'
@@ -83,7 +83,7 @@ export function runEval(argv, { env = process.env, out = process.stdout } = {}) 
   const [command, id] = positionals
   if (command === 'report') {
     const named = values.candidate ? [...new Set(values.candidate)] : null
-    const all = loadVerdicts(storeRoot(env))
+    const all = attributeRecords(loadVerdicts(storeRoot(env)), storeRoot(env))
     const unknown = (named ?? []).filter((name) => !all.some((row) => row.candidate === name))
     if (unknown.length > 0) throw new Error(`no verdicts for candidate ${unknown.join(', ')}`)
     const records = all.filter((row) => !named || named.includes(row.candidate))

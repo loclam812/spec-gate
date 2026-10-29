@@ -205,6 +205,7 @@ the repositories being measured:
 projects/<slug>/eval/<id>/sample.yaml     the bug
 projects/<slug>/eval/<id>/answers.yaml    clarifying answers, written before any run
 projects/<slug>/eval/<id>/spec/*.md       the requirement as it read before the bug
+projects/<slug>/eval/<id>/truth.yaml      where the bug sits in the spec; never shown to a candidate
 projects/<slug>/eval/<id>/runs/<candidate>-<n>/   collected tests, logs, verdict.json
 candidates/<name>/                        your own candidates
 ```
@@ -238,6 +239,23 @@ feature: order totals on the checkout page   # optional: the pointer a spec writ
 - A spec can be written blind: give the sample a `feature:` pointer, `prepare` it before `spec/`
   exists, and `generate` with a candidate that has `needs_spec: false`. It sees the pointer and the
   pre-fix tree, never the fix. Give that candidate `applies_to: []` so `batch` leaves it out.
+- `truth.yaml` (optional) labels the bug for the report's breakdown. Either the spec states the
+  broken behaviour, quoted verbatim (quote the one sentence that states it: a quote spanning several
+  sentences counts as planned only when each of them has a case), or the spec is silent or `unknown` about it:
+
+  ```yaml
+  bug_quote: "the toast hides after 5 seconds"   # a substring of spec/*.md, checked by validate
+  reviewed: true                                  # a label counts only once its owner has read it
+  ```
+
+  ```yaml
+  bug_gap:
+    kind: knowledge          # knowledge: a person could answer it; reality: only a probe could
+    about: Which title a group chat toast shows.
+    keywords: [group chat]   # a question or assumed case containing one touches the gap
+    answers_ref: "answers.yaml:36"   # optional
+  reviewed: true
+  ```
 - Run `spec-gate eval validate <id> --repo <path>` until it prints `ok`.
 
 ## Candidates
@@ -264,8 +282,8 @@ code." A sample whose `pre_fix` predates the skill measures its absence.
 `spec-to-tests` is built in too: instead of one prompt it runs spec-gate's own `spec-gate tests` flow
 headlessly in the pre-fix tree, until the tests are written. The spec files are the request, QC
 questions are answered from `answers.yaml` (a question it does not settle gets `unknown — assumed:
-…`), Ready is approved, and each run keeps the flow's cases, decisions and report under
-`spec-to-tests/`, the cost of every agent in `cost.json`, and the application source files the blind
+…`), Ready is approved, and each run keeps the flow's cases, decisions, report and event log (every line names the spec-gate
+version that wrote it) under `spec-to-tests/`, the cost of every agent in `cost.json`, and the application source files the blind
 QC read in `qc-reads.json`. A request the QC splits is driven part by part in the same tree, as a
 user would run them; each part keeps its artifacts under `spec-to-tests/part-<n>/` and gets its own
 deadline, and a part that ends stuck is named in `stuck.json` while the others still run. A
@@ -284,6 +302,18 @@ spec-gate eval report --candidate plain --candidate spec-to-tests   # those two,
 The report gives each candidate's catch rate, its `broken` count (red on both sides: a wrong test,
 the closest thing to a false positive here), and what a run costs: dollars and minutes per run,
 summed over every `claude` result in the run's transcript.
+
+Each candidate also gets a breakdown of its runs per bucket: `specified` (a reviewed `bug_quote`),
+`spec_gap` (a reviewed `bug_gap`) and `unlabelled`. A run lands in one group: `caught`, `broken`,
+`incomplete@<step>` (any other run of a `spec-to-tests` driver that never reached `done`; a split
+run is read from its `part-N/` directories, and one with fewer parts than it planned is
+`incomplete@split`), `empty` or `missed@done` (`missed`, `inverted` and `caught-below-layer`).
+`spec_gap: QC touched the gap` leaves out runs that never got past QC. For driver candidates,
+each `missed@done` run gets a layer:
+`qc-no-case` (no case planned for the quoted sentence), `writer-missed` (a case was planned),
+`qc-gap-unasked` / `qc-gap-unprobed` (no question or assumed case names the gap's keywords),
+`gap-touched` (one does, and the bug was still missed) or `unattributed` (no reviewed label).
+`Explained` is the share of driver misses with a group other than `unattributed`.
 
 With two `--candidate` names it adds a paired comparison: on each sample both have a conclusive
 run on, which one caught the bug in a larger share of its runs (a `broken` run counts as a miss),

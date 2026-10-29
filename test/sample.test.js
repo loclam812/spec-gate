@@ -21,6 +21,12 @@ it('a complete sample has no errors and gets defaults', () => {
   assert.equal(sample.setup, null)
 })
 
+it('sampleErrors reports a truth.yaml error', () => {
+  const dir = writeSample(tempDir(), valid)
+  writeFile(dir, 'truth.yaml', stringify({ bug_quote: 'not in the spec', reviewed: true }))
+  assert.deepEqual(sampleErrors(loadSample(dir), repo), ['truth.yaml: bug_quote is not a substring of spec/*.md'])
+})
+
 it('reports a missing field', () => {
   const { test_globs, ...rest } = valid
   const sample = loadSample(writeSample(tempDir(), rest))

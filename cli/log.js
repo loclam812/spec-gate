@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { parse } from 'yaml'
 import { readEvents } from './lib/run-log.js'
+import { readState } from './lib/run-store.js'
 import { projectDir, repoSlug, storeRoot } from './lib/store.js'
 
 const print = (out, value) => out.write(`${JSON.stringify(value, null, 2)}\n`)
@@ -13,13 +14,6 @@ const readYaml = (path) => {
     return parse(readText(path)) ?? {}
   } catch {
     return {}
-  }
-}
-const readState = (dir) => {
-  try {
-    return JSON.parse(readText(join(dir, 'state.json')))
-  } catch {
-    return null
   }
 }
 

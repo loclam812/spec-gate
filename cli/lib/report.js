@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { attribute, driverDirs } from './attribution.js'
 import { resultTotals } from './candidate.js'
 import { readJson } from './files.js'
+import { loadTruth } from './truth.js'
 
 const CONCLUSIVE = ['caught', 'caught-below-layer', 'missed', 'empty', 'inverted']
 
@@ -34,6 +36,21 @@ export function loadVerdicts(root) {
         }))
     }),
   )
+}
+
+// Labels are read per sample, once: every run of the sample shares its bucket.
+export function attributeRecords(records, root) {
+  const truths = new Map()
+  const truthOf = (row) => {
+    const key = `${row.project}/${row.sample}`
+    if (!truths.has(key)) truths.set(key, loadTruth(join(root, 'projects', row.project, 'eval', row.sample)))
+    return truths.get(key)
+  }
+  return records.map((row) => {
+    const dir = join(root, 'projects', row.project, 'eval', row.sample, 'runs', `${row.candidate}-${row.run}`)
+    const truth = truthOf(row)
+    return { ...row, bucket: truth?.bucket ?? 'unlabelled', ...attribute({ verdict: row.verdict, dir }, truth), driver: driverDirs(dir).length > 0 }
+  })
 }
 
 function groupBy(items, keyOf) {
@@ -69,6 +86,23 @@ function cost(rows) {
     : { measured: priced.length, totalUsd, usdPerRun: totalUsd / priced.length, minutesPerRun: totalMs / priced.length / 60000 }
 }
 
+const countBy = (rows, keyOf) => rows.reduce((counts, row) => ({ ...counts, [keyOf(row)]: (counts[keyOf(row)] ?? 0) + 1 }), {})
+
+function attribution(rows) {
+  const grouped = rows.filter((row) => row.group)
+  if (grouped.length === 0) return {}
+  const driver = grouped.filter((row) => row.driver)
+  const misses = driver.filter((row) => row.group !== 'caught')
+  // A run that died before QC finished says nothing about what QC asked.
+  const gapRuns = driver.filter((row) => row.bucket === 'spec_gap' && !row.group.startsWith('incomplete@'))
+  return {
+    breakdown: Object.fromEntries(Object.entries(groupBy(grouped, (row) => row.bucket)).map(([bucket, bucketRows]) => [bucket, countBy(bucketRows, (row) => row.group)])),
+    layers: driver.length > 0 ? countBy(driver.filter((row) => row.layer), (row) => row.layer) : null,
+    explained: driver.length > 0 ? { explained: misses.filter((row) => row.layer !== 'unattributed').length, misses: misses.length } : null,
+    gapTouched: gapRuns.length > 0 ? { touched: gapRuns.filter((row) => row.touched).length, runs: gapRuns.length } : null,
+  }
+}
+
 export function summarize(records) {
   return Object.entries(groupBy(records, (row) => row.candidate)).map(([candidate, rows]) => {
     const runs = Object.entries(groupBy(rows, (row) => row.run))
@@ -85,13 +119,32 @@ export function summarize(records) {
       runs,
       spread: rates.length > 0 ? { min: Math.min(...rates), max: Math.max(...rates) } : null,
       samples,
+      ...attribution(rows),
     }
   })
 }
 
 const pct = (value) => (value === null ? 'n/a' : `${Math.round(value * 100)}%`)
 
-function renderCandidate({ candidate, overall, cost: spent, runs, spread, samples }) {
+const GROUP_ORDER = (group) => (group.startsWith('incomplete@') ? 2 : ['caught', 'missed@done', 'incomplete@', 'broken', 'empty'].indexOf(group))
+const LAYERS = ['qc-no-case', 'writer-missed', 'qc-gap-unasked', 'qc-gap-unprobed', 'gap-touched', 'unattributed']
+const markdownTable = (header, rows) => [header, header.map(() => '---'), ...rows].map((cells) => `| ${cells.join(' | ')} |`).join('\n')
+
+function renderAttribution({ breakdown, layers, explained, gapTouched }) {
+  if (!breakdown) return ''
+  const groups = [...new Set(Object.values(breakdown).flatMap(Object.keys))].sort((a, b) => GROUP_ORDER(a) - GROUP_ORDER(b) || a.localeCompare(b))
+  const buckets = ['specified', 'spec_gap', 'unlabelled'].filter((bucket) => breakdown[bucket])
+  const parts = [`Breakdown:\n\n${markdownTable(['Bucket', ...groups], buckets.map((bucket) => [bucket, ...groups.map((group) => breakdown[bucket][group] ?? 0)]))}`]
+  if (!layers) return `\n\n${[...parts, 'Layers: n/a (not a driver candidate)'].join('\n\n')}`
+  const present = LAYERS.filter((layer) => layers[layer])
+  if (present.length > 0) parts.push(`Layers of missed@done runs:\n\n${markdownTable(['Layer', 'Runs'], present.map((layer) => [layer, layers[layer]]))}`)
+  parts.push(`Explained: ${explained.explained}/${explained.misses} driver misses (${pct(explained.misses > 0 ? explained.explained / explained.misses : null)})`)
+  if (gapTouched) parts.push(`spec_gap: QC touched the gap in ${gapTouched.touched}/${gapTouched.runs} runs`)
+  if (layers['qc-gap-unprobed']) parts.push('qc-gap-unprobed counts every untouched reality gap: spec-to-tests has no probe step yet.')
+  return `\n\n${parts.join('\n\n')}`
+}
+
+function renderCandidate({ candidate, overall, cost: spent, runs, spread, samples, ...attributed }) {
   const runNumbers = Array.from({ length: Math.max(...runs.map((run) => run.run)) }, (_, index) => index + 1)
   const header = ['Sample', ...runNumbers.map((n) => `Run ${n}`)]
   const rows = samples.map((sample) => [sample.key, ...runNumbers.map((n) => sample.byRun[n] ?? '—')])
@@ -107,7 +160,7 @@ function renderCandidate({ candidate, overall, cost: spent, runs, spread, sample
   const costLine = spent
     ? `\n\nCost: $${spent.usdPerRun.toFixed(2)} per run, $${spent.totalUsd.toFixed(2)} in total over ${spent.measured} measured runs · ${Math.round(spent.minutesPerRun)} min per run`
     : ''
-  return `## ${candidate}\n\n${rateLine}${costLine}\n\n${table}\n`
+  return `## ${candidate}\n\n${rateLine}${costLine}${renderAttribution(attributed)}\n\n${table}\n`
 }
 
 // A catch rate over a handful of samples hides which bugs each candidate caught; comparing the

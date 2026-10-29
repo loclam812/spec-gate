@@ -16,7 +16,7 @@ const MAX_STEPS = 40
 const END_KINDS = ['done', 'stuck', 'split']
 // A driven run spawns several agents; it gets this many agent timeouts in total.
 const RUN_TIMEOUT_FACTOR = 2
-const ARTIFACTS = ['cases.yaml', 'decisions.md', 'ready.md', 'report.md', 'state.json']
+const ARTIFACTS = ['cases.yaml', 'decisions.md', 'events.jsonl', 'ready.md', 'report.md', 'state.json']
 const SOURCE_EXTENSION = /\.(js|jsx|ts|tsx|go|py|java|kt|rb|cs|vue|svelte)$/
 
 // The spec files become the request. Their source lines (see "Writing a sample") are provenance,

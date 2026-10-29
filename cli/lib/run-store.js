@@ -37,6 +37,15 @@ export function latestRunId(slug, env, repo) {
 
 export const loadState = (dir) => readJson(join(dir, 'state.json'))
 
+// A missing or half-written state reads as none, so a report over many runs never throws.
+export function readState(dir) {
+  try {
+    return loadState(dir)
+  } catch {
+    return null
+  }
+}
+
 export function saveState(dir, state) {
   writeJson(join(dir, 'state.json'), state)
   logEvent(dir, { step: state.step, attempts: state.attempts ?? 0, errors: state.errors ?? [] })

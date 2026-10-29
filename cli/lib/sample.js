@@ -3,6 +3,7 @@ import { basename, join, matchesGlob } from 'node:path'
 import { parse } from 'yaml'
 import { tryGit } from './exec.js'
 import { REPORT_FORMATS } from './reports.js'
+import { truthErrors } from './truth.js'
 
 const REQUIRED = ['id', 'pre_fix', 'post_fix', 'test_command', 'test_globs']
 const DEFAULTS = { setup: null, timeout_s: 600, report: null, report_file: null, support_globs: [] }
@@ -38,7 +39,7 @@ export function sampleErrors(sample, repoPath, { docs = true } = {}) {
     [sample.report === null || REPORT_FORMATS.includes(sample.report), `report must be one of ${REPORT_FORMATS.join(', ')}`],
     [sample.report !== 'junit' || typeof sample.report_file === 'string', 'report junit needs report_file'],
   ]
-  const failed = checks.filter(([ok]) => !ok).map(([, message]) => message)
+  const failed = [...checks.filter(([ok]) => !ok).map(([, message]) => message), ...(docs ? truthErrors(sample) : [])]
   if (failed.length > 0) return failed
   const unknown = ['pre_fix', 'post_fix']
     .filter((key) => !isCommit(repoPath, sample[key]))

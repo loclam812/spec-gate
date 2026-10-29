@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { driveSpecToTests } from '../cli/lib/drive.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { prepareWorkspace } from '../cli/lib/workspace.js'
+import { VERSION } from '../cli/lib/version.js'
 import { BUGGY_TOTAL, KNOWLEDGE_FULL, commitAll, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/drive', import.meta.url))
@@ -96,6 +97,8 @@ it('a request the QC splits is driven one smaller request at a time, as the skil
   assert.match(readFileSync(join(outDir, 'spec-to-tests/cases.yaml'), 'utf8'), /^split:/)
   assert.match(readFileSync(join(outDir, 'spec-to-tests/part-1/report.md'), 'utf8'), /Tests written/)
   assert.match(readFileSync(join(outDir, 'spec-to-tests/part-2/report.md'), 'utf8'), /Tests written/)
+  const versions = (dir) => readFileSync(join(outDir, dir, 'events.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line).version)
+  for (const dir of ['spec-to-tests', 'spec-to-tests/part-2']) assert.deepEqual([...new Set(versions(dir))], [VERSION])
   assert.equal(JSON.parse(readFileSync(join(outDir, 'cost.json'), 'utf8')).usd, 1.25)
   assert.equal(existsSync(join(outDir, 'stuck.json')), false)
 })
