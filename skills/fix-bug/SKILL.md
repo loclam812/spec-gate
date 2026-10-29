@@ -16,6 +16,18 @@ the repository root; it prints JSON. Never commit or push.
    - Otherwise write the test yourself, following the knowledge file at `path` if one was found:
      one test that fails on the current code because of the bug, named after the behaviour.
    If the evidence is not enough to reproduce the bug, ask the user for what is missing and stop.
+
+   **When a failing test is impractical,** do not force one: a test that asserts on mocks or
+   constants is worse than none. Examples: the bug lives only in a real third-party service, in
+   timing a test cannot pin, or in visual output no runner here can assert on. Before fixing:
+   - tell the user why a failing test is impractical here, and name the closest executable check
+     (a command that shows the bug now: a script, a request, a type check, or the app run with
+     exact steps); run it and show its output;
+   - ask the user (AskUserQuestion) whether to fix without a regression guard; on no, stop.
+
+   On yes, skip steps 2 and 4 (verify needs an adopted test): fix the code (step 3), run the same
+   check again and show its output. End with the reason, the check, its output before and after,
+   and the sentence "This fix has no regression guard."
 2. **Adopt.** Write a one- or two-sentence description of the bug to a temporary file outside the
    repository (`mktemp`), then run
    `spec-gate tests adopt --request-file <file> --file <test> [--file <test> ...]`.
