@@ -89,7 +89,9 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
 
 Test files run with Go, vitest, jest or `node --test`, and with Playwright when `playwright.config.*`
 names a `testDir`. A test file its runner finds no tests in, because the runner's config leaves it
-out, is refused, as is one no stack runs. `verify-changes` reruns the whole suite of each runner
+out (the runner says it found no tests), is refused, as is one no stack runs. A runner that could
+not start at all, such as Playwright whose `webServer` did not come up, is reported with that cause
+as a file that did not load, never as a file to move. `verify-changes` reruns the whole suite of each runner
 the new tests use; a test that passed in the snapshot and fails now is a regression, and tests
 already red at the start do not count. A failing test that did not pass in the snapshot, such as
 one another run added since, is listed under Notes as not compared; a run snapshotted before 0.7.7

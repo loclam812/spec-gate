@@ -10,8 +10,10 @@ import { junitFailures, parseReport } from './reports.js'
 const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map((ext) => `playwright.config.${ext}`)
 const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS }
 
-// What jest prints when its config leaves the file out; a JUnit runner writes no test case instead.
-const NO_TESTS = /No tests found/
+// What jest, Playwright and vitest print when their config leaves the file out. A JUnit report with
+// no test case is not enough on its own: a runner that could not start (a webServer that did not
+// come up) writes the same empty report.
+const NO_TESTS = /No tests found|No test files found/
 
 function ancestors(dir) {
   const parts = dir === '.' ? [] : dir.split('/')
@@ -55,7 +57,9 @@ export function runTestFile(profile, repo, file, timeoutS = 900) {
   }
   const cwd = join(repo, runnerRoot(repo, file, stack))
   const { run, xml, tests } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
-  const empty = stack.report === 'junit' ? xml !== '' && !/<testcase\b/.test(xml) : NO_TESTS.test(run.output)
+  const junit = stack.report === 'junit'
+  const noCase = !junit || (xml !== '' && !/<testcase\b/.test(xml))
+  const empty = noCase && ((junit && isGreen(run)) || NO_TESTS.test(run.output))
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
   const failures = withLoadCause(stack, cwd, relative(cwd, join(repo, file)), stack.report === 'junit' ? Object.fromEntries(junitFailures(xml)) : {})
   return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
