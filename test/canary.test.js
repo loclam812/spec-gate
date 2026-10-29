@@ -55,7 +55,7 @@ it('a stack that cannot load its existing test makes the sample harness-broken',
 
 it('a stack with no test file is unchecked, not broken', () => {
   const record = runCanary(canaryContext({ preFiles: { 'package.json': NODE_TEST_PACKAGE }, fixFiles: { 'test/total.test.js': CATCHING_TEST } }))
-  assert.deepEqual(record.stacks, [{ stack: 'node-test', file: null, status: 'unchecked', ok: true, reason: null }])
+  assert.deepEqual(record.stacks, [{ stack: 'node-test', file: null, status: 'unchecked', ok: true, reason: null, required: true }])
   assert.equal(record.verdict, 'ok')
 })
 
@@ -119,4 +119,17 @@ it('with a directory runner the fix test is caught although the post-fix tree al
     ),
   )
   assert.equal(record.scorer.verdict, 'caught')
+})
+
+it('a broken stack outside the sample test_globs is a warning, not harness-broken', () => {
+  const record = runCanary(
+    canaryContext({
+      preFiles: { 'go.mod': 'module example.com/fixture\n\ngo 1.21\n', 'pkg/broken_test.go': 'package pkg\n\nfunc broken(\n' },
+      fixFiles: { 'test/total.test.js': CATCHING_TEST },
+    }),
+  )
+  const go = record.stacks.find((entry) => entry.stack === 'go')
+  assert.deepEqual({ ok: go.ok, required: go.required }, { ok: false, required: false })
+  assert.equal(record.verdict, 'ok')
+  assert.match(record.warnings[0], /^go cannot run pkg\/broken_test\.go: .*outside test_globs/)
 })

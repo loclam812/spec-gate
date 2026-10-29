@@ -343,11 +343,15 @@ scoring changed between versions, so rescore both from one checkout before readi
 two checks. First, the test files the fix itself added or changed are scored like a candidate's
 (only those files: no other file of the fix is copied, so the fix is never planted in the pre-fix
 tree), and the result must be `caught`. Second, each test stack of the profile discovered in the
-pre-fix tree runs test files the repository already has, up to three in name order, until one
-loads: it reports a test, red or green, or, for a runner without a per-test report (jest), exits
-green (a stack with no such file is `unchecked`). A sample failing either check is `harness-broken`: a
-Playwright `webServer` that cannot start, a broken install, a fix test that passes before the fix.
-The result, with the reasons, the scorer's verdict per file and each stack's check, is kept in
+pre-fix tree runs test files the repository already has, up to three, those the sample's
+`test_globs` match first, until one loads: it reports a test, red or green, or, for a runner
+without a per-test report (jest), exits green (a stack with no such file is `unchecked`). A stack
+is required when it runs files the sample scores (its `test_globs` match them); a sample failing
+the first check or a required stack is `harness-broken`: a broken install, a fix test that passes
+before the fix. Another stack that fails (the JS packages of a Go repository, a Playwright
+`webServer` outside the sample's `test_globs`) is only a warning: a `spec-to-tests` run that writes
+tests for it may end stuck, which the report shows as `incomplete@stuck`.
+The result, with the reasons, the warnings, the scorer's verdict per file and each stack's check, is kept in
 `<sample>/canary/canary.json`, apart from `runs/`, so it is never read as a candidate's run. A
 canary counts while the sample's `pre_fix`, `post_fix`, `test_command`, `setup`, `report`,
 `report_file`, `timeout_s` and `test_globs` are unchanged; after editing any of them, or repairing

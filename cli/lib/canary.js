@@ -35,18 +35,23 @@ function checkFile(profile, preDir, file, timeoutS) {
 // The driver runs each stack of the profile it discovers in the pre-fix tree; a stack that cannot
 // run a test the repository already has will not run the tests a candidate writes either. One
 // existing file can be broken at pre_fix on its own, so a stack passes when any of a few loads.
-export function runnerChecks(sample, preDir) {
+// Only a stack that runs files the sample scores (its test_globs) is required; another broken
+// stack (the JS packages of a Go repository) is a warning that a driver writing such tests may stall.
+export function runnerChecks(sample, preDir, fixFiles = []) {
   const profile = discoverProfile(preDir)
   const tracked = git(preDir, ['ls-files', '-z']).split('\0').filter(Boolean).sort()
   return profile.stacks.map((stack) => {
-    const files = tracked.filter((path) => stackFor(profile, path)?.name === stack.name).slice(0, MAX_STACK_FILES)
-    if (files.length === 0) return { stack: stack.name, file: null, status: 'unchecked', ok: true, reason: null }
+    const ofStack = (path) => stackFor(profile, path)?.name === stack.name
+    const required = [...tracked, ...fixFiles].some((path) => ofStack(path) && isTestPath(sample, path))
+    const existing = tracked.filter(ofStack)
+    const files = [...existing.filter((path) => isTestPath(sample, path)), ...existing.filter((path) => !isTestPath(sample, path))].slice(0, MAX_STACK_FILES)
+    if (files.length === 0) return { stack: stack.name, file: null, status: 'unchecked', ok: true, reason: null, required }
     const checks = []
     for (const file of files) {
       checks.push(checkFile(profile, preDir, file, sample.timeout_s))
       if (checks.at(-1).ok) break
     }
-    return { stack: stack.name, ...(checks.find((check) => check.ok) ?? checks[0]) }
+    return { stack: stack.name, ...(checks.find((check) => check.ok) ?? checks[0]), required }
   })
 }
 
@@ -67,11 +72,15 @@ export function runCanary(ctx) {
   const tests = fixTests(ctx.sample, ctx.repo)
   if (tests.length === 0) throw new Error(`sample ${ctx.sample.id} has no test file in its fix; the canary needs one`)
   const scored = scoreFixTests(ctx, tests)
-  const stacks = runnerChecks(ctx.sample, ctx.sides.pre)
+  const stacks = runnerChecks(ctx.sample, ctx.sides.pre, tests)
+  const failing = (required) => stacks.filter((stack) => !stack.ok && stack.required === required)
   const reasons = [
     ...(scored.verdict === 'caught' ? [] : [`fix tests score ${scored.verdict}`]),
-    ...stacks.filter((stack) => !stack.ok).map((stack) => `${stack.stack} cannot run ${stack.file}: ${stack.reason}`),
+    ...failing(true).map((stack) => `${stack.stack} cannot run ${stack.file}: ${stack.reason}`),
   ]
+  const warnings = failing(false).map(
+    (stack) => `${stack.stack} cannot run ${stack.file}: ${stack.reason} (outside test_globs: a driver writing ${stack.stack} tests may get stuck)`,
+  )
   const record = {
     ...Object.fromEntries(FRESH_KEYS.map((key) => [key, ctx.sample[key]])),
     version: VERSION,
@@ -80,6 +89,7 @@ export function runCanary(ctx) {
     stacks,
     verdict: reasons.length === 0 ? 'ok' : 'harness-broken',
     reasons,
+    warnings,
   }
   writeJson(canaryPath(ctx.sample), record)
   return record

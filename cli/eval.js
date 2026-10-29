@@ -60,7 +60,8 @@ const COMMANDS = {
     }
     requirePrepared(ctx)
     const record = runCanary(ctx)
-    out.write(`${[`${ctx.sample.id}: ${record.verdict}`, ...record.reasons.map((reason) => `  ${reason}`)].join('\n')}\n`)
+    const lines = [`${ctx.sample.id}: ${record.verdict}`, ...record.reasons.map((reason) => `  ${reason}`), ...record.warnings.map((warning) => `  warning: ${warning}`)]
+    out.write(`${lines.join('\n')}\n`)
     return 0
   },
   generate(ctx, values, out, env) {
