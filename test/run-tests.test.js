@@ -53,13 +53,22 @@ it('a test runs from the nearest package or module root that holds its runner', 
   assert.equal(runnerRoot(repo, 'web/tests/e2e/a.spec.ts', { name: 'playwright' }), 'web')
 })
 
-it('a JUnit report without a test case means the runner found no tests in the file', () => {
-  const excluded = {
-    stacks: [{ name: 'fake', test_globs: ['**/*.fake'], test_command: "printf '<testsuites tests=\"0\"></testsuites>' > report.xml; exit 1", report: 'junit', report_file: 'report.xml' }],
-  }
+const emptyJunit = (output) => ({
+  stacks: [{ name: 'fake', test_globs: ['**/*.fake'], test_command: `printf '<testsuites tests="0"></testsuites>' > report.xml; echo '${output}'; exit 1`, report: 'junit', report_file: 'report.xml' }],
+})
+
+it('a JUnit report without a test case, from a runner that says it found no tests, is no-tests', () => {
   writeFile(repo, 'e2e/b.fake', '')
-  assert.equal(runTestFile(excluded, repo, 'e2e/b.fake').status, 'no-tests')
+  assert.equal(runTestFile(emptyJunit('Error: No tests found'), repo, 'e2e/b.fake').status, 'no-tests')
+  assert.equal(runTestFile(emptyJunit('No test files found, exiting with code 1'), repo, 'e2e/b.fake').status, 'no-tests')
   assert.equal(existsSync(join(repo, 'report.xml')), false)
+})
+
+it('a runner that could not start is red with its cause, not no-tests', () => {
+  writeFile(repo, 'e2e/b.fake', '')
+  const result = runTestFile(emptyJunit('Error: Process from config.webServer was not able to start. Exit code: 1'), repo, 'e2e/b.fake')
+  assert.equal(result.status, 'red')
+  assert.deepEqual(wrongReasons(result, ['C1']), ['e2e/b.fake: no test ran (the file did not load: Process from config.webServer was not able to start. Exit code: 1)'])
 })
 
 it('a file the runner finds no tests in is no-tests, not red', () => {
