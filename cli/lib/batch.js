@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { appliesTo, listCandidates, loadCandidate } from './candidate.js'
+import { loadCanary, runCanary } from './canary.js'
 import { contextFor, generateRun } from './eval-steps.js'
 import { readJson } from './files.js'
 import { scoreRun } from './replay.js'
@@ -39,8 +40,12 @@ function runJob(job, prepared, env, out) {
       const errors = sampleErrors(ctx.sample, job.repo)
       if (errors.length > 0) throw new Error(`invalid sample: ${errors.join('; ')}`)
       prepareWorkspace(ctx.sample, job.repo, ctx.work)
-      prepared.add(key)
+      const canary = loadCanary(ctx.sample) ?? runCanary(ctx)
+      if (canary.verdict !== 'ok') out.write(`${job.id}: ${canary.verdict} — ${canary.reasons.join('; ')}\n`)
+      prepared.set(key, canary)
     }
+    // A sample the harness cannot catch on would count its misses against every candidate.
+    if (prepared.get(key).verdict !== 'ok') return 'skipped'
     generateRun(ctx, job.candidate, job.outDir, env)
     const record = scoreRun(ctx.sample, ctx.sides, job.outDir)
     out.write(`${label}: ${record.verdict}\n`)
@@ -60,7 +65,7 @@ export function runBatch({ env, out, runs, candidates, samples }) {
   }
   const jobs = planJobs({ env, runs, candidates: names, samples })
   out.write(`${jobs.length} run(s) to do\n`)
-  const prepared = new Set()
+  const prepared = new Map()
   let leaked = 0
   for (const job of jobs) {
     leaked += runJob(job, prepared, env, out) === 'leaked' ? 1 : 0

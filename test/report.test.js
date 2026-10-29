@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { stringify } from 'yaml'
 import { writeJson } from '../cli/lib/files.js'
 import { attributeRecords, comparePaired, loadVerdicts, parseRunName, renderPaired, renderReport, summarize } from '../cli/lib/report.js'
-import { tempDir, writeFile } from './helpers.js'
+import { runEval } from '../cli/eval.js'
+import { tempDir, writeFile, writeSample } from './helpers.js'
 
 const records = [
   { project: 'p1', sample: 's1', candidate: 'single-prompt', run: 1, verdict: 'caught' },
@@ -244,4 +245,22 @@ it('renderReport says layers are n/a for a prompt candidate', () => {
 
 it('a report over records without attribution prints no breakdown', () => {
   assert.doesNotMatch(renderReport(summarize(records)), /Breakdown|Layers/)
+})
+
+it('the report leaves out harness-broken samples and counts samples with no canary', () => {
+  const root = tempDir()
+  const evalDir = join(root, 'projects/p1/eval')
+  const fields = { pre_fix: 'aaa', post_fix: 'bbb', test_command: 'node --test {file}', test_globs: ['**/*.test.js'] }
+  for (const id of ['A', 'B', 'C']) {
+    writeSample(evalDir, { id, ...fields })
+    writeJson(join(evalDir, id, 'runs/c-1/verdict.json'), { verdict: 'caught' })
+  }
+  writeJson(join(evalDir, 'A/canary/canary.json'), { pre_fix: 'aaa', post_fix: 'bbb', test_command: 'node --test {file}', verdict: 'ok' })
+  writeJson(join(evalDir, 'B/canary/canary.json'), { pre_fix: 'aaa', post_fix: 'bbb', test_command: 'node --test {file}', verdict: 'harness-broken' })
+  const chunks = []
+  runEval(['report'], { env: { ...process.env, SPEC_GATE_HOME: root }, out: { write: (text) => chunks.push(text) } })
+  const text = chunks.join('')
+  assert.match(text, /Catch rate: 2\/2/)
+  assert.match(text, /Left out as harness-broken: p1\/B/)
+  assert.match(text, /Canary not run on 1 sample\(s\)/)
 })

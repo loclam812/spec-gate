@@ -42,14 +42,16 @@ export function commitAll(repo, message) {
   return git(repo, ['rev-parse', 'HEAD'])
 }
 
-export function makeFixtureRepo() {
+export function makeFixtureRepo({ preFiles = {}, fixFiles = {} } = {}) {
   const repo = tempDir('sg-fixture-')
   git(repo, ['init', '-q', '-b', 'main'])
   writeFile(repo, 'package.json', '{ "type": "module" }\n')
   writeFile(repo, '.gitignore', 'node_modules/\nCLAUDE.local.md\n')
   writeFile(repo, 'src/total.js', BUGGY_TOTAL)
+  for (const [path, text] of Object.entries(preFiles)) writeFile(repo, path, text)
   const preFix = commitAll(repo, 'add total')
   writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  for (const [path, text] of Object.entries(fixFiles)) writeFile(repo, path, text)
   const postFix = commitAll(repo, 'fix: multiply by quantity')
   return { repo, preFix, postFix }
 }

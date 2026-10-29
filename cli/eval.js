@@ -3,9 +3,10 @@ import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { runBatch } from './lib/batch.js'
 import { loadCandidate } from './lib/candidate.js'
+import { runCanary } from './lib/canary.js'
 import { contextFor, generateRun, rememberRepo, requirePrepared } from './lib/eval-steps.js'
 import { collectTests, scoreRun } from './lib/replay.js'
-import { attributeRecords, comparePaired, loadVerdicts, renderPaired, renderReport, summarize } from './lib/report.js'
+import { attributeRecords, comparePaired, loadVerdicts, renderCanaryNote, renderPaired, renderReport, summarize } from './lib/report.js'
 import { sampleErrors } from './lib/sample.js'
 import { repoSlug, runDir, sampleDir, storeRoot } from './lib/store.js'
 import { prepareWorkspace } from './lib/workspace.js'
@@ -20,7 +21,7 @@ const OPTIONS = {
 }
 
 const USAGE = [
-  'usage: spec-gate eval <where|validate|prepare|generate|collect|score> <sample-id> [--repo <path>]',
+  'usage: spec-gate eval <where|validate|prepare|canary|generate|collect|score> <sample-id> [--repo <path>]',
   '                      [--candidate <name> --run <n>] [--fresh]',
   '       spec-gate eval batch [--runs <n>] [--candidate <name>]... [--sample <id>]...',
   '       spec-gate eval report [--candidate <name>]...   (two names add a paired comparison)',
@@ -48,6 +49,12 @@ const COMMANDS = {
     if (errors.length > 0) throw new Error(errors.join('\n'))
     const sides = prepareWorkspace(ctx.sample, ctx.repo, ctx.work, { fresh: values.fresh })
     out.write(`pre:  ${sides.pre}\npost: ${sides.post}\n`)
+    return 0
+  },
+  canary(ctx, values, out) {
+    requirePrepared(ctx)
+    const record = runCanary(ctx)
+    out.write(`${[`${ctx.sample.id}: ${record.verdict}`, ...record.reasons.map((reason) => `  ${reason}`)].join('\n')}\n`)
     return 0
   },
   generate(ctx, values, out, env) {
@@ -87,13 +94,14 @@ export function runEval(argv, { env = process.env, out = process.stdout } = {}) 
     const unknown = (named ?? []).filter((name) => !all.some((row) => row.candidate === name))
     if (unknown.length > 0) throw new Error(`no verdicts for candidate ${unknown.join(', ')}`)
     const records = all.filter((row) => !named || named.includes(row.candidate))
+    const kept = records.filter((row) => row.canary !== 'harness-broken')
     const paired =
       named?.length === 2
-        ? `\n${renderPaired(comparePaired(records, named[0], named[1]))}`
+        ? `\n${renderPaired(comparePaired(kept, named[0], named[1]))}`
         : named
           ? '\nA paired comparison needs exactly two --candidate names.\n'
           : ''
-    out.write(`${renderReport(summarize(records))}${paired}`)
+    out.write(`${renderReport(summarize(kept))}${paired}${renderCanaryNote(records)}`)
     return 0
   }
   if (command === 'batch') {

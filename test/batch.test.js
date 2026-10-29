@@ -4,10 +4,10 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runEval } from '../cli/eval.js'
 import { repoSlug } from '../cli/lib/store.js'
-import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
 
-function setup() {
-  const { repo, preFix, postFix } = makeFixtureRepo()
+function setup(fixTest = CATCHING_TEST) {
+  const { repo, preFix, postFix } = makeFixtureRepo({ fixFiles: { 'test/total.test.js': fixTest } })
   const home = tempDir('sg-home-')
   writeSample(join(home, 'projects', repoSlug(repo), 'eval'), {
     id: 'demo-1',
@@ -35,6 +35,21 @@ function setup() {
   const callCount = () => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n').length : 0)
   return { home, repo, run, callCount }
 }
+
+it('batch runs the canary once per sample and skips a harness-broken sample', () => {
+  const broken = setup(MISSING_TEST)
+  broken.run('where', 'demo-1')
+  const text = broken.run('batch', '--runs', '2').text
+  assert.match(text, /demo-1: harness-broken — fix tests score missed\n/)
+  assert.equal(text.match(/harness-broken/g).length, 1)
+  assert.equal(broken.callCount(), 0)
+  assert.equal(existsSync(join(broken.home, 'projects', repoSlug(broken.repo), 'eval', 'demo-1', 'runs', 'single-prompt-1', 'verdict.json')), false)
+  const sound = setup()
+  sound.run('where', 'demo-1')
+  assert.match(sound.run('batch', '--runs', '2').text, /demo-1 single-prompt 2: caught\n/)
+  assert.equal(sound.callCount(), 2)
+  assert.ok(existsSync(join(sound.home, 'projects', repoSlug(sound.repo), 'eval', 'demo-1', 'canary', 'canary.json')))
+})
 
 it('batch runs every missing run and skips the ones already scored', () => {
   const { run, callCount } = setup()
