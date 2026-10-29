@@ -6,6 +6,7 @@ import { readJson, writeJson } from './files.js'
 import { parseReport } from './reports.js'
 import { isSupportPath, isTestPath } from './sample.js'
 import { fileVerdict, reportedFileVerdict, sampleVerdict } from './verdict.js'
+import { VERSION } from './version.js'
 import { changedFiles, resetTree } from './workspace.js'
 
 function copyInto(from, to) {
@@ -50,7 +51,7 @@ export function collectTests(sample, preDir, outDir) {
     rmSync(join(outDir, folder), { recursive: true, force: true })
     for (const path of paths) copyInto(join(preDir, path), join(outDir, folder, path))
   }
-  const manifest = kept
+  const manifest = { ...kept, version: VERSION }
   writeJson(join(outDir, 'collected.json'), manifest)
   resetTree(preDir)
   return manifest
@@ -159,6 +160,7 @@ export function scoreRun(sample, sides, outDir) {
     verdict: leaks.length > 0 ? 'leaked' : sampleVerdict(files.map((file) => file.verdict)),
     leaks,
     files,
+    scored_by: VERSION,
   }
   writeJson(join(outDir, 'verdict.json'), record)
   resetTree(sides.pre)

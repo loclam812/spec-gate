@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { collectTests, renderCommand, scoreRun } from '../cli/lib/replay.js'
 import { loadSample } from '../cli/lib/sample.js'
+import { VERSION } from '../cli/lib/version.js'
 import { changedFiles, prepareWorkspace } from '../cli/lib/workspace.js'
 import {
   BROKEN_TEST,
@@ -47,6 +48,12 @@ it('a test red before the fix and green after it is caught, and the record names
   const { record } = candidateRun({ 'test/total.test.js': CATCHING_TEST })
   assert.equal(record.verdict, 'caught')
   assert.deepEqual([record.pre_fix, record.post_fix, record.test_command], [preFix, postFix, 'node --test {file}'])
+})
+
+it('collect and score stamp the version that ran', () => {
+  const { outDir } = candidateRun({ 'test/total.test.js': CATCHING_TEST })
+  assert.equal(JSON.parse(readFileSync(join(outDir, 'collected.json'), 'utf8')).version, VERSION)
+  assert.equal(JSON.parse(readFileSync(join(outDir, 'verdict.json'), 'utf8')).scored_by, VERSION)
 })
 
 it('a test green on both sides is missed', () => {
@@ -93,6 +100,7 @@ it('non-test changes no test refers to are kept under ignored/ but never scored'
     support: [],
     helpers: [],
     ignored: ['ASSUMPTIONS.md', 'src/total.js'],
+    version: VERSION,
   })
   assert.equal(readFileSync(join(outDir, 'ignored', 'ASSUMPTIONS.md'), 'utf8'), 'Quantity defaults to 1.\n')
   assert.equal(readFileSync(join(outDir, 'ignored', 'src/total.js'), 'utf8'), FIXED_TOTAL)
@@ -161,6 +169,7 @@ it('a helper imported through a path alias, and a file that helper imports, are 
     support: [],
     helpers: ['src/test-utils/line-data.ts', 'src/test-utils/line.ts'],
     ignored: ['SPEC_BLIND.md'],
+    version: VERSION,
   })
 })
 
@@ -193,6 +202,7 @@ it('support files are copied into every run but never scored', () => {
     support: ['test/support/line.js'],
     helpers: [],
     ignored: [],
+    version: VERSION,
   })
 })
 
