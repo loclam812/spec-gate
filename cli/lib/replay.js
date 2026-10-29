@@ -83,12 +83,15 @@ function placeCollected(root, outDir, { tests, support, helpers }) {
   for (const file of tests) copyInto(join(outDir, 'tests', file), join(root, file))
 }
 
-function runSide(sample, root, outDir, path, collected) {
+function runSide(sample, root, outDir, path, collected, { controlWithoutTests = false } = {}) {
   const command = renderCommand(sample.test_command, path)
   resetTree(root)
   placeCollected(root, outDir, collected)
   const withRun = runReported(sample, command, root)
   resetTree(root)
+  // The canary scores the fix's own tests, which the post-fix tree already holds at the same paths;
+  // left in, the control run would claim every one of them as an existing test.
+  if (controlWithoutTests) for (const file of collected.tests) rmSync(join(root, file), { force: true })
   const withoutRun = needsControl(sample, root, path) ? runReported(sample, command, root) : null
   return [withRun, withoutRun]
 }
@@ -110,9 +113,9 @@ function briefRuns(runs) {
   )
 }
 
-function scoreWith(sample, sides, outDir, path, collected, e2eCases) {
-  const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, collected)
-  const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, collected)
+function scoreWith(sample, sides, outDir, path, collected, e2eCases, options) {
+  const [preWith, preWithout] = runSide(sample, sides.pre, outDir, path, collected, options)
+  const [postWith, postWithout] = runSide(sample, sides.post, outDir, path, collected, options)
   const runs = { preWith, preWithout, postWith, postWithout }
   writeLogs(outDir, path, runs)
   if (!sample.report) return { path, verdict: fileVerdict(runs), runs: briefRuns(runs) }
@@ -123,13 +126,13 @@ function scoreWith(sample, sides, outDir, path, collected, e2eCases) {
 // A directory runner (a Go package) builds every file in it together, so one neighbour that does
 // not compile leaves no test reported on either side. The file is then judged without the other
 // collected tests of its directory; a neighbour it needs is still missing, which is no worse.
-function scoreFile(sample, sides, outDir, path, collected, e2eCases) {
-  const scored = scoreWith(sample, sides, outDir, path, collected, e2eCases)
+function scoreFile(sample, sides, outDir, path, collected, e2eCases, options) {
+  const scored = scoreWith(sample, sides, outDir, path, collected, e2eCases, options)
   const nothingRan = scored.tests?.length === 0 && !scored.runs.postWith.timedOut
   const neighbours = collected.tests.filter((other) => other !== path && dirname(other) === dirname(path))
   if (!nothingRan || neighbours.length === 0) return scored
   const alone = collected.tests.filter((other) => !neighbours.includes(other))
-  return { ...scoreWith(sample, sides, outDir, path, { ...collected, tests: alone }, e2eCases), alone: true }
+  return { ...scoreWith(sample, sides, outDir, path, { ...collected, tests: alone }, e2eCases, options), alone: true }
 }
 
 const list = (value) => (Array.isArray(value) ? value : [])
@@ -146,12 +149,12 @@ function e2eCases(sample, outDir) {
     .map((c) => c.id)
 }
 
-export function scoreRun(sample, sides, outDir) {
+export function scoreRun(sample, sides, outDir, options = {}) {
   const { tests, support = [], helpers = [] } = readJson(join(outDir, 'collected.json'))
   const leaksPath = join(outDir, 'leaks.json')
   const leaks = existsSync(leaksPath) ? readJson(leaksPath).outside : []
   const e2e = e2eCases(sample, outDir)
-  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support, helpers }, e2e))
+  const files = tests.map((path) => scoreFile(sample, sides, outDir, path, { tests, support, helpers }, e2e, options))
   const record = {
     sample: sample.id,
     pre_fix: sample.pre_fix,

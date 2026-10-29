@@ -60,7 +60,7 @@ function scoreFixTests(ctx, tests) {
     cpSync(join(ctx.sides.post, path), join(dir, 'tests', path))
   }
   writeJson(join(dir, 'collected.json'), { tests, support: [], helpers: [], ignored: [], version: VERSION })
-  return scoreRun(ctx.sample, ctx.sides, dir)
+  return scoreRun(ctx.sample, ctx.sides, dir, { controlWithoutTests: true })
 }
 
 export function runCanary(ctx) {

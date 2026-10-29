@@ -10,11 +10,9 @@ import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, writeSample } fr
 
 const NODE_TEST_PACKAGE = '{ "type": "module", "scripts": { "test": "node --test" } }\n'
 
-function canaryContext(options) {
+function canaryContext(options, fields = { test_command: 'node --test {file}' }) {
   const { repo, preFix, postFix } = makeFixtureRepo(options)
-  const sample = loadSample(
-    writeSample(tempDir(), { id: 'demo-1', pre_fix: preFix, post_fix: postFix, test_command: 'node --test {file}', test_globs: ['**/*.test.js'] }),
-  )
+  const sample = loadSample(writeSample(tempDir(), { id: 'demo-1', pre_fix: preFix, post_fix: postFix, test_globs: ['**/*.test.js'], ...fields }))
   return { repo, sample, sides: prepareWorkspace(sample, repo, tempDir()) }
 }
 
@@ -111,4 +109,14 @@ it('an owner ruling keeps a harness-broken sample, until the canary goes stale',
 
 it('a sample with no test file in its fix is refused', () => {
   assert.throws(() => runCanary(canaryContext()), /has no test file in its fix/)
+})
+
+it('with a directory runner the fix test is caught although the post-fix tree already holds it', () => {
+  const record = runCanary(
+    canaryContext(
+      { preFiles: { 'test/old.test.js': "import { test } from 'node:test'\ntest('old', () => {})\n" }, fixFiles: { 'test/total.test.js': CATCHING_TEST } },
+      { test_command: 'node --test --test-reporter=junit --test-reporter-destination=report.xml {dir}/*.test.js', report: 'junit', report_file: 'report.xml' },
+    ),
+  )
+  assert.equal(record.scorer.verdict, 'caught')
 })
