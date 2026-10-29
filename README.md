@@ -294,6 +294,12 @@ deadline, and a part that ends stuck is named in `stuck.json` while the others s
 sample's `knowledge.md`, when present, is placed as the repository's
 `.claude/testing.md` before the run. `batch` runs it only when named with `--candidate spec-to-tests`.
 
+`~/.claude/spec-gate/candidates/LOG.tsv` keeps one row per concept tried, so a dropped idea is not
+tried again: `id`, `date`, `source`, `hypothesis`, `target` (the miss group it aims at), `pair`
+(the two candidates compared), `result` (with where it comes from) and `status` (`kept`,
+`dropped`, `pending` while its runs are ordered, `waiting` while it needs data). Read it before
+proposing a candidate, and add the row when the pair is ordered.
+
 ## Running
 
 ```bash
