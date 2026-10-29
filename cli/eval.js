@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { runBatch } from './lib/batch.js'
 import { loadCandidate } from './lib/candidate.js'
-import { runCanary } from './lib/canary.js'
+import { acceptCanary, runCanary } from './lib/canary.js'
 import { contextFor, generateRun, rememberRepo, requirePrepared } from './lib/eval-steps.js'
 import { collectTests, scoreRun } from './lib/replay.js'
 import { attributeRecords, comparePaired, loadVerdicts, renderCanaryNote, renderPaired, renderReport, summarize } from './lib/report.js'
@@ -18,11 +18,12 @@ const OPTIONS = {
   runs: { type: 'string', default: '3' },
   sample: { type: 'string', multiple: true },
   fresh: { type: 'boolean', default: false },
+  accept: { type: 'string' },
 }
 
 const USAGE = [
   'usage: spec-gate eval <where|validate|prepare|canary|generate|collect|score> <sample-id> [--repo <path>]',
-  '                      [--candidate <name> --run <n>] [--fresh]',
+  '                      [--candidate <name> --run <n>] [--fresh] [--accept <reason>]',
   '       spec-gate eval batch [--runs <n>] [--candidate <name>]... [--sample <id>]...',
   '       spec-gate eval report [--candidate <name>]...   (two names add a paired comparison)',
 ].join('\n')
@@ -52,6 +53,11 @@ const COMMANDS = {
     return 0
   },
   canary(ctx, values, out) {
+    if (values.accept) {
+      acceptCanary(ctx.sample, values.accept)
+      out.write(`${ctx.sample.id}: ok (accepted: ${values.accept})\n`)
+      return 0
+    }
     requirePrepared(ctx)
     const record = runCanary(ctx)
     out.write(`${[`${ctx.sample.id}: ${record.verdict}`, ...record.reasons.map((reason) => `  ${reason}`)].join('\n')}\n`)

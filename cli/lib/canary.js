@@ -11,7 +11,9 @@ import { resetTree } from './workspace.js'
 
 const canaryDir = (sample) => join(sample.dir, 'canary')
 const canaryPath = (sample) => join(canaryDir(sample), 'canary.json')
-const FRESH_KEYS = ['pre_fix', 'post_fix', 'test_command']
+// Every sample field that changes how the trees are built or the tests judged.
+const FRESH_KEYS = ['pre_fix', 'post_fix', 'test_command', 'setup', 'report', 'report_file', 'timeout_s', 'test_globs']
+const MAX_STACK_FILES = 3
 
 export function fixTests(sample, repo) {
   return git(repo, ['diff', '--name-only', '--diff-filter=AM', '-z', sample.pre_fix, sample.post_fix])
@@ -22,19 +24,29 @@ export function fixTests(sample, repo) {
 
 const loads = (result) => !result.timedOut && !['unrunnable', 'no-tests'].includes(result.status) && !didNotLoad(result)
 
+function checkFile(profile, preDir, file, timeoutS) {
+  const result = runTestFile(profile, preDir, file, timeoutS)
+  resetTree(preDir)
+  const ok = loads(result)
+  const reason = ok ? null : (wrongReasons(result, [])[0]?.replace(`${file}: `, '') ?? `status: ${result.status}`)
+  return { file, status: result.status, ok, reason }
+}
+
 // The driver runs each stack of the profile it discovers in the pre-fix tree; a stack that cannot
-// run a test the repository already has will not run the tests a candidate writes either.
+// run a test the repository already has will not run the tests a candidate writes either. One
+// existing file can be broken at pre_fix on its own, so a stack passes when any of a few loads.
 export function runnerChecks(sample, preDir) {
   const profile = discoverProfile(preDir)
   const tracked = git(preDir, ['ls-files', '-z']).split('\0').filter(Boolean).sort()
   return profile.stacks.map((stack) => {
-    const file = tracked.find((path) => stackFor(profile, path)?.name === stack.name) ?? null
-    if (file === null) return { stack: stack.name, file, status: 'unchecked', ok: true, reason: null }
-    const result = runTestFile(profile, preDir, file, sample.timeout_s)
-    resetTree(preDir)
-    const ok = loads(result)
-    const reason = ok ? null : (wrongReasons(result, [])[0]?.replace(`${file}: `, '') ?? `status: ${result.status}`)
-    return { stack: stack.name, file, status: result.status, ok, reason }
+    const files = tracked.filter((path) => stackFor(profile, path)?.name === stack.name).slice(0, MAX_STACK_FILES)
+    if (files.length === 0) return { stack: stack.name, file: null, status: 'unchecked', ok: true, reason: null }
+    const checks = []
+    for (const file of files) {
+      checks.push(checkFile(profile, preDir, file, sample.timeout_s))
+      if (checks.at(-1).ok) break
+    }
+    return { stack: stack.name, ...(checks.find((check) => check.ok) ?? checks[0]) }
   })
 }
 
@@ -73,13 +85,33 @@ export function runCanary(ctx) {
   return record
 }
 
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+
 export function loadCanary(sample) {
   if (!existsSync(canaryPath(sample))) return null
   const record = readJson(canaryPath(sample))
-  return FRESH_KEYS.every((key) => record[key] === sample[key]) ? record : null
+  return FRESH_KEYS.every((key) => same(record[key], sample[key])) ? record : null
 }
+
+// The owner's ruling that a harness-broken result is the canary's mistake, not the harness's. It
+// lasts until the canary is run again.
+export function acceptCanary(sample, reason) {
+  const record = loadCanary(sample)
+  if (record === null) throw new Error(`no canary for ${sample.id}; run: spec-gate eval canary ${sample.id}`)
+  const accepted = { ...record, accepted: reason }
+  writeJson(canaryPath(sample), accepted)
+  return accepted
+}
+
+export const canaryOutcome = (record) => (record.accepted ? 'ok' : record.verdict)
 
 export function canaryVerdict(sampleDir) {
   if (!existsSync(join(sampleDir, 'sample.yaml'))) return null
-  return loadCanary(loadSample(sampleDir))?.verdict ?? null
+  const record = loadCanary(loadSample(sampleDir))
+  return record === null ? null : canaryOutcome(record)
+}
+
+export function canaryRuling(sampleDir) {
+  if (!existsSync(join(sampleDir, 'sample.yaml'))) return null
+  return loadCanary(loadSample(sampleDir))?.accepted ?? null
 }

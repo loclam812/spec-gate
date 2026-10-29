@@ -251,16 +251,19 @@ it('the report leaves out harness-broken samples and counts samples with no cana
   const root = tempDir()
   const evalDir = join(root, 'projects/p1/eval')
   const fields = { pre_fix: 'aaa', post_fix: 'bbb', test_command: 'node --test {file}', test_globs: ['**/*.test.js'] }
-  for (const id of ['A', 'B', 'C']) {
+  const canary = (verdict, more = {}) => ({ ...fields, setup: null, report: null, report_file: null, timeout_s: 600, verdict, ...more })
+  for (const id of ['A', 'B', 'C', 'D']) {
     writeSample(evalDir, { id, ...fields })
     writeJson(join(evalDir, id, 'runs/c-1/verdict.json'), { verdict: 'caught' })
   }
-  writeJson(join(evalDir, 'A/canary/canary.json'), { pre_fix: 'aaa', post_fix: 'bbb', test_command: 'node --test {file}', verdict: 'ok' })
-  writeJson(join(evalDir, 'B/canary/canary.json'), { pre_fix: 'aaa', post_fix: 'bbb', test_command: 'node --test {file}', verdict: 'harness-broken' })
+  writeJson(join(evalDir, 'A/canary/canary.json'), canary('ok'))
+  writeJson(join(evalDir, 'B/canary/canary.json'), canary('harness-broken'))
+  writeJson(join(evalDir, 'D/canary/canary.json'), canary('harness-broken', { accepted: 'Go edit of an existing test' }))
   const chunks = []
   runEval(['report'], { env: { ...process.env, SPEC_GATE_HOME: root }, out: { write: (text) => chunks.push(text) } })
   const text = chunks.join('')
-  assert.match(text, /Catch rate: 2\/2/)
+  assert.match(text, /Catch rate: 3\/3/)
+  assert.match(text, /Kept by owner ruling: p1\/D \(Go edit of an existing test\)/)
   assert.match(text, /Left out as harness-broken: p1\/B/)
   assert.match(text, /Canary not run on 1 sample\(s\)/)
 })

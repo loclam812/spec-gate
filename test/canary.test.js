@@ -2,7 +2,7 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { loadCanary, runCanary } from '../cli/lib/canary.js'
+import { acceptCanary, canaryVerdict, loadCanary, runCanary } from '../cli/lib/canary.js'
 import { git } from '../cli/lib/exec.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { prepareWorkspace } from '../cli/lib/workspace.js'
@@ -77,6 +77,36 @@ it('a canary for other shas or another test command reads as not run', () => {
   assert.equal(loadCanary(ctx.sample).verdict, 'ok')
   assert.equal(loadCanary({ ...ctx.sample, test_command: 'node --test --test-only {file}' }), null)
   assert.equal(loadCanary({ ...ctx.sample, post_fix: ctx.sample.pre_fix }), null)
+  for (const [key, value] of Object.entries({ setup: 'npm ci', report: 'junit', report_file: 'r.xml', timeout_s: 30, test_globs: ['**/*.spec.js'] })) {
+    assert.equal(loadCanary({ ...ctx.sample, [key]: value }), null, key)
+  }
+})
+
+it('a stack passes when another of its existing test files loads, though the first does not', () => {
+  const record = runCanary(
+    canaryContext({
+      preFiles: {
+        'package.json': NODE_TEST_PACKAGE,
+        'test/a-old.test.js': "import { gone } from './missing.js'\n",
+        'test/b-old.test.js': "import { test } from 'node:test'\ntest('old', () => {})\n",
+      },
+      fixFiles: { 'test/total.test.js': CATCHING_TEST },
+    }),
+  )
+  assert.deepEqual(record.stacks.map(({ stack, file, ok }) => ({ stack, file, ok })), [{ stack: 'node-test', file: 'test/b-old.test.js', ok: true }])
+  assert.equal(record.verdict, 'ok')
+})
+
+it('an owner ruling keeps a harness-broken sample, until the canary goes stale', () => {
+  const ctx = canaryContext({ fixFiles: { 'test/total.test.js': MISSING_TEST } })
+  assert.throws(() => acceptCanary(ctx.sample, 'reason'), /no canary for demo-1/)
+  runCanary(ctx)
+  assert.equal(canaryVerdict(ctx.sample.dir), 'harness-broken')
+  acceptCanary(ctx.sample, 'the fix test passes before the fix by design')
+  assert.equal(canaryVerdict(ctx.sample.dir), 'ok')
+  assert.equal(loadCanary(ctx.sample).accepted, 'the fix test passes before the fix by design')
+  assert.equal(runCanary(ctx).accepted, undefined)
+  assert.equal(canaryVerdict(ctx.sample.dir), 'harness-broken')
 })
 
 it('a sample with no test file in its fix is refused', () => {

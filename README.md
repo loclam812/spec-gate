@@ -343,12 +343,19 @@ scoring changed between versions, so rescore both from one checkout before readi
 two checks. First, the test files the fix itself added or changed are scored like a candidate's
 (only those files: no other file of the fix is copied, so the fix is never planted in the pre-fix
 tree), and the result must be `caught`. Second, each test stack of the profile discovered in the
-pre-fix tree runs one test file the repository already has; it must load and run, red or green
-(a stack with no such file is `unchecked`). A sample failing either check is `harness-broken`: a
+pre-fix tree runs test files the repository already has, up to three in name order, until one
+loads: it reports a test, red or green, or, for a runner without a per-test report (jest), exits
+green (a stack with no such file is `unchecked`). A sample failing either check is `harness-broken`: a
 Playwright `webServer` that cannot start, a broken install, a fix test that passes before the fix.
 The result, with the reasons, the scorer's verdict per file and each stack's check, is kept in
 `<sample>/canary/canary.json`, apart from `runs/`, so it is never read as a candidate's run. A
-canary counts while the sample's `pre_fix`, `post_fix` and `test_command` are unchanged.
+canary counts while the sample's `pre_fix`, `post_fix`, `test_command`, `setup`, `report`,
+`report_file`, `timeout_s` and `test_globs` are unchanged; after editing any of them, or repairing
+the environment, run `eval canary` again to replace it. When you have checked a `harness-broken`
+result and found the canary wrong, not the harness (a Go fix that only edits an existing test can
+score `inconclusive`), keep the sample with `eval canary <id> --accept "<why>"`: `batch` and
+`report` then treat it as `ok`, the report lists it under `Kept by owner ruling`, and the ruling
+lasts until the canary is run again.
 
 `batch` prepares each sample once, runs its canary if it has none, skips every run of a
 `harness-broken` sample (printing the reasons once), skips runs that already have a verdict (so it

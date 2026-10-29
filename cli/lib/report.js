@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { attribute, driverDirs } from './attribution.js'
-import { canaryVerdict } from './canary.js'
+import { canaryRuling, canaryVerdict } from './canary.js'
 import { resultTotals } from './candidate.js'
 import { readJson } from './files.js'
 import { loadTruth } from './truth.js'
@@ -55,13 +55,20 @@ export function attributeRecords(records, root) {
   const sampleOf = (row) => {
     const key = `${row.project}/${row.sample}`
     const dir = join(root, 'projects', row.project, 'eval', row.sample)
-    if (!perSample.has(key)) perSample.set(key, { truth: loadTruth(dir), canary: canaryVerdict(dir) })
+    if (!perSample.has(key)) perSample.set(key, { truth: loadTruth(dir), canary: canaryVerdict(dir), ruling: canaryRuling(dir) })
     return perSample.get(key)
   }
   return records.map((row) => {
     const dir = join(root, 'projects', row.project, 'eval', row.sample, 'runs', `${row.candidate}-${row.run}`)
-    const { truth, canary } = sampleOf(row)
-    return { ...row, bucket: truth?.bucket ?? 'unlabelled', ...attribute({ verdict: row.verdict, dir }, truth), driver: driverDirs(dir).length > 0, canary }
+    const { truth, canary, ruling } = sampleOf(row)
+    return {
+      ...row,
+      bucket: truth?.bucket ?? 'unlabelled',
+      ...attribute({ verdict: row.verdict, dir }, truth),
+      driver: driverDirs(dir).length > 0,
+      canary,
+      ...(ruling ? { canaryRuling: ruling } : {}),
+    }
   })
 }
 
@@ -224,8 +231,10 @@ export function renderCanaryNote(records) {
   const samplesWith = (verdict) => [...new Set(records.filter((row) => row.canary === verdict).map((row) => `${row.project}/${row.sample}`))]
   const broken = samplesWith('harness-broken')
   const unchecked = samplesWith(null)
+  const ruled = [...new Map(records.filter((row) => row.canaryRuling).map((row) => [`${row.project}/${row.sample}`, row.canaryRuling])).entries()]
   const lines = [
     ...(broken.length > 0 ? [`Left out as harness-broken: ${broken.join(', ')}`] : []),
+    ...(ruled.length > 0 ? [`Kept by owner ruling: ${ruled.map(([key, reason]) => `${key} (${reason})`).join(', ')}`] : []),
     ...(unchecked.length > 0 ? [`Canary not run on ${unchecked.length} sample(s)`] : []),
   ]
   return lines.length > 0 ? `\n${lines.join('\n')}\n` : ''
