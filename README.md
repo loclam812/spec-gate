@@ -38,7 +38,14 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
 - **discover** reads the repository's test stacks (Go, vitest, jest, `node --test`, Playwright) and
   scores the request's risk: access words, screen and feature signals.
 - **qc** is blind: `spec-gate tests qc` runs the QC as a headless `claude -p` whose permissions allow
-  reading only its run folder and writing only `cases.yaml`, so it cannot open application code. It
+  reading only its run folder and writing only `cases.yaml`, so it cannot open application code.
+  It loads none of your user settings, hooks, plugins, auto-memory or CLAUDE.md, so every machine
+  runs the same QC (other environment variables pass through): it starts in an empty temporary
+  folder, because Claude Code finds `~/.claude/CLAUDE.md` from any folder under your home folder
+  even with `--setting-sources project`. When a CLAUDE.md, CLAUDE.local.md or `.claude` memory sits
+  above the temporary folder (`TMPDIR`, or `TEMP` on Windows, under your home folder), the QC
+  refuses to start and names the file. Its event-log line records the model it resolved to (`model_id`) and the Claude Code
+  version (`claude_code`). It
   reads only a packet (the request, the knowledge file's Domain terms,
   the repository's user-facing strings, route and screen names, the names of existing tests), never
   application code. It returns `cases.yaml`: each request sentence with the cases that cover it,
@@ -287,7 +294,8 @@ code." A sample whose `pre_fix` predates the skill measures its absence.
 headlessly in the pre-fix tree, until the tests are written. The spec files are the request, QC
 questions are answered from `answers.yaml` (a question it does not settle gets `unknown — assumed:
 …`), Ready is approved, and each run keeps the flow's cases, decisions, report and event log (every line names the spec-gate
-version that wrote it) under `spec-to-tests/`, the cost of every agent in `cost.json`, and the application source files the blind
+version that wrote it) under `spec-to-tests/`, the cost of every agent in `cost.json` (with the model alias, the model it
+resolved to as `model_id`, and the Claude Code version; `unknown` when the session did not report them), and the application source files the blind
 QC read in `qc-reads.json`. A request the QC splits is driven part by part in the same tree, as a
 user would run them; each part keeps its artifacts under `spec-to-tests/part-<n>/` and gets its own
 deadline, and a part that ends stuck is named in `stuck.json` while the others still run. A

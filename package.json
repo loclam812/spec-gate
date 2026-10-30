@@ -1,6 +1,6 @@
 {
   "name": "spec-gate",
-  "version": "0.7.10",
+  "version": "0.7.11",
   "private": true,
   "type": "module",
   "bin": { "spec-gate": "cli/spec-gate.js" },

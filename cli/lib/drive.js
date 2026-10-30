@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { stringify } from 'yaml'
 import { runTests } from '../tests.js'
 import { LOCALE_DIR } from './qc-packet.js'
-import { readPaths, renderPrompt, resultTotals, watchedPaths, withHidden } from './candidate.js'
+import { readPaths, renderPrompt, resultTotals, sessionInfo, watchedPaths, withHidden } from './candidate.js'
 import { readJson, writeJson } from './files.js'
 import { answersText, specFiles } from './sample.js'
 import { resetTree } from './workspace.js'
@@ -41,7 +41,7 @@ function spawnAgent({ prompt, model, tools, timeoutS, cwd, home }, env, hide) {
     ),
   )
   const transcript = result.stdout ?? ''
-  const agent = { model, transcript, usd: resultTotals(transcript).usd }
+  const agent = { model, ...sessionInfo(transcript), transcript, usd: resultTotals(transcript).usd }
   if (result.error?.code === 'ETIMEDOUT') return { ...agent, failure: `claude timed out after ${timeoutS} s` }
   if (result.status !== 0) {
     return { ...agent, failure: `claude exited ${result.status ?? result.error?.code}: ${(result.stderr ?? '').trim().slice(-500)}` }
@@ -136,7 +136,7 @@ function saveArtifacts({ home, runs, outDir, agents, watch, preDir, stuck }) {
   writeJson(join(outDir, 'leaks.json'), { outside: watchedPaths(transcript, preDir, watch) })
   writeJson(join(outDir, 'cost.json'), {
     usd: agents.reduce((sum, agent) => sum + agent.usd, 0),
-    agents: agents.map(({ step, model, usd }) => ({ step, model, usd })),
+    agents: agents.map(({ step, model, model_id, claude_code, usd }) => ({ step, model, model_id, claude_code, usd })),
   })
   if (stuck) writeJson(join(outDir, 'stuck.json'), { reason: stuck })
   try {

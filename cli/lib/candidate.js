@@ -94,6 +94,13 @@ export function resultTotals(transcript) {
   return { usd: sum('total_cost_usd'), ms: sum('duration_ms') }
 }
 
+// A model alias such as opus resolves to a different model over time, so a run records the
+// model and Claude Code version its session reported at start.
+export function sessionInfo(transcript) {
+  const init = parseLines(transcript).find((event) => event?.type === 'system' && event.subtype === 'init')
+  return { model_id: init?.model ?? 'unknown', claude_code: init?.claude_code_version ?? 'unknown' }
+}
+
 const READ_TOOLS = ['Read', 'Grep', 'Edit']
 
 export function readPaths(transcript, root) {
