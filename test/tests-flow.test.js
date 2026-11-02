@@ -1,6 +1,7 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
@@ -341,7 +342,7 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   const { repo, env } = setup()
   const bin = tempDir('sg-bin-')
   const log = join(bin, 'args.log')
-  writeFile(bin, 'claude', `#!/bin/sh\nprintf '%s\\n' "$PWD" "$@" > '${log}'\nrun=$(dirname "$(dirname "$(printf '%s' "$2" | sed -e 's/^Read //' -e 's/ and do exactly.*$//')")")\ncp '${join(bin, 'cases.yaml')}' "$run/cases.yaml"\necho '{"type":"result","total_cost_usd":0.5}'\n`)
+  writeFile(bin, 'claude', `#!/bin/sh\nprintf '%s\\n' "$PWD" "$CLAUDE_CODE_DISABLE_AUTO_MEMORY" "$@" > '${log}'\nrun=$(dirname "$(dirname "$(printf '%s' "$2" | sed -e 's/^Read //' -e 's/ and do exactly.*$//')")")\ncp '${join(bin, 'cases.yaml')}' "$run/cases.yaml"\necho '{"type":"system","subtype":"init","model":"claude-opus-5-5","claude_code_version":"2.1.314"}'\necho '{"type":"result","total_cost_usd":0.5}'\n`)
   writeFileSync(join(bin, 'cases.yaml'), stringify(CASES))
   chmodSync(join(bin, 'claude'), 0o755)
   const withStub = { ...env, PATH: `${bin}:${env.PATH}` }
@@ -354,12 +355,22 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   call('submit')
   const qc = call('qc')
   assert.deepEqual(qc.json, { step: 'ready', errors: [] })
-  const [cwd, ...args] = readFileSync(log, 'utf8').trim().split('\n')
-  const runDir = join(cwd)
-  assert.ok(!cwd.startsWith(repo))
+  const [cwd, noAutoMemory, ...args] = readFileSync(log, 'utf8').trim().split('\n')
+  const runDir = args[args.indexOf('--add-dir') + 1]
+  assert.ok(existsSync(join(runDir, 'cases.yaml')))
+  // A cwd under $HOME makes Claude Code load ~/.claude/CLAUDE.md even with --setting-sources project.
+  assert.ok(cwd.startsWith(`${realpathSync(tmpdir())}/`) && !cwd.startsWith(`${realpathSync(homedir())}/`))
+  assert.ok(!existsSync(cwd))
+  assert.equal(args[args.indexOf('--setting-sources') + 1], 'project')
+  assert.equal(noAutoMemory, '1')
   assert.equal(args[args.indexOf('--allowedTools') + 1], `Read(/${runDir}/**),Edit(/${runDir}/cases.yaml)`)
   assert.match(args[args.indexOf('--disallowedTools') + 1], /Bash.*Grep.*Glob/)
   assert.equal(args[args.indexOf('--model') + 1], 'opus')
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+  assert.deepEqual(
+    events.filter((event) => event.kind === 'qc').map(({ model, model_id, claude_code, usd }) => ({ model, model_id, claude_code, usd })),
+    [{ model: 'opus', model_id: 'claude-opus-5-5', claude_code: '2.1.314', usd: 0.5 }],
+  )
 })
 
 it('a QC that keeps assuming a high-risk case asks the user about it on its last attempt instead of getting stuck', () => {

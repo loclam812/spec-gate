@@ -19,6 +19,7 @@ function stubEnv({ first = 'cases.yaml', then = 'cases.yaml', sleep = 0, failOn 
   const log = join(bin, 'calls.log')
   writeFile(bin, 'claude', `#!/bin/sh
 printf 'cwd=%s args=%s\\n' "$PWD" "$(printf '%s' "$*" | tr '\\n' ' ')" >> "${log}"
+echo '{"type":"system","subtype":"init","model":"claude-opus-5-5","claude_code_version":"2.1.314"}'
 [ "${sleep}" != "0" ] && sleep ${sleep}
 case "$2" in
   "You stand in"*)
@@ -69,7 +70,9 @@ it('drives the tests flow to the written tests', () => {
   driveSpecToTests(candidate, sample, sides.pre, outDir, { env: stubEnv({}).env, hide: [sides.post], watch: [sides.post] })
   assert.ok(existsSync(join(sides.pre, 'test/c1.test.js')))
   assert.match(readFileSync(join(outDir, 'spec-to-tests/report.md'), 'utf8'), /Tests written/)
-  assert.equal(JSON.parse(readFileSync(join(outDir, 'cost.json'), 'utf8')).usd, 0.5)
+  const cost = JSON.parse(readFileSync(join(outDir, 'cost.json'), 'utf8'))
+  assert.equal(cost.usd, 0.5)
+  assert.deepEqual(cost.agents[0], { step: 'qc', model: 'opus', model_id: 'claude-opus-5-5', claude_code: '2.1.314', usd: 0.25 })
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'leaks.json'), 'utf8')), { outside: [] })
   assert.equal(existsSync(join(outDir, 'stuck.json')), false)
 })
