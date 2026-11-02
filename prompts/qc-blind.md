@@ -25,6 +25,7 @@ YAML with exactly these keys:
 
     ui: true | false
     ux: { source: "existing-screen:<route> | figma:<url> | screenshot:<path> | none-agreed", screens: [], states: [] }   # only when ui is true
+    ui_reason: "…"   # only when ui is false although the request uses a screen word ("page" meaning a page of results)
     sentences:   # exactly these ids
     {{sentences}}
     cases:
@@ -60,6 +61,9 @@ each a sentence or two a user could ask for on its own, ordered so each builds o
   a concrete example with numbers ("a cart holds 3 of one item and 1 of another: does it count 2 items or
   4?"), and name no file, config key or internal term.
 - Never take an expected outcome from what the code does.
+- `layer: e2e` only when the packet's Test runners list a browser runner. Without one, give the
+  case the lowest layer that can still show the behaviour: a component test can click, route and
+  go back through the browser history its test environment simulates.
 
 ## Fix these problems from your previous attempt
 

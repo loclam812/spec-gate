@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mentionsUi, riskSignals } from '../cli/lib/risk.js'
+import { mentionsUi, riskSignals, uiMentions } from '../cli/lib/risk.js'
 
 it('an access word makes a request high risk', () => {
   assert.deepEqual(riskSignals('Let viewers delete invoices', { screens: [] }), {
@@ -13,6 +13,7 @@ it('a screen name is a signal for risk, never for UI', () => {
   assert.deepEqual([signals.screens, signals.ui, signals.level], [['checkout'], false, 'low'])
   assert.equal(mentionsUi('Add a refund dialog'), true)
   assert.equal(mentionsUi('Import orders from the CSV header'), false)
+  assert.deepEqual(uiMentions('A page reload keeps the first page and its button'), ['page', 'button'])
 })
 
 it('access words decide high risk even next to a copy-change word, in English and Vietnamese', () => {

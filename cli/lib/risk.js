@@ -33,6 +33,6 @@ export function riskSignals(request, { screens = [] } = {}) {
   return { access, feature, screens: screenHits, ui, level }
 }
 
-export function mentionsUi(request) {
-  return UI_SIGNALS.some((phrase) => mentions(request, phrase))
-}
+export const uiMentions = (request) => UI_SIGNALS.filter((phrase) => mentions(request, phrase))
+
+export const mentionsUi = (request) => uiMentions(request).length > 0

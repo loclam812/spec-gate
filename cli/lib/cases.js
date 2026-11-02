@@ -46,11 +46,17 @@ function caseErrors(cases) {
   ]
 }
 
+const quoted = (words) => list(words).map((word) => `"${word}"`).join(', ') || 'a screen, page, dialog or form'
+
+// The UI words are a keyword match: "page" may be a page of results, so the QC can overrule it with a reason.
+const uiUnset = (words) =>
+  `ui: the request says ${quoted(words)}; if that is a screen the user sees, set ui: true; if not (a page of results, a page reload), keep ui: false and add ui_reason: "<why it is not a screen>"; or ask (about: ux-source)`
+
 function uiErrors(doc, questions, context) {
   if (typeof doc.ui !== 'boolean') return ['ui: set true or false']
   const asked = questions.some((q) => q.about === 'ux-source')
   if (doc.ui !== true) {
-    return context.uiRequest && !asked ? ['ui: the request names a screen, page, dialog or form; set ui: true, or ask (about: ux-source)'] : []
+    return context.uiRequest && !asked && !nonEmpty(doc.ui_reason) ? [uiUnset(context.uiWords)] : []
   }
   return uxSourceErrors(isMapping(doc.ux) ? String(doc.ux.source ?? '').trim() : '', asked, context)
 }
@@ -103,6 +109,11 @@ export function casesDocErrors(doc, context) {
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
 
+const uiNote = (doc) => {
+  if (doc?.ui === true) return `; UX source: ${doc.ux?.source}`
+  return nonEmpty(doc?.ui_reason) ? `; no UI: ${doc.ui_reason.trim().replace(/\.$/, '')}` : ''
+}
+
 export function readySummary(doc, { casesPath }) {
   const cases = list(doc?.cases).filter(isMapping)
   const count = (basis) => cases.filter((c) => c.basis === basis).length
@@ -110,7 +121,7 @@ export function readySummary(doc, { casesPath }) {
   return [
     '# Ready to write tests',
     '',
-    `${plural(cases.length, 'case')}${doc?.ui === true ? `; UX source: ${doc.ux?.source}` : ''}.`,
+    `${plural(cases.length, 'case')}${uiNote(doc)}.`,
     '',
     '## Check these',
     '',

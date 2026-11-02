@@ -23,6 +23,14 @@ function userFacingText(repo, files) {
   return lines.length > 0 ? lines.slice(0, MAX_TEXT_LINES).join('\n') : 'None found.'
 }
 
+const BROWSER_RUNNERS = ['playwright']
+
+function testRunners(profile) {
+  const names = profile.stacks.map((stack) => (BROWSER_RUNNERS.includes(stack.name) ? `${stack.name} (browser)` : stack.name))
+  const browser = profile.stacks.some((stack) => BROWSER_RUNNERS.includes(stack.name))
+  return [bullets(names), ...(browser ? [] : ['No browser runner: a test here cannot drive a real browser.'])].join('\n\n')
+}
+
 export function buildQcPacket({ repo, request, knowledgeText, profile }) {
   const files = tracked(repo)
   const globs = profile.stacks.flatMap((stack) => stack.test_globs)
@@ -32,6 +40,7 @@ export function buildQcPacket({ repo, request, knowledgeText, profile }) {
     `## Domain terms\n\n${section(knowledgeText ?? '', 'Domain terms') || 'None given.'}`,
     `## User-facing text\n\n${userFacingText(repo, files)}`,
     `## Screens and routes\n\n${bullets(screenNames(repo))}`,
+    `## Test runners\n\n${testRunners(profile)}`,
     `## Existing tests\n\n${bullets(tests)}`,
   ].join('\n\n')
 }

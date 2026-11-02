@@ -36,3 +36,17 @@ it('a tracked locale file deleted in the working tree is skipped, and the text s
   assert.match(packet, /line 298/)
   assert.doesNotMatch(packet, /line 299/)
 })
+
+it('the QC packet names the test runners and says when none runs a browser', () => {
+  const { repo } = makeFixtureRepo()
+  const unitOnly = buildQcPacket({ repo, request: 'Back returns to the list.', knowledgeText: '', profile: { stacks: [{ name: 'vitest', test_globs: [] }] } })
+  assert.match(unitOnly, /## Test runners\n\n- vitest\n\nNo browser runner: a test here cannot drive a real browser\./)
+  const withBrowser = buildQcPacket({
+    repo,
+    request: 'Back returns to the list.',
+    knowledgeText: '',
+    profile: { stacks: [{ name: 'playwright', test_globs: [] }, { name: 'vitest', test_globs: [] }] },
+  })
+  assert.match(withBrowser, /## Test runners\n\n- playwright \(browser\)\n- vitest/)
+  assert.doesNotMatch(withBrowser, /No browser runner/)
+})

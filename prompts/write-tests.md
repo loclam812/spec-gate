@@ -45,8 +45,9 @@ You write the automated tests for the cases below, in the repository at {{repo}}
 - `assumes`: every interface your tests rely on that does not exist in the code yet (a module,
   function, route, field, or user-facing label you had to name). The user checks these before
   anyone implements them.
-- `dropped`: a case you cannot test in this repository at all (its layer has no runner here, or
-  it needs a service the tests cannot reach), with the reason. At most a third of the cases; the
+- `dropped`: a case you cannot test in this repository at all (it needs a service the tests
+  cannot reach), with the reason. An `e2e` case with no browser runner here is not dropped: test it
+  outside a browser and list it under `disputed:`, as above. At most a third of the cases; the
   rest must have a test.
 
 ## Fix these problems from your previous attempt

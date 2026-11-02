@@ -11,6 +11,7 @@ import { readJson, writeJson } from './files.js'
 import { findKnowledge, testSkill } from './knowledge.js'
 import { discoverProfile, stackFor } from './profile.js'
 import { buildQcPacket } from './qc-packet.js'
+import { uiMentions } from './risk.js'
 import { logEvent, readEvents } from './run-log.js'
 import { saveState } from './run-store.js'
 import { didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
@@ -58,6 +59,7 @@ function qcContext(run) {
   return {
     sentenceIds: splitRequest(readText(at(run, 'request.md'))).map((sentence) => sentence.id),
     uiRequest: run.state.signals.ui,
+    uiWords: uiMentions(readText(at(run, 'request.md'))),
     uxSourceAgreed: /\(about: ux-source\)/.test(readText(at(run, 'decisions.md'))),
     unknownAnswers: /^\s*Answer: unknown\b/im.test(readText(at(run, 'decisions.md'))),
     previous: readYaml(at(run, 'cases.yaml.prev')),

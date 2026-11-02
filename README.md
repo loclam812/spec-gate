@@ -40,7 +40,8 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
 - **qc** is blind: `spec-gate tests qc` runs the QC as a headless `claude -p` whose permissions allow
   reading only its run folder and writing only `cases.yaml`, so it cannot open application code. It
   reads only a packet (the request, the knowledge file's Domain terms,
-  the repository's user-facing strings, route and screen names, the names of existing tests), never
+  the repository's user-facing strings, route and screen names, its test runners, the names of
+  existing tests), never
   application code. It returns `cases.yaml`: each request sentence with the cases that cover it,
   each case with `when`, `then`, its basis (`request`, `decision` or `assumed`), risk and layer, and
   questions only for high-risk points the request does not settle. Cases scale with risk: 8–15 at low risk, 15–25 at high risk, never more than 30 (more are refused).
@@ -58,7 +59,9 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   in the round) and asks you.
 - **ask** puts those questions to you (at most four per round); the answers become decisions and
   QC runs again. When the request touches a UI, the CLI asks for the UX source (a Figma link, a
-  screenshot, an existing screen) if none was given.
+  screenshot, an existing screen) if none was given. Whether it touches a UI is a keyword match
+  ("page", "button"); the QC may keep `ui: false` with a `ui_reason` ("page" is a page of results),
+  which Ready shows. A case gets `layer: e2e` only when the repository has a browser runner.
 - **ready** shows only the `assumed` cases, with their expectations, and counts the cases taken
   from the request and from your answers. You approve or reject with a reason.
 - **write-tests**: the test writer gets the cases, the knowledge file and the code. When the

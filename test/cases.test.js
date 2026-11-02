@@ -110,3 +110,16 @@ it('after the first QC round a high-risk case may stay assumed, so a run cannot 
   const risky = { ...DOC, cases: [DOC.cases[0], { ...DOC.cases[1], risk: 'high' }] }
   assert.deepEqual(casesDocErrors(risky, { ...CONTEXT, round: 1 }), [])
 })
+
+it('a request that names a page may stay ui: false with a reason, and the refusal says which word counted', () => {
+  const context = { ...CONTEXT, uiRequest: true, uiWords: ['page'] }
+  assert.deepEqual(casesDocErrors(DOC, context), [
+    'ui: the request says "page"; if that is a screen the user sees, set ui: true; if not (a page of results, a page reload), keep ui: false and add ui_reason: "<why it is not a screen>"; or ask (about: ux-source)',
+  ])
+  assert.deepEqual(casesDocErrors({ ...DOC, ui_reason: '"page" is a page of comments, not a screen' }, context), [])
+})
+
+it('Ready shows why a request that names a screen word has no UI', () => {
+  const text = readySummary({ ...DOC, ui_reason: '"page" is a page of comments, not a screen' }, { casesPath: '/run/cases.yaml' })
+  assert.match(text, /2 cases; no UI: "page" is a page of comments, not a screen\./)
+})
