@@ -128,9 +128,9 @@ export function caseIdsMissing(repo, files, caseIds) {
 
 const firstLine = (text) => text.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
 const PLAYWRIGHT_LOCATION = /^\S+:\d+:\d+ /
-const MISSING_SYMBOL = /Cannot find module|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method/
+const MISSING_SYMBOL = /Cannot find module|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method|error CS(0103|0117|0234|0246|1061)\b/
 const TIMEOUT = /Test timeout of \d+ms exceeded|\btimed out after\b/i
-const SYNTAX = /\bSyntaxError\b|Unexpected token/
+const SYNTAX = /\bSyntaxError\b|Unexpected token|error CS1(0[0-5]\d|5\d\d)\b/
 const NETWORK = /ECONNREFUSED|ERR_CONNECTION_REFUSED|ENOTFOUND|getaddrinfo/
 
 const HOOK_FAILURE = /failed running .* hook|^Test suite failed to run/
@@ -156,7 +156,7 @@ export function headline(failure) {
 
 // A missing file under node_modules, or a missing npm package, is a broken install, never the code
 // under test.
-const BROKEN_INSTALL = /node_modules[\\/]|Cannot find package '[^./]/
+const BROKEN_INSTALL = /node_modules[\\/]|Cannot find package '[^./]|error NU\d{4}\b/
 
 export function failureKind(failure) {
   const text = headline(failure)

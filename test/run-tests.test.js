@@ -238,3 +238,35 @@ it('a TRX report with no result, from a filter that matched nothing, is no-tests
   assert.equal(result.status, 'no-tests')
   assert.deepEqual(result.tests, [])
 })
+
+const DOTNET_BUILD = [
+  '  Determining projects to restore...',
+  '  Restored /repo/tests/App.Tests/App.Tests.csproj (in 605 ms).',
+  "/repo/tests/App.Tests/InvoiceTests.cs(5,51): error CS0246: The type or namespace name 'Invoice' could not be found (are you missing a using directive or an assembly reference?) [/repo/tests/App.Tests/App.Tests.csproj]",
+].join('\n')
+
+it('a .NET test file that does not compile on a missing type is the expected red when its source names a case', () => {
+  const built = { file: 'tests/App.Tests/InvoiceTests.cs', status: 'red', timedOut: false, tests: [], failures: {}, output: DOTNET_BUILD }
+  assert.deepEqual(wrongReasons(built, ['C1'], { source: 'public void C1_total() {}' }), [])
+  const lines = wrongReasons(built, ['C1'], { source: '' })
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /did not load: .*error CS0246: The type or namespace name 'Invoice' could not be found/)
+})
+
+it('C# compiler errors for a missing type, member or name are missing; a parse error is syntax', () => {
+  assert.equal(failureKind(failure("Invoice.cs(5,51): error CS0246: The type or namespace name 'Invoice' could not be found (are you missing a using directive or an assembly reference?)")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(7,64): error CS1061: 'CalcTests' does not contain a definition for 'Missing'")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(9,46): error CS0103: The name 'Pricing' does not exist in the current context")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(3,5): error CS0117: 'Invoice' does not contain a definition for 'Empty'")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(1,7): error CS0234: The type or namespace name 'Billing' does not exist in the namespace 'App'")), 'missing')
+  assert.equal(failureKind(failure('InvoiceTests.cs(7,36): error CS1002: ; expected')), 'syntax')
+})
+
+it('a NuGet restore error is a broken install, never a red test', () => {
+  assert.equal(failureKind(failure('/repo/tests/App.Tests/App.Tests.csproj : error NU1101: Unable to find package xunit.nosuchpkg. No packages exist with this id in source(s): nuget.org')), 'setup')
+  assert.equal(failureKind(failure('/repo/App.Tests.csproj : error NU1301: Unable to load the service index for source https://api.nuget.org/v3/index.json.')), 'setup')
+})
+
+it('a TRX timeout is refused as a timeout', () => {
+  assert.equal(failureKind(failure('Test exceeded execution timeout period.', { type: 'timeout' })), 'timeout')
+})
