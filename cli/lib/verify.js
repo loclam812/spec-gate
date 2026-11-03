@@ -11,6 +11,16 @@ const at = (run, name) => join(run.dir, name)
 const NEW_FAILURES_TO_STOP = 5
 const bullets = (items) => (items.length > 0 ? items.join('\n') : 'None.')
 
+function passesAlone(run, profile, files) {
+  const results = new Map()
+  return (name) => {
+    const file = files[name]
+    if (!file) return false
+    if (!results.has(file)) results.set(file, runTestFile(profile, run.repo, file).tests)
+    return results.get(file).some((test) => test.name === name && test.status === 'pass')
+  }
+}
+
 function suiteRegressions(run, profile, files) {
   const baseline = existsSync(at(run, 'suite-baseline.json')) ? readJson(at(run, 'suite-baseline.json')) : {}
   const checked = suiteTargets(profile, run.repo, files).map((target) => {
@@ -26,9 +36,16 @@ function suiteRegressions(run, profile, files) {
     const unrecorded = before.passing ? newFailures.filter((name) => !before.passing.includes(name)) : []
     const suspects = newFailures.filter((name) => !unrecorded.includes(name))
     // A new failure counts only if it fails again: a test that passes on a rerun is flaky.
-    const again = suspects.length > 0 ? runSuite(run.repo, target).failing : []
-    const broken = again === null ? suspects : suspects.filter((name) => again.includes(name))
-    const flaky = suspects.filter((name) => !broken.includes(name)).map((name) => `flaky: ${name} failed once and passed on a rerun`)
+    const rerun = suspects.length > 0 ? runSuite(run.repo, target) : { failing: [], files: {} }
+    const failedTwice = rerun.failing === null ? suspects : suspects.filter((name) => rerun.failing.includes(name))
+    // The rerun carries the same load as the first run; a test that passes with its file run alone
+    // failed only under that load.
+    const suiteOnly = failedTwice.filter(passesAlone(run, profile, rerun.files ?? {}))
+    const broken = failedTwice.filter((name) => !suiteOnly.includes(name))
+    const flaky = [
+      ...suspects.filter((name) => !failedTwice.includes(name)).map((name) => `flaky: ${name} failed once and passed on a rerun`),
+      ...suiteOnly.map((name) => `suite only: ${name} failed twice in the full suite and passed when its file ran alone`),
+    ]
     const stopped = now.stopped ? [`${target.key} stopped after ${now.failing.length} failures; more tests may be broken`] : []
     const notCompared = unrecorded.map((name) => `not compared: ${name} fails now but did not pass when the suite was recorded`)
     return { broken, notes: [...notCompared, ...flaky, ...stopped] }

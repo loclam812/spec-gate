@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { dirname, join, relative } from 'node:path'
+import { existsSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { dirname, isAbsolute, join, relative } from 'node:path'
 import { isGreen, runShell } from './exec.js'
 import { mentionsId } from './text.js'
 import { stackFor } from './profile.js'
 import { renderCommand } from './replay.js'
-import { junitFailures, parseReport } from './reports.js'
+import { junitFailures, junitFiles, parseReport } from './reports.js'
 
 const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map((ext) => `playwright.config.${ext}`)
 const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS }
@@ -85,11 +85,23 @@ export function withBail(stack, command, maxFailures) {
 
 export function runSuite(repo, { stack, root }, timeoutS = 1800, { maxFailures = null } = {}) {
   const command = withBail(stack, stack.suite_command, maxFailures)
-  const { run, tests } = runReported(stack, join(repo, root), command, timeoutS)
+  const { run, xml, tests } = runReported(stack, join(repo, root), command, timeoutS)
   const named = (status) => (run.timedOut || tests.length === 0 ? null : tests.filter((test) => test.status === status).map((test) => test.name))
   const failing = named('fail')
   const stopped = maxFailures !== null && command !== stack.suite_command && failing !== null && failing.length >= maxFailures
-  return { failing, passing: named('pass'), stopped, output: run.output.slice(-4000) }
+  return { failing, passing: named('pass'), files: failingFiles(repo, root, stack, xml, failing ?? []), stopped, output: run.output.slice(-4000) }
+}
+
+function failingFiles(repo, root, stack, xml, failing) {
+  const files = stack.report === 'junit' ? junitFiles(xml) : new Map()
+  return Object.fromEntries(
+    failing.flatMap((name) => {
+      const file = files.get(name)
+      const path = file ? (isAbsolute(file) ? file : join(repo, root, file)) : null
+      // A reporter may give the real path of a repository reached through a symlink (/var on macOS).
+      return path && existsSync(path) ? [[name, relative(realpathSync(repo), realpathSync(path))]] : []
+    }),
+  )
 }
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')

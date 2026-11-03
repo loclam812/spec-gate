@@ -104,7 +104,8 @@ already red at the start do not count. A failing test that did not pass in the s
 one another run added since, is listed under Notes as not compared; a run snapshotted before 0.7.7
 kept only the failing tests, so there every new failure is still a suspect. jest has no per-test report here, so its suite is noted,
 not compared. Gaps name each case without a green test. A new failure counts as a regression only if it fails
-again on a rerun; one that passes is listed as flaky. A guarded test the user agreed to change is
+again on a rerun; one that passes is listed as flaky. One that fails both suite runs but passes when
+its file runs alone is listed as suite only (the suite's load or order broke it, not the change). A guarded test the user agreed to change is
 re-guarded with `spec-gate tests amend` and listed in the report; a changed helper fails verify the
 same way and is amended the same way, and amending a helper that was deleted stops guarding it. A
 drop re-guards only test files, so a helper edited for a drop needs its own amend. Every other test

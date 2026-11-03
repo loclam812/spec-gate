@@ -85,6 +85,21 @@ it('a test that fails once and passes on a rerun is reported as flaky, not as a 
   assert.match(report(result), /flaky: test > passes after its first run failed once and passed on a rerun/)
 })
 
+// The companion holds a marker for a while; the load test fails when it runs at the same time.
+const UNDER_LOAD = "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { existsSync } from 'node:fs'\n\ntest('fails while another file is busy', async () => {\n  await new Promise((done) => setTimeout(done, 400))\n  assert.equal(existsSync(new URL('./.busy', import.meta.url)), false)\n})\n"
+const BUSY = "import { test } from 'node:test'\nimport { rmSync, writeFileSync } from 'node:fs'\n\ntest('keeps another file busy', async () => {\n  const mark = new URL('./.busy', import.meta.url)\n  writeFileSync(mark, 'x')\n  await new Promise((done) => setTimeout(done, 1500))\n  rmSync(mark)\n})\n"
+
+it('a test that fails twice in the full suite but passes when its file runs alone is noted, not counted as a regression', () => {
+  const { repo, cli, verify } = setup({ extraTests: { 'test/load.test.js': UNDER_LOAD } })
+  toDone(cli, repo)
+  writeFile(repo, 'test/busy.test.js', BUSY)
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  const result = verify()
+  assert.match(report(result), /## Regressions\n\nNone\./)
+  assert.match(report(result), /suite only: test > fails while another file is busy failed twice in the full suite and passed when its file ran alone/)
+  assert.equal(result.code, 0)
+})
+
 const LATER_RED = "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\n\ntest('a later feature not built yet', () => {\n  assert.fail('not built')\n})\n"
 
 it('a failing test added after the tests were written is noted, not counted as a regression', () => {

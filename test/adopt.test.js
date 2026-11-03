@@ -35,7 +35,10 @@ it('adopt refuses a test that passes on the current code, since it does not repr
   writeFile(repo, 'test/old.test.js', OLD_TEST)
   const adopted = cli('adopt', '--file', 'test/old.test.js', '--request', BUG)
   assert.equal(adopted.code, 1)
-  assert.deepEqual(adopted.json.errors, ['adopt: test/old.test.js passes on the current code, so it does not reproduce the problem'])
+  assert.deepEqual(adopted.json.errors, [
+    'adopt: test/old.test.js passes on the current code, so it does not reproduce the problem',
+    'adopt: adopt tests before the fix. If the fix is already in and these tests were adopted earlier, run verify on that run; re-guard a test edit the user approved with: spec-gate tests amend --run <id> --file <test> --reason "<why>"',
+  ])
 })
 
 it('adopt refuses a test that fails for the wrong reason, and a file that does not exist', () => {

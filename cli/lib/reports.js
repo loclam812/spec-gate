@@ -24,8 +24,13 @@ function junitCases(xml) {
   return [...xml.matchAll(/<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g)].map(([, attrs, body = '']) => {
     const name = attribute(attrs, 'name')
     const classname = attribute(attrs, 'classname')
-    return { name: classname ? `${classname} > ${name}` : name, body }
+    return { name: classname ? `${classname} > ${name}` : name, body, file: attribute(attrs, 'file') ?? classname }
   })
+}
+
+// node --test names a case's file in its own attribute; vitest's classname is the file.
+export function junitFiles(xml) {
+  return new Map(junitCases(xml).map(({ name, file }) => [name, file]))
 }
 
 export function junitFailures(xml) {

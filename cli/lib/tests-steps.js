@@ -68,6 +68,10 @@ function qcContext(run) {
   }
 }
 
+// An agent that edited adopted tests after the fix tends to adopt them again instead.
+const ADOPT_AFTER_FIX =
+  'adopt: adopt tests before the fix. If the fix is already in and these tests were adopted earlier, run verify on that run; re-guard a test edit the user approved with: spec-gate tests amend --run <id> --file <test> --reason "<why>"'
+
 function runAll(run, files) {
   const profile = profileOf(run)
   return files.map((file) => runTestFile(profile, run.repo, file))
@@ -503,7 +507,7 @@ export function adoptTests(run, files) {
   const empty = results.filter((result) => result.status === 'no-tests').map((result) => `adopt: the runner found no tests in ${result.file}`)
   const green = results.filter((result) => result.status === 'green').map((result) => `adopt: ${result.file} passes on the current code, so it does not reproduce the problem`)
   const wrong = results.flatMap((result) => wrongReasons(result, [], { source: readText(join(run.repo, result.file)) })).map((line) => `adopt: ${line}`)
-  const errors = [...empty, ...green, ...wrong]
+  const errors = [...empty, ...green, ...(green.length > 0 ? [ADOPT_AFTER_FIX] : []), ...wrong]
   if (errors.length > 0) return fail(errors)
   guardFiles(run, checked.files, [], { adopted: true })
   writeJson(at(run, 'results.json'), results)
