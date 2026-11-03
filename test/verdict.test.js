@@ -94,3 +94,20 @@ it('a catch at its own layer outranks one below it', () => {
   assert.equal(sampleVerdict(['caught-below-layer', 'caught']), 'caught')
   assert.equal(sampleVerdict(['missed', 'caught-below-layer']), 'caught-below-layer')
 })
+
+it('a test skipped on either side checks nothing, so it is inconclusive and a real catch still wins', () => {
+  const { verdict, tests } = reportedFileVerdict({
+    preWith: ran(1, { TestFixed: 'fail', TestPreSkip: 'skip', TestBothSkip: 'skip' }),
+    postWith: ran(0, { TestFixed: 'skip', TestPreSkip: 'pass', TestBothSkip: 'skip' }),
+  })
+  assert.equal(verdict, 'inconclusive')
+  assert.deepEqual(
+    tests.map((test) => [test.name, test.verdict]),
+    [['TestBothSkip', 'inconclusive'], ['TestFixed', 'inconclusive'], ['TestPreSkip', 'inconclusive']],
+  )
+  const withCatch = reportedFileVerdict({
+    preWith: ran(1, { TestDob: 'fail', TestSkipped: 'skip' }),
+    postWith: ran(0, { TestDob: 'pass', TestSkipped: 'skip' }),
+  })
+  assert.equal(withCatch.verdict, 'caught')
+})

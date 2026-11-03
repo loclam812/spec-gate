@@ -422,7 +422,7 @@ Set `report` whenever the runner can produce it: `go test -json {dir}` with `rep
 | `inverted` | Passed before the fix, failed after it: the test pins the buggy behaviour | miss |
 | `empty` | The candidate wrote no test file | miss |
 | `broken` | Failed on both sides: a wrong test, or one that no longer compiles | bracketed |
-| `inconclusive` | Timed out after the fix, a control run of the directory was red, or, with `report`, no test of the file ran on either side (a broken install, a file the runner's config leaves out) | excluded |
+| `inconclusive` | Timed out after the fix, a control run of the directory was red, or, with `report`, no test of the file ran on either side (a broken install, a file the runner's config leaves out) or every new test was skipped on a side (a skipped test checks nothing) | excluded |
 | `leaked` | The candidate's tools touched a path outside its working tree | excluded |
 
 The report gives the catch rate as caught ÷ (caught + caught-below-layer + missed + inverted +

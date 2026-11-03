@@ -15,7 +15,7 @@ export function fileVerdict({ preWith, postWith, preWithout = null, postWithout 
 }
 
 const reported = (run) => (run?.tests ? [...run.tests.keys()] : [])
-const passed = (status) => status === 'pass' || status === 'skip'
+const passed = (status) => status === 'pass'
 
 // A Go subtest missing on a side where its parent ran was renamed, not lost to a compile error:
 // its name can come from the code under test, so its absence proves nothing.
@@ -37,7 +37,8 @@ export function reportedFileVerdict({ preWith, postWith, preWithout = null, post
   const tests = names.map((name) => {
     const pre = preWith.tests?.get(name) ?? 'missing'
     const post = postWith.tests?.get(name) ?? 'missing'
-    const verdict = outcome(passed(pre), passed(post))
+    // A skipped test checks nothing on that side, so it can neither catch nor miss the bug.
+    const verdict = pre === 'skip' || post === 'skip' ? 'inconclusive' : outcome(passed(pre), passed(post))
     const belowLayer = verdict === 'caught' && e2eCases.some((id) => mentionsId(name, id))
     return { name, pre, post, verdict: belowLayer ? 'caught-below-layer' : verdict }
   })
