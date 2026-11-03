@@ -30,7 +30,7 @@ export function sampleErrors(sample, repoPath, { docs = true } = {}) {
     [sample.id === basename(sample.dir), `id "${sample.id}" does not match directory "${basename(sample.dir)}"`],
     [typeof sample.pre_fix === 'string', 'pre_fix must be a quoted string'],
     [typeof sample.post_fix === 'string', 'post_fix must be a quoted string'],
-    [/\{(file|dir)\}/.test(sample.test_command), 'test_command must contain {file} or {dir}'],
+    [/\{(file|dir|stem)\}/.test(sample.test_command), 'test_command must contain {file}, {dir} or {stem}'],
     [Array.isArray(sample.test_globs) && sample.test_globs.length > 0, 'test_globs must be a non-empty list'],
     [!docs || specFiles(sample).length > 0, 'spec/ must contain at least one file'],
     [!docs || existsSync(join(sample.dir, 'answers.yaml')), 'answers.yaml is missing'],

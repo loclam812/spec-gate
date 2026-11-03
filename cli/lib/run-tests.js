@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs'
-import { dirname, isAbsolute, join, matchesGlob, relative } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { isGreen, runShell } from './exec.js'
 import { mentionsId } from './text.js'
 import { stackFor } from './profile.js'
@@ -55,18 +55,28 @@ function withLoadCause(stack, cwd, file, failures) {
   return Object.fromEntries(entries.map(([name, failure]) => [name, { ...failure, body: cause }]))
 }
 
+// dotnet's FullyQualifiedName~ filter matches substrings, so MoreCalcTests runs with CalcTests;
+// only the class named like the file (or a class nested in it) belongs to the file.
+function byStemClass(stack, file) {
+  if (stack.report !== 'trx' || !stack.test_command.includes('{stem}')) return () => true
+  const stem = basename(file, extname(file))
+  return (name) => name.split(' > ')[0].split('+')[0] === stem
+}
+
 export function runTestFile(profile, repo, file, timeoutS = 900) {
   const stack = stackFor(profile, file)
   if (stack === null) {
     return { file, status: 'unrunnable', timedOut: false, tests: [], output: 'no test stack in the profile matches this file', failures: {} }
   }
   const cwd = join(repo, runnerRoot(repo, file, stack))
-  const { run, xml, tests } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
+  const { run, xml, tests: reported } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
+  const ownTest = byStemClass(stack, file)
+  const tests = reported.filter(({ name }) => ownTest(name))
   const xmlReport = stack.report === 'junit' || stack.report === 'trx'
   const noCase = !xmlReport || (xml !== '' && !hasCases(stack.report, xml))
   const empty = noCase && ((xmlReport && isGreen(run)) || NO_TESTS.test(run.output))
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
-  const failures = withLoadCause(stack, cwd, relative(cwd, join(repo, file)), reportFailures(stack.report, xml))
+  const failures = Object.fromEntries(Object.entries(withLoadCause(stack, cwd, relative(cwd, join(repo, file)), reportFailures(stack.report, xml))).filter(([name]) => ownTest(name)))
   return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
 }
 
@@ -128,9 +138,9 @@ export function caseIdsMissing(repo, files, caseIds) {
 
 const firstLine = (text) => text.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
 const PLAYWRIGHT_LOCATION = /^\S+:\d+:\d+ /
-const MISSING_SYMBOL = /Cannot find module|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method|error CS(0103|0117|0234|0246|1061)\b/
+const MISSING_SYMBOL = /Cannot find module|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method|error CS(0103|0117|0234|0246|1061|1501|1729|7036)\b/
 const TIMEOUT = /Test timeout of \d+ms exceeded|\btimed out after\b/i
-const SYNTAX = /\bSyntaxError\b|Unexpected token|error CS1(0[0-5]\d|5\d\d)\b/
+const SYNTAX = /\bSyntaxError\b|Unexpected token|error CS1(0[0-5]\d|51[349]|525)\b/
 const NETWORK = /ECONNREFUSED|ERR_CONNECTION_REFUSED|ENOTFOUND|getaddrinfo/
 
 const HOOK_FAILURE = /failed running .* hook|^Test suite failed to run/
@@ -169,10 +179,13 @@ export function failureKind(failure) {
   return MISSING_SYMBOL.test(text) ? 'missing' : 'other'
 }
 
+// dotnet prints its restore banner first; any CS, NU or MSB error line says more than that.
+const BUILD_ERROR = /: error [A-Z]{2,}\d{4}:/
+
 function outputFailure(output) {
   const lines = output.split('\n').map((line) => line.trim()).filter(Boolean)
-  const known = [MISSING_SYMBOL, TIMEOUT, SYNTAX, NETWORK]
-  const line = lines.find((text) => known.some((pattern) => pattern.test(text))) ?? lines[0] ?? ''
+  const known = [MISSING_SYMBOL, TIMEOUT, SYNTAX, NETWORK, BROKEN_INSTALL]
+  const line = lines.find((text) => known.some((pattern) => pattern.test(text))) ?? lines.find((text) => BUILD_ERROR.test(text)) ?? lines[0] ?? ''
   return { type: '', message: line, body: '' }
 }
 

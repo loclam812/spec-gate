@@ -6,7 +6,7 @@ const JS_TEST_GLOBS = ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.te
 const REPORT_FILE = '.spec-gate-report.xml'
 const TRX_FILE = '.spec-gate-report.trx'
 const DOTNET_SUITE = `dotnet test --logger "trx;LogFileName=${TRX_FILE}" --results-directory .`
-const DOTNET_TEST_FRAMEWORK = /<PackageReference\s+Include="(xunit|NUnit|MSTest|MSTest\.TestFramework)"/i
+const DOTNET_TEST_FRAMEWORK = /<PackageReference\b[^>]*\bInclude="(xunit(\.v3)?|NUnit|MSTest(\.TestFramework)?|Microsoft\.NET\.Test\.Sdk)"|\bSdk="MSTest\.Sdk\b/i
 
 const PLAYWRIGHT_SUITE = `PLAYWRIGHT_JUNIT_OUTPUT_FILE=${REPORT_FILE} npx --no-install playwright test --reporter=junit`
 const PLAYWRIGHT_COMMAND = PLAYWRIGHT_SUITE.replace('playwright test', 'playwright test {file}')
@@ -68,7 +68,7 @@ function trackedPackages(repo) {
 }
 
 function hasDotnetTests(repo) {
-  const projects = (tryGit(repo, ['ls-files', '--', '*.csproj']) ?? '').split('\n').filter(Boolean)
+  const projects = (tryGit(repo, ['ls-files', '--', '*.csproj', 'Directory.Build.props', '*/Directory.Build.props']) ?? '').split('\n').filter(Boolean)
   return projects.some((path) => DOTNET_TEST_FRAMEWORK.test(readFileSync(join(repo, path), 'utf8')))
 }
 

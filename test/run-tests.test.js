@@ -270,3 +270,42 @@ it('a NuGet restore error is a broken install, never a red test', () => {
 it('a TRX timeout is refused as a timeout', () => {
   assert.equal(failureKind(failure('Test exceeded execution timeout period.', { type: 'timeout' })), 'timeout')
 })
+
+it('a .NET restore or build error outside the known patterns is still the reason a file did not load', () => {
+  const restore = "  Determining projects to restore...\n/repo/tests/App.Tests/App.Tests.csproj : error NU1301: Unable to load the service index for source https://api.nuget.org/v3/index.json. [/repo/App.sln]"
+  const unrestored = { file: 'tests/App.Tests/InvoiceTests.cs', status: 'red', timedOut: false, tests: [], failures: {}, output: restore }
+  const [reason] = wrongReasons(unrestored, ['C1'], { source: 'C1' })
+  assert.match(reason, /did not load: .*error NU1301: Unable to load the service index/)
+  const build = "  Determining projects to restore...\n/repo/tests/App.Tests/InvoiceTests.cs(5,51): error CS0029: Cannot implicitly convert type 'string' to 'int' [/repo/tests/App.Tests/App.Tests.csproj]"
+  const [built] = wrongReasons({ ...unrestored, output: build }, ['C1'], { source: 'C1' })
+  assert.match(built, /did not load: .*error CS0029/)
+})
+
+it('C# errors for a constructor, parameter or overload the fix adds are missing, not syntax or other', () => {
+  assert.equal(failureKind(failure("InvoiceTests.cs(5,20): error CS1729: 'Invoice' does not contain a constructor that takes 1 arguments")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(5,20): error CS7036: There is no argument given that corresponds to the required parameter 'lines' of 'Invoice.Invoice(int[])'")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(5,20): error CS1501: No overload for method 'Total' takes 2 arguments")), 'missing')
+  assert.equal(failureKind(failure("InvoiceTests.cs(5,20): error CS1503: Argument 1: cannot convert from 'string' to 'int'")), 'other')
+  for (const code of ['CS1513: } expected', 'CS1514: { expected', 'CS1519: Invalid token', 'CS1525: Invalid expression term', 'CS1026: ) expected']) {
+    assert.equal(failureKind(failure(`InvoiceTests.cs(5,20): error ${code}`)), 'syntax', code)
+  }
+})
+
+const TRX_TWO_CLASSES = `<TestRun><Results>
+<UnitTestResult testId="a" testName="Calc.Tests.CalcTests.Adds" outcome="Passed" />
+<UnitTestResult testId="b" testName="Calc.Tests.MoreCalcTests.Extra" outcome="Failed"><Output><ErrorInfo><Message>boom</Message><StackTrace> in /repo/MoreCalcTests.cs:line 3</StackTrace></ErrorInfo></Output></UnitTestResult>
+</Results><TestDefinitions>
+<UnitTest name="Adds" id="a"><TestMethod className="Calc.Tests.CalcTests" name="Adds" /></UnitTest>
+<UnitTest name="Extra" id="b"><TestMethod className="Calc.Tests.MoreCalcTests" name="Extra" /></UnitTest>
+</TestDefinitions></TestRun>`
+
+it('a .NET file keeps only the results of the class named like it, though the filter also matches longer names', () => {
+  writeFile(repo, 'dn/two.trx', TRX_TWO_CLASSES)
+  writeFile(repo, 'dn/CalcTests.cs', '')
+  const substring = {
+    stacks: [{ name: 'fake-dotnet', test_globs: ['dn/*Tests.cs'], test_command: 'cp dn/two.trx r.trx; echo {stem}; exit 1', report: 'trx', report_file: 'r.trx' }],
+  }
+  const result = runTestFile(substring, repo, 'dn/CalcTests.cs')
+  assert.deepEqual(result.tests, [{ name: 'CalcTests > Adds', status: 'pass' }])
+  assert.deepEqual(result.failures, {})
+})

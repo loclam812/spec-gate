@@ -416,7 +416,9 @@ Set `report` whenever the runner can produce it: `go test -json {dir}` with `rep
 `node --test --test-reporter=junit --test-reporter-destination=report.xml {file}` with
 `report: junit` and `report_file: report.xml`;
 `dotnet test --logger "trx;LogFileName=report.trx" --results-directory . --filter FullyQualifiedName~{stem}`
-with `report: trx` and `report_file: report.trx` (`{stem}` is the file name without its extension).
+with `report: trx` and `report_file: report.trx` (`{stem}` is the file name without its extension). A
+sample command runs at the tree root, so a solution with several test projects needs `cd <project> &&`
+in front, or the projects overwrite each other's report.
 
 | Verdict | Meaning | In the rate |
 |---|---|---|

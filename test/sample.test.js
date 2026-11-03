@@ -48,7 +48,7 @@ it('rejects an id that differs from its directory', () => {
 it('rejects a command without a placeholder, no spec and no answers', () => {
   const sample = loadSample(writeSample(tempDir(), { ...valid, test_command: 'npm test' }, { spec: {}, answers: null }))
   assert.deepEqual(sampleErrors(sample, repo), [
-    'test_command must contain {file} or {dir}',
+    'test_command must contain {file}, {dir} or {stem}',
     'spec/ must contain at least one file',
     'answers.yaml is missing',
   ])
@@ -93,4 +93,9 @@ it('a sample without spec or answers can still be prepared, and feature must be 
   assert.deepEqual(sampleErrors(sample, repo), ['spec/ must contain at least one file', 'answers.yaml is missing'])
   writeFile(join(dir, 'demo-1'), 'sample.yaml', stringify({ ...valid, feature: 42 }))
   assert.deepEqual(sampleErrors(loadSample(join(dir, 'demo-1')), repo, { docs: false }), ['feature must be a string'])
+})
+
+it('a test_command may name the file by {stem} alone', () => {
+  const stemmed = loadSample(writeSample(tempDir(), { ...valid, test_command: 'dotnet test --filter FullyQualifiedName~{stem}' }))
+  assert.equal(sampleErrors(stemmed, repo).includes('test_command must contain {file}, {dir} or {stem}'), false)
 })

@@ -152,3 +152,18 @@ it('the dotnet stack runs the file class through a TRX report and the suite with
   assert.equal(stack.report, 'trx')
   assert.equal(stack.report_file, '.spec-gate-report.trx')
 })
+
+it('dotnet detection reads xunit.v3, any attribute order, MSTest.Sdk projects and Directory.Build.props', () => {
+  for (const reference of ['<PackageReference Include="xunit.v3" Version="1.0.0" />', '<PackageReference Version="2.9.3" Include="xunit" />']) {
+    assert.deepEqual(discoverProfile(dotnetRepo(reference)).stacks.map((stack) => stack.name), ['dotnet'], reference)
+  }
+  const { repo: sdkRepo } = makeFixtureRepo()
+  writeFile(sdkRepo, 'tests/App.Tests/App.Tests.csproj', '<Project Sdk="MSTest.Sdk/3.6.1">\n</Project>\n')
+  commitAll(sdkRepo, 'MSTest.Sdk project')
+  assert.deepEqual(discoverProfile(sdkRepo).stacks.map((stack) => stack.name), ['dotnet'])
+  const { repo: propsRepo } = makeFixtureRepo()
+  writeFile(propsRepo, 'tests/App.Tests/App.Tests.csproj', '<Project Sdk="Microsoft.NET.Sdk">\n</Project>\n')
+  writeFile(propsRepo, 'tests/Directory.Build.props', '<Project><ItemGroup><PackageReference Include="NUnit" Version="4.3.2" /></ItemGroup></Project>\n')
+  commitAll(propsRepo, 'test packages from Directory.Build.props')
+  assert.deepEqual(discoverProfile(propsRepo).stacks.map((stack) => stack.name), ['dotnet'])
+})
