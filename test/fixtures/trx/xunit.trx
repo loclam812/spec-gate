@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="a6b62e68-8aa6-4d22-a6d6-19df220ef5eb" name="@host 2026-11-03 18:02:51" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-03T18:02:51.3673940+07:00" queuing="2026-11-03T18:02:51.3673940+07:00" start="2026-11-03T18:02:50.3662650+07:00" finish="2026-11-03T18:02:51.3747050+07:00" />
+  <TestSettings name="default" id="39b2cfbf-feec-409b-92ab-c5abebe308e0">
+    <Deployment runDeploymentRoot="_host_2026-11-03_18_02_51" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="2327641c-a9de-4168-acbd-88fba10046ee" testId="706fd115-98b2-e506-dd7b-cb7fb0ed2cd1" testName="Calc.Tests.CalcTests.Subtracts" computerName="host" duration="00:00:00.0002874" startTime="2026-11-03T18:02:51.2084680+07:00" endTime="2026-11-03T18:02:51.2085140+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2327641c-a9de-4168-acbd-88fba10046ee">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ
+Expected: 1
+Actual:   2</Message>
+          <StackTrace>   at Calc.Tests.CalcTests.Subtracts() in /repo/test/fixtures/dotnet/xunit/CalcTests.cs:line 9
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="d12b3a6f-5b98-44b6-8813-42382556c297" testId="25ea63cf-c987-c352-8ea1-2aa24cb8dae1" testName="Calc.Tests.CalcTests.Doubles(input: 2, expected: 4)" computerName="host" duration="00:00:00.0003935" startTime="2026-11-03T18:02:51.2082340+07:00" endTime="2026-11-03T18:02:51.2082890+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d12b3a6f-5b98-44b6-8813-42382556c297" />
+    <UnitTestResult executionId="300c4804-341a-458d-9708-a886ad20fa42" testId="03179d15-46ad-d152-8f71-264228e284fa" testName="Calc.Tests.CalcTests.Divides" computerName="host" duration="00:00:00.0010000" startTime="2026-11-03T18:02:51.2007400+07:00" endTime="2026-11-03T18:02:51.2009900+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="300c4804-341a-458d-9708-a886ad20fa42">
+      <Output>
+        <ErrorInfo>
+          <Message>not ready</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="73beebc8-2d69-4838-9156-97a820cf4c7e" testId="0a1deada-c74b-1a8b-42b6-5c26dd0ccf54" testName="Calc.Tests.CalcTests.Adds" computerName="host" duration="00:00:00.0110098" startTime="2026-11-03T18:02:51.1713180+07:00" endTime="2026-11-03T18:02:51.1894450+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="73beebc8-2d69-4838-9156-97a820cf4c7e" />
+    <UnitTestResult executionId="cebf5e62-292e-440d-ae2f-7b07ba052be9" testId="70947cc6-7d79-26d6-22c8-49f11fd44693" testName="Calc.Tests.CalcTests.Doubles(input: 3, expected: 7)" computerName="host" duration="00:00:00.0025511" startTime="2026-11-03T18:02:51.2033100+07:00" endTime="2026-11-03T18:02:51.2038830+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cebf5e62-292e-440d-ae2f-7b07ba052be9">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ
+Expected: 7
+Actual:   6</Message>
+          <StackTrace>   at Calc.Tests.CalcTests.Doubles(Int32 input, Int32 expected) in /repo/test/fixtures/dotnet/xunit/CalcTests.cs:line 17
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Calc.Tests.CalcTests.Doubles(input: 2, expected: 4)" storage="/repo/test/fixtures/dotnet/xunit/bin/debug/net10.0/calc.tests.dll" id="25ea63cf-c987-c352-8ea1-2aa24cb8dae1">
+      <Execution id="d12b3a6f-5b98-44b6-8813-42382556c297" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/xunit/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Calc.Tests.CalcTests" name="Doubles" />
+    </UnitTest>
+    <UnitTest name="Calc.Tests.CalcTests.Divides" storage="/repo/test/fixtures/dotnet/xunit/bin/debug/net10.0/calc.tests.dll" id="03179d15-46ad-d152-8f71-264228e284fa">
+      <Execution id="300c4804-341a-458d-9708-a886ad20fa42" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/xunit/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Calc.Tests.CalcTests" name="Divides" />
+    </UnitTest>
+    <UnitTest name="Calc.Tests.CalcTests.Adds" storage="/repo/test/fixtures/dotnet/xunit/bin/debug/net10.0/calc.tests.dll" id="0a1deada-c74b-1a8b-42b6-5c26dd0ccf54">
+      <Execution id="73beebc8-2d69-4838-9156-97a820cf4c7e" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/xunit/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Calc.Tests.CalcTests" name="Adds" />
+    </UnitTest>
+    <UnitTest name="Calc.Tests.CalcTests.Subtracts" storage="/repo/test/fixtures/dotnet/xunit/bin/debug/net10.0/calc.tests.dll" id="706fd115-98b2-e506-dd7b-cb7fb0ed2cd1">
+      <Execution id="2327641c-a9de-4168-acbd-88fba10046ee" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/xunit/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Calc.Tests.CalcTests" name="Subtracts" />
+    </UnitTest>
+    <UnitTest name="Calc.Tests.CalcTests.Doubles(input: 3, expected: 7)" storage="/repo/test/fixtures/dotnet/xunit/bin/debug/net10.0/calc.tests.dll" id="70947cc6-7d79-26d6-22c8-49f11fd44693">
+      <Execution id="cebf5e62-292e-440d-ae2f-7b07ba052be9" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/xunit/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Calc.Tests.CalcTests" name="Doubles" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="706fd115-98b2-e506-dd7b-cb7fb0ed2cd1" executionId="2327641c-a9de-4168-acbd-88fba10046ee" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="25ea63cf-c987-c352-8ea1-2aa24cb8dae1" executionId="d12b3a6f-5b98-44b6-8813-42382556c297" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="03179d15-46ad-d152-8f71-264228e284fa" executionId="300c4804-341a-458d-9708-a886ad20fa42" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0a1deada-c74b-1a8b-42b6-5c26dd0ccf54" executionId="73beebc8-2d69-4838-9156-97a820cf4c7e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="70947cc6-7d79-26d6-22c8-49f11fd44693" executionId="cebf5e62-292e-440d-ae2f-7b07ba052be9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="5" executed="4" passed="2" failed="2" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 10.0.14)
+[xUnit.net 00:00:00.09]   Discovering: Calc.Tests
+[xUnit.net 00:00:00.14]   Discovered:  Calc.Tests
+[xUnit.net 00:00:00.17]   Starting:    Calc.Tests
+[xUnit.net 00:00:00.22]       not ready
+[xUnit.net 00:00:00.23]       Assert.Equal() Failure: Values differ
+[xUnit.net 00:00:00.23]       Expected: 7
+[xUnit.net 00:00:00.23]       Actual:   6
+[xUnit.net 00:00:00.23]       Stack Trace:
+[xUnit.net 00:00:00.23]         /repo/test/fixtures/dotnet/xunit/CalcTests.cs(17,0): at Calc.Tests.CalcTests.Doubles(Int32 input, Int32 expected)
+[xUnit.net 00:00:00.23]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+[xUnit.net 00:00:00.23]            at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.23]       Assert.Equal() Failure: Values differ
+[xUnit.net 00:00:00.23]       Expected: 1
+[xUnit.net 00:00:00.23]       Actual:   2
+[xUnit.net 00:00:00.23]       Stack Trace:
+[xUnit.net 00:00:00.23]         /repo/test/fixtures/dotnet/xunit/CalcTests.cs(9,0): at Calc.Tests.CalcTests.Subtracts()
+[xUnit.net 00:00:00.23]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+[xUnit.net 00:00:00.23]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.23]   Finished:    Calc.Tests
+Test 'Calc.Tests.CalcTests.Divides' was skipped in the test run.
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="host" outcome="Warning" timestamp="2026-11-03T18:02:51.2025370+07:00">
+        <Text>[xUnit.net 00:00:00.22]     Calc.Tests.CalcTests.Divides [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="host" outcome="Error" timestamp="2026-11-03T18:02:51.2060550+07:00">
+        <Text>[xUnit.net 00:00:00.23]     Calc.Tests.CalcTests.Doubles(input: 3, expected: 7) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="host" outcome="Error" timestamp="2026-11-03T18:02:51.2087230+07:00">
+        <Text>[xUnit.net 00:00:00.23]     Calc.Tests.CalcTests.Subtracts [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

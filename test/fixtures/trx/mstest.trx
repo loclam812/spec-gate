@@ -1,0 +1,85 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="66c904e0-5344-489c-a572-b9cf87970b4b" name="@host 2026-11-03 18:02:57" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-03T18:02:57.5504490+07:00" queuing="2026-11-03T18:02:57.5504490+07:00" start="2026-11-03T18:02:56.7240180+07:00" finish="2026-11-03T18:02:57.5553160+07:00" />
+  <TestSettings name="default" id="442d2a8a-54e6-4668-b914-fa8f53cda63c">
+    <Deployment runDeploymentRoot="_host_2026-11-03_18_02_57" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="993a3d42-cdad-493e-94a2-cbe4077fffae" testId="15f6b10f-4de2-836d-a220-bb278e4c4f6f" testName="Divides" computerName="host" startTime="2026-11-03T18:02:57.3640960+07:00" endTime="2026-11-03T18:02:57.3731410+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="993a3d42-cdad-493e-94a2-cbe4077fffae">
+      <Output>
+        <ErrorInfo>
+          <Message>not ready</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="2b05717d-a7f8-441a-bdf4-878cabc3a61c" testId="115392e5-5aca-8d79-b440-51e6786cfc78" testName="Doubles (3,7)" computerName="host" duration="00:00:00.0179184" startTime="2026-11-03T18:02:57.3641230+07:00" endTime="2026-11-03T18:02:57.3978330+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2b05717d-a7f8-441a-bdf4-878cabc3a61c">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.AreEqual failed. Expected:&lt;7&gt;. Actual:&lt;6&gt;. 'expected' expression: 'expected', 'actual' expression: 'input * 2'.</Message>
+          <StackTrace>   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.ThrowAssertAreEqualFailed(Object expected, Object actual, String userMessage) in /_/src/TestFramework/TestFramework/Assertions/Assert.AreEqual.cs:line 665
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, IEqualityComparer`1 comparer, String message, String expectedExpression, String actualExpression) in /_/src/TestFramework/TestFramework/Assertions/Assert.AreEqual.cs:line 492
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, String expectedExpression, String actualExpression) in /_/src/TestFramework/TestFramework/Assertions/Assert.AreEqual.cs:line 405
+   at Calc.Tests.CalcTests.Doubles(Int32 input, Int32 expected) in /repo/test/fixtures/dotnet/mstest/CalcTests.cs:line 18
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="19f180a7-7776-49d1-be1e-7cf10c5f16a2" testId="1588b153-ea4a-8cf1-abbb-df0f3c8f862e" testName="Doubles (2,4)" computerName="host" duration="00:00:00.0077558" startTime="2026-11-03T18:02:57.3641340+07:00" endTime="2026-11-03T18:02:57.3880740+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="19f180a7-7776-49d1-be1e-7cf10c5f16a2" />
+    <UnitTestResult executionId="cee2472c-cb13-4fb6-9de6-3728de5f2cdc" testId="16f9f43a-3eea-8226-b9d1-e92f9a358b15" testName="Subtracts" computerName="host" duration="00:00:00.0179265" startTime="2026-11-03T18:02:57.3641440+07:00" endTime="2026-11-03T18:02:57.3995460+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cee2472c-cb13-4fb6-9de6-3728de5f2cdc">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.AreEqual failed. Expected:&lt;1&gt;. Actual:&lt;2&gt;. 'expected' expression: '1', 'actual' expression: '3 - 1'.</Message>
+          <StackTrace>   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.ThrowAssertAreEqualFailed(Object expected, Object actual, String userMessage) in /_/src/TestFramework/TestFramework/Assertions/Assert.AreEqual.cs:line 665
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, IEqualityComparer`1 comparer, String message, String expectedExpression, String actualExpression) in /_/src/TestFramework/TestFramework/Assertions/Assert.AreEqual.cs:line 492
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, String expectedExpression, String actualExpression) in /_/src/TestFramework/TestFramework/Assertions/Assert.AreEqual.cs:line 405
+   at Calc.Tests.CalcTests.Subtracts() in /repo/test/fixtures/dotnet/mstest/CalcTests.cs:line 10
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="340bf1dd-dd24-4ca5-9f02-d6ee3faa28a5" testId="18232ae2-c5af-850e-b615-b439846b889d" testName="Adds" computerName="host" duration="00:00:00.0077006" startTime="2026-11-03T18:02:57.3640740+07:00" endTime="2026-11-03T18:02:57.3881020+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="340bf1dd-dd24-4ca5-9f02-d6ee3faa28a5" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Doubles (3,7)" storage="/repo/test/fixtures/dotnet/mstest/bin/debug/net10.0/calc.tests.dll" id="115392e5-5aca-8d79-b440-51e6786cfc78">
+      <Execution id="2b05717d-a7f8-441a-bdf4-878cabc3a61c" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/mstest/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://mstestadapter/v4" className="Calc.Tests.CalcTests" name="Doubles" />
+    </UnitTest>
+    <UnitTest name="Adds" storage="/repo/test/fixtures/dotnet/mstest/bin/debug/net10.0/calc.tests.dll" id="18232ae2-c5af-850e-b615-b439846b889d">
+      <Execution id="340bf1dd-dd24-4ca5-9f02-d6ee3faa28a5" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/mstest/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://mstestadapter/v4" className="Calc.Tests.CalcTests" name="Adds" />
+    </UnitTest>
+    <UnitTest name="Doubles (2,4)" storage="/repo/test/fixtures/dotnet/mstest/bin/debug/net10.0/calc.tests.dll" id="1588b153-ea4a-8cf1-abbb-df0f3c8f862e">
+      <Execution id="19f180a7-7776-49d1-be1e-7cf10c5f16a2" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/mstest/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://mstestadapter/v4" className="Calc.Tests.CalcTests" name="Doubles" />
+    </UnitTest>
+    <UnitTest name="Divides" storage="/repo/test/fixtures/dotnet/mstest/bin/debug/net10.0/calc.tests.dll" id="15f6b10f-4de2-836d-a220-bb278e4c4f6f">
+      <Execution id="993a3d42-cdad-493e-94a2-cbe4077fffae" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/mstest/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://mstestadapter/v4" className="Calc.Tests.CalcTests" name="Divides" />
+    </UnitTest>
+    <UnitTest name="Subtracts" storage="/repo/test/fixtures/dotnet/mstest/bin/debug/net10.0/calc.tests.dll" id="16f9f43a-3eea-8226-b9d1-e92f9a358b15">
+      <Execution id="cee2472c-cb13-4fb6-9de6-3728de5f2cdc" />
+      <TestMethod codeBase="/repo/test/fixtures/dotnet/mstest/bin/Debug/net10.0/Calc.Tests.dll" adapterTypeName="executor://mstestadapter/v4" className="Calc.Tests.CalcTests" name="Subtracts" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="15f6b10f-4de2-836d-a220-bb278e4c4f6f" executionId="993a3d42-cdad-493e-94a2-cbe4077fffae" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="115392e5-5aca-8d79-b440-51e6786cfc78" executionId="2b05717d-a7f8-441a-bdf4-878cabc3a61c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1588b153-ea4a-8cf1-abbb-df0f3c8f862e" executionId="19f180a7-7776-49d1-be1e-7cf10c5f16a2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="16f9f43a-3eea-8226-b9d1-e92f9a358b15" executionId="cee2472c-cb13-4fb6-9de6-3728de5f2cdc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="18232ae2-c5af-850e-b615-b439846b889d" executionId="340bf1dd-dd24-4ca5-9f02-d6ee3faa28a5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="5" executed="4" passed="2" failed="2" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>Test Parallelization enabled for /repo/test/fixtures/dotnet/mstest/bin/Debug/net10.0/Calc.Tests.dll (Workers: 10, Scope: MethodLevel)
+Test 'Divides' was skipped in the test run.
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

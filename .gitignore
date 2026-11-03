@@ -3,3 +3,6 @@
 node_modules/*
 !node_modules/yaml/
 .gitnexus
+test/fixtures/dotnet/**/bin/
+test/fixtures/dotnet/**/obj/
+test/fixtures/dotnet/**/*.trx
