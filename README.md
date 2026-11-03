@@ -35,7 +35,7 @@ spec-to-tests:   discover → qc ⇄ ask → ready → write-tests → check →
 verify-changes:  guarded files unchanged → existing tests edited listed → new tests green → suites compared → verify.md
 ```
 
-- **discover** reads the repository's test stacks (Go, vitest, jest, `node --test`, Playwright) and
+- **discover** reads the repository's test stacks (Go, vitest, jest, `node --test`, Playwright, .NET) and
   scores the request's risk: access words, screen and feature signals.
 - **qc** is blind: `spec-gate tests qc` runs the QC as a headless `claude -p` whose permissions allow
   reading only its run folder and writing only `cases.yaml`, so it cannot open application code.
@@ -94,8 +94,10 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   "Below their layer" section lists each `e2e` case whose test runs outside a browser (any runner
   but Playwright): the test passes or fails without proving the flow a user clicks through.
 
-Test files run with Go, vitest, jest or `node --test`, and with Playwright when `playwright.config.*`
-names a `testDir`. A test file its runner finds no tests in, because the runner's config leaves it
+Test files run with Go, vitest, jest or `node --test`, with Playwright when `playwright.config.*`
+names a `testDir`, and with `dotnet test` when a tracked `*.csproj` references xUnit, NUnit or MSTest
+(test files are `*Tests.cs` / `*Test.cs`, run from the nearest `*.csproj` as the class named like the
+file). A test file its runner finds no tests in, because the runner's config leaves it
 out (the runner says it found no tests), is refused, as is one no stack runs. A runner that could
 not start at all, such as Playwright whose `webServer` did not come up, is reported with that cause
 as a file that did not load, never as a file to move. `verify-changes` reruns the whole suite of each runner
@@ -412,7 +414,9 @@ best file verdict.
 Set `report` whenever the runner can produce it: `go test -json {dir}` with `report: go-json`;
 `vitest run {file} --reporter=junit --outputFile=report.xml` or
 `node --test --test-reporter=junit --test-reporter-destination=report.xml {file}` with
-`report: junit` and `report_file: report.xml`.
+`report: junit` and `report_file: report.xml`;
+`dotnet test --logger "trx;LogFileName=report.trx" --results-directory . --filter FullyQualifiedName~{stem}`
+with `report: trx` and `report_file: report.trx` (`{stem}` is the file name without its extension).
 
 | Verdict | Meaning | In the rate |
 |---|---|---|
@@ -457,3 +461,9 @@ empty), and again with `broken` counted as a miss; the truth lies between the tw
   candidate's test under `report`.
 - Test commands run without `NODE_TEST_CONTEXT`, so a repository using Node's test runner reports
   its own failures even when spec-gate itself runs under one.
+- A .NET test file runs only the tests of the class named like the file; a file holding another
+  class reports no tests.
+- A .NET suite failure is mapped to its source file through the stack trace, so a failure thrown in a
+  helper maps to that helper.
+- .NET tests need the SDK on `PATH` and NuGet reachable for `dotnet restore`; a restore error is a
+  broken install, not a red test.
