@@ -25,9 +25,12 @@ the repository root; it prints JSON. Never commit or push.
      exact steps); run it and show its output;
    - ask the user (AskUserQuestion) whether to fix without a regression guard; on no, stop.
 
-   On yes, skip steps 2 and 4 (verify needs an adopted test): fix the code (step 3), run the same
-   check again and show its output. End with the reason, the check, its output before and after,
-   and the sentence "This fix has no regression guard."
+   On yes, skip steps 2 and 4 (verify needs an adopted test), so nothing checks the rest of the
+   suite for you. Before the fix, run each `suite_command` that `spec-gate profile` lists and note
+   the failing tests. Fix the code (step 3), run the same check and the same suites again, and show
+   both. A test that passed before the fix and fails after it is a regression: fix it, or show it
+   and stop. End with the reason, the check, its output before and after, the suite comparison, and
+   the sentence "This fix has no regression guard."
 2. **Adopt.** Write a one- or two-sentence description of the bug to a temporary file outside the
    repository (`mktemp`), then run
    `spec-gate tests adopt --request-file <file> --file <test> [--file <test> ...]`.
