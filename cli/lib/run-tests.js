@@ -5,7 +5,7 @@ import { isGreen, runShell } from './exec.js'
 import { mentionsId } from './text.js'
 import { stackFor } from './profile.js'
 import { renderCommand } from './replay.js'
-import { junitFailures, junitFiles, parseReport } from './reports.js'
+import { hasCases, parseReport, reportFailures, reportFiles } from './reports.js'
 
 const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map((ext) => `playwright.config.${ext}`)
 const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS }
@@ -57,11 +57,11 @@ export function runTestFile(profile, repo, file, timeoutS = 900) {
   }
   const cwd = join(repo, runnerRoot(repo, file, stack))
   const { run, xml, tests } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
-  const junit = stack.report === 'junit'
-  const noCase = !junit || (xml !== '' && !/<testcase\b/.test(xml))
-  const empty = noCase && ((junit && isGreen(run)) || NO_TESTS.test(run.output))
+  const xmlReport = stack.report === 'junit' || stack.report === 'trx'
+  const noCase = !xmlReport || (xml !== '' && !hasCases(stack.report, xml))
+  const empty = noCase && ((xmlReport && isGreen(run)) || NO_TESTS.test(run.output))
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
-  const failures = withLoadCause(stack, cwd, relative(cwd, join(repo, file)), stack.report === 'junit' ? Object.fromEntries(junitFailures(xml)) : {})
+  const failures = withLoadCause(stack, cwd, relative(cwd, join(repo, file)), reportFailures(stack.report, xml))
   return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
 }
 
@@ -93,7 +93,7 @@ export function runSuite(repo, { stack, root }, timeoutS = 1800, { maxFailures =
 }
 
 function failingFiles(repo, root, stack, xml, failing) {
-  const files = stack.report === 'junit' ? junitFiles(xml) : new Map()
+  const files = reportFiles(stack.report, xml)
   return Object.fromEntries(
     failing.flatMap((name) => {
       const file = files.get(name)

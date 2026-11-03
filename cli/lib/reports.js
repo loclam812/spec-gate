@@ -1,4 +1,4 @@
-export const REPORT_FORMATS = ['go-json', 'junit']
+export const REPORT_FORMATS = ['go-json', 'junit', 'trx']
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
@@ -67,10 +67,67 @@ function parseJunit(xml) {
   )
 }
 
+const TRX_STATUS = { Passed: 'pass', Failed: 'fail', Error: 'fail', Timeout: 'fail', Aborted: 'fail' }
+
+// xUnit names a result by its full method name, NUnit and MSTest by the method alone; the class
+// comes from the test definition, so every framework reads as `<class> > <test>`.
+function trxResults(xml) {
+  const classes = new Map(
+    [...xml.matchAll(/<UnitTest\b([^>]*)>[\s\S]*?<TestMethod\b([^>]*?)\/?>/g)].map(([, attrs, method]) => [attribute(attrs, 'id'), attribute(method, 'className') ?? '']),
+  )
+  return [...xml.matchAll(/<UnitTestResult\b([^>]*?)(?:\/>|>([\s\S]*?)<\/UnitTestResult>)/g)].map(([, attrs, body = '']) => {
+    const className = classes.get(attribute(attrs, 'testId')) ?? ''
+    const testName = attribute(attrs, 'testName') ?? ''
+    const test = testName.startsWith(`${className}.`) ? testName.slice(className.length + 1) : testName
+    const outcome = attribute(attrs, 'outcome') ?? ''
+    return { name: `${className.split('.').pop()} > ${test}`, status: TRX_STATUS[outcome] ?? 'skip', outcome, body }
+  })
+}
+
+const element = (body, tag) => decode(body.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`))?.[1] ?? '').trim()
+
+export function trxFailures(xml) {
+  return new Map(
+    trxResults(xml)
+      .filter(({ status }) => status === 'fail')
+      .map(({ name, outcome, body }) => [name, { type: outcome === 'Timeout' ? 'timeout' : '', message: element(body, 'Message'), body: element(body, 'StackTrace') }]),
+  )
+}
+
+// A TRX names no source file; the stack trace does. Frames under /_/ are a package's own source
+// (deterministic build paths: MSTest's asserts come first), so the first other frame is the test's.
+export function trxFiles(xml) {
+  return new Map(
+    [...trxFailures(xml)].flatMap(([name, { body }]) => {
+      const file = [...body.matchAll(/ in (.+?):line \d+/g)].map((match) => match[1]).find((path) => !path.startsWith('/_/'))
+      return file ? [[name, file]] : []
+    }),
+  )
+}
+
+export function reportFailures(format, xml) {
+  if (format === 'junit') return Object.fromEntries(junitFailures(xml))
+  if (format === 'trx') return Object.fromEntries(trxFailures(xml))
+  return {}
+}
+
+export function reportFiles(format, xml) {
+  if (format === 'junit') return junitFiles(xml)
+  if (format === 'trx') return trxFiles(xml)
+  return new Map()
+}
+
+export function hasCases(format, xml) {
+  if (format === 'junit') return /<testcase\b/.test(xml)
+  if (format === 'trx') return /<UnitTestResult\b/.test(xml)
+  return false
+}
+
 // Go subtests are read like junit leaves: a case id often names a t.Run, and a table test whose
 // parent fails on both trees can still hold the subtest that catches the bug.
 export function parseReport(format, { output, xml }) {
   if (format === 'go-json') return parseGoJson(output)
   if (format === 'junit') return parseJunit(xml)
+  if (format === 'trx') return new Map(trxResults(xml).map(({ name, status }) => [name, status]))
   throw new Error(`unknown report format "${format}"`)
 }

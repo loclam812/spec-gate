@@ -76,11 +76,13 @@ it('isTestPath matches the globs at any depth', () => {
   assert.equal(isTestPath(sample, 'src/total.js'), false)
 })
 
-it('rejects an unknown report format and a junit report without its file', () => {
+it('rejects an unknown report format and a junit or trx report without its file', () => {
   const unknown = loadSample(writeSample(tempDir(), { ...valid, report: 'tap' }))
-  assert.deepEqual(sampleErrors(unknown, repo), ['report must be one of go-json, junit'])
+  assert.deepEqual(sampleErrors(unknown, repo), ['report must be one of go-json, junit, trx'])
   const junit = loadSample(writeSample(tempDir(), { ...valid, report: 'junit' }))
   assert.deepEqual(sampleErrors(junit, repo), ['report junit needs report_file'])
+  const trx = loadSample(writeSample(tempDir(), { ...valid, report: 'trx' }))
+  assert.deepEqual(sampleErrors(trx, repo), ['report trx needs report_file'])
 })
 
 it('a sample without spec or answers can still be prepared, and feature must be text', () => {

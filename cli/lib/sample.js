@@ -37,7 +37,7 @@ export function sampleErrors(sample, repoPath, { docs = true } = {}) {
     [Array.isArray(sample.support_globs), 'support_globs must be a list'],
     [sample.feature === undefined || typeof sample.feature === 'string', 'feature must be a string'],
     [sample.report === null || REPORT_FORMATS.includes(sample.report), `report must be one of ${REPORT_FORMATS.join(', ')}`],
-    [sample.report !== 'junit' || typeof sample.report_file === 'string', 'report junit needs report_file'],
+    [!['junit', 'trx'].includes(sample.report) || typeof sample.report_file === 'string', `report ${sample.report} needs report_file`],
   ]
   const failed = [...checks.filter(([ok]) => !ok).map(([, message]) => message), ...(docs ? truthErrors(sample) : [])]
   if (failed.length > 0) return failed
