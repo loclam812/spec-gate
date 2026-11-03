@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, realpathSync, rmSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative } from 'node:path'
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { dirname, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { isGreen, runShell } from './exec.js'
 import { mentionsId } from './text.js'
 import { stackFor } from './profile.js'
@@ -8,7 +8,7 @@ import { renderCommand } from './replay.js'
 import { hasCases, parseReport, reportFailures, reportFiles } from './reports.js'
 
 const PLAYWRIGHT_CONFIGS = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs'].map((ext) => `playwright.config.${ext}`)
-const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS }
+const ROOT_MARKERS = { go: ['go.mod'], vitest: ['package.json'], jest: ['package.json'], 'node-test': ['package.json'], playwright: PLAYWRIGHT_CONFIGS, dotnet: ['*.csproj'] }
 
 // What jest, Playwright and vitest print when their config leaves the file out. A JUnit report with
 // no test case is not enough on its own: a runner that could not start (a webServer that did not
@@ -20,11 +20,16 @@ function ancestors(dir) {
   return [...parts.map((_, index) => parts.slice(0, parts.length - index).join('/')), '.']
 }
 
+function hasMarker(dir, marker) {
+  if (!marker.includes('*')) return existsSync(join(dir, marker))
+  return existsSync(dir) && readdirSync(dir).some((name) => matchesGlob(name, marker))
+}
+
 // A monorepo keeps its runner and its config in a package or module below the root; running
 // there is what makes the runner find its config and not fetch a different version.
 export function runnerRoot(repo, file, stack) {
   const markers = ROOT_MARKERS[stack.name] ?? []
-  return ancestors(dirname(file)).find((dir) => markers.some((marker) => existsSync(join(repo, dir, marker)))) ?? '.'
+  return ancestors(dirname(file)).find((dir) => markers.some((marker) => hasMarker(join(repo, dir), marker))) ?? '.'
 }
 
 function runReported(stack, cwd, command, timeoutS) {

@@ -121,3 +121,34 @@ it('screen names come from the files in screens, pages and views directories', (
   commitAll(repo, 'screens')
   assert.deepEqual(screenNames(repo), ['Checkout', 'order history', 'Order Summary'])
 })
+
+function dotnetRepo(packageReference) {
+  const { repo } = makeFixtureRepo()
+  writeFile(repo, 'tests/App.Tests/App.Tests.csproj', `<Project Sdk="Microsoft.NET.Sdk">\n  <ItemGroup>\n    ${packageReference}\n  </ItemGroup>\n</Project>\n`)
+  writeFile(repo, 'src/App/App.csproj', '<Project Sdk="Microsoft.NET.Sdk">\n</Project>\n')
+  commitAll(repo, 'dotnet projects')
+  return repo
+}
+
+it('a csproj that references xUnit, NUnit or MSTest gives the dotnet stack, restored with dotnet restore', () => {
+  for (const reference of ['<PackageReference Include="xunit" Version="2.9.3" />', '<PackageReference Include="NUnit" Version="4.3.2" />', '<PackageReference Include="MSTest.TestFramework" Version="3.6.0" />', '<PackageReference Include="MSTest" Version="4.0.2" />']) {
+    const profile = discoverProfile(dotnetRepo(reference))
+    assert.deepEqual(profile.stacks.map((stack) => stack.name), ['dotnet'], reference)
+    assert.equal(profile.setup, 'dotnet restore')
+    assert.equal(stackFor(profile, 'tests/App.Tests/Invoices/InvoiceTests.cs').name, 'dotnet')
+    assert.equal(stackFor(profile, 'src/App/Invoice.cs'), null)
+  }
+})
+
+it('csproj files without a test framework add no stack', () => {
+  const profile = discoverProfile(dotnetRepo('<PackageReference Include="Serilog" Version="4.0.0" />'))
+  assert.deepEqual(profile.stacks, [])
+})
+
+it('the dotnet stack runs the file class through a TRX report and the suite without a filter', () => {
+  const stack = discoverProfile(dotnetRepo('<PackageReference Include="xunit" Version="2.9.3" />')).stacks[0]
+  assert.equal(stack.test_command, 'dotnet test --logger "trx;LogFileName=.spec-gate-report.trx" --results-directory . --filter FullyQualifiedName~{stem}')
+  assert.equal(stack.suite_command, 'dotnet test --logger "trx;LogFileName=.spec-gate-report.trx" --results-directory .')
+  assert.equal(stack.report, 'trx')
+  assert.equal(stack.report_file, '.spec-gate-report.trx')
+})

@@ -261,3 +261,8 @@ it('a catch by a test of an e2e case that runs outside a browser is caught below
 it('a catch by a test of an e2e case that runs in a browser is caught', () => {
   assert.equal(layeredRun(reportedSample(': playwright; '), 'spec-to-tests/cases.yaml').verdict, 'caught')
 })
+
+it('renderCommand fills {stem} with the file name without its extension', () => {
+  assert.equal(renderCommand('x {stem}', 'tests/App.Tests/InvoiceTests.cs'), "x 'InvoiceTests'")
+  assert.equal(renderCommand('x {stem}', 'CalcTests.cs'), "x 'CalcTests'")
+})

@@ -62,6 +62,7 @@ export function renderCommand(template, relPath) {
   return template
     .replaceAll('{file}', shellQuote(relPath))
     .replaceAll('{dir}', shellQuote(dir === '.' ? '.' : `./${dir}`))
+    .replaceAll('{stem}', shellQuote(basename(relPath, extname(relPath))))
 }
 
 function needsControl(sample, root, path) {

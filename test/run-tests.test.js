@@ -220,3 +220,21 @@ it('a suite run can stop after a number of failures where its runner allows it',
   assert.equal(withBail({ name: 'node-test' }, 'node --test', 7), 'node --test')
   assert.equal(withBail({ name: 'vitest' }, 'npx vitest run', null), 'npx vitest run')
 })
+
+it('a .NET test runs from the nearest directory holding a csproj', () => {
+  writeFile(repo, 'tests/App.Tests/App.Tests.csproj', '<Project />\n')
+  const dotnet = { name: 'dotnet' }
+  assert.equal(runnerRoot(repo, 'tests/App.Tests/Invoices/InvoiceTests.cs', dotnet), 'tests/App.Tests')
+  assert.equal(runnerRoot(repo, 'tests/App.Tests/CalcTests.cs', dotnet), 'tests/App.Tests')
+  assert.equal(runnerRoot(repo, 'other/LooseTests.cs', dotnet), '.')
+})
+
+it('a TRX report with no result, from a filter that matched nothing, is no-tests', () => {
+  const noMatch = {
+    stacks: [{ name: 'fake', test_globs: ['**/*.fake'], test_command: "printf '<TestRun><Results /></TestRun>' > r.trx; echo 'No test matches the given testcase filter'; exit 0", report: 'trx', report_file: 'r.trx' }],
+  }
+  writeFile(repo, 'e2e/c.fake', '')
+  const result = runTestFile(noMatch, repo, 'e2e/c.fake')
+  assert.equal(result.status, 'no-tests')
+  assert.deepEqual(result.tests, [])
+})

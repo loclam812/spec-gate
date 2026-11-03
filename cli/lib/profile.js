@@ -4,6 +4,9 @@ import { tryGit } from './exec.js'
 
 const JS_TEST_GLOBS = ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx', '**/*.spec.ts', '**/*.spec.tsx', '**/*.spec.js', '**/*.spec.jsx']
 const REPORT_FILE = '.spec-gate-report.xml'
+const TRX_FILE = '.spec-gate-report.trx'
+const DOTNET_SUITE = `dotnet test --logger "trx;LogFileName=${TRX_FILE}" --results-directory .`
+const DOTNET_TEST_FRAMEWORK = /<PackageReference\s+Include="(xunit|NUnit|MSTest|MSTest\.TestFramework)"/i
 
 const PLAYWRIGHT_SUITE = `PLAYWRIGHT_JUNIT_OUTPUT_FILE=${REPORT_FILE} npx --no-install playwright test --reporter=junit`
 const PLAYWRIGHT_COMMAND = PLAYWRIGHT_SUITE.replace('playwright test', 'playwright test {file}')
@@ -29,6 +32,15 @@ const STACKS = [
     report: 'junit',
     report_file: REPORT_FILE,
   },
+  // .NET builds a whole project, so a file is run as its class: test files are named after the class they hold.
+  {
+    name: 'dotnet',
+    test_globs: ['**/*Tests.cs', '**/*Test.cs'],
+    test_command: `${DOTNET_SUITE} --filter FullyQualifiedName~{stem}`,
+    suite_command: DOTNET_SUITE,
+    report: 'trx',
+    report_file: TRX_FILE,
+  },
 ]
 
 const LOCKFILES = [
@@ -53,6 +65,11 @@ function trackedPackages(repo) {
     .split('\n')
     .filter(Boolean)
     .map((path) => readPackage(repo, path))
+}
+
+function hasDotnetTests(repo) {
+  const projects = (tryGit(repo, ['ls-files', '--', '*.csproj']) ?? '').split('\n').filter(Boolean)
+  return projects.some((path) => DOTNET_TEST_FRAMEWORK.test(readFileSync(join(repo, path), 'utf8')))
 }
 
 function dependencyNames(packages) {
@@ -102,6 +119,7 @@ function detectStacks(repo, packages, deps) {
     vitest: deps.has('vitest'),
     jest: deps.has('jest'),
     'node-test': packages.some((pkg) => /node --test/.test(pkg.scripts?.test ?? '')),
+    dotnet: hasDotnetTests(repo),
   }
   const playwright = playwrightStack(repo, deps)
   return [...(playwright ? [playwright] : []), ...STACKS.filter((stack) => present[stack.name])]
@@ -109,7 +127,8 @@ function detectStacks(repo, packages, deps) {
 
 function detectSetup(repo) {
   const found = LOCKFILES.find(([file]) => existsSync(join(repo, file)))
-  return found ? found[1] : null
+  if (found) return found[1]
+  return (tryGit(repo, ['ls-files', '--', '*.sln', '*.slnx', '*.csproj']) ?? '').trim() !== '' ? 'dotnet restore' : null
 }
 
 function detectUiLayer(repo, deps) {
