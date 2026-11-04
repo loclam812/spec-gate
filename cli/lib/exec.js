@@ -67,8 +67,9 @@ function runPosix(command, cwd, timeoutS) {
 // the environment, where nothing re-parses it, and is unset before it runs.
 const EVAL_FROM_ENV = '-c "__sg=$SPEC_GATE_COMMAND; unset SPEC_GATE_COMMAND; eval \\"$__sg\\""'
 
+// Python writes a pipe in the ANSI code page unless told otherwise; the output is read as UTF-8.
 function runWindows(command, cwd, timeoutS) {
-  const env = { ...childEnv(), SPEC_GATE_COMMAND: command }
+  const env = { ...childEnv(), PYTHONIOENCODING: 'utf-8', SPEC_GATE_COMMAND: command }
   return spawnInJob(gitBash(), EVAL_FROM_ENV, { cwd, env, timeout: timeoutS * 1000, ...SPAWN_OPTIONS })
 }
 

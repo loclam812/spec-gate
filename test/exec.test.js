@@ -80,3 +80,17 @@ it('runShell kills a native process whose parent already exited', () => {
 it('the test command does not see how it was passed in', () => {
   assert.equal(runShell('printf %s "${SPEC_GATE_COMMAND-unset}"', tempDir(), 10).output, 'unset')
 })
+
+const PYTHON = process.platform === 'win32' ? 'python' : 'python3'
+
+it('runShell reads Vietnamese a Python test prints as UTF-8', () => {
+  const run = runShell(`${PYTHON} -c "print('Ti\\u1ebfng Vi\\u1ec7t')"`, tempDir(), 30)
+  assert.equal(run.code, 0, run.output)
+  assert.equal(run.output.trim(), 'Tiếng Việt')
+})
+
+it('runShell reads Vietnamese a .NET console program prints as UTF-8', { skip: process.platform !== 'win32' && 'Windows PowerShell is .NET Framework, Windows only' }, () => {
+  const run = runShell(`powershell -NoProfile -Command '[Console]::WriteLine("Ti" + [char]0x1EBF + "ng Vi" + [char]0x1EC7 + "t")'`, tempDir(), 30)
+  assert.equal(run.code, 0, run.output)
+  assert.equal(run.output.trim(), 'Tiếng Việt')
+})
