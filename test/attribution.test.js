@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { stringify } from 'yaml'
 import { attribute, driverDirs } from '../cli/lib/attribution.js'
 import { writeJson } from '../cli/lib/files.js'
@@ -41,7 +41,7 @@ it('a split run without parts is incomplete@split', () => {
 
 it('a split run whose parts are all done is missed@done', () => {
   const dir = driverRun([{ sentences: [sentence('Other text that is long enough.', ['C1'])] }, { sentences: [sentence(QUOTE, ['C4'])] }])
-  assert.deepEqual(driverDirs(dir).map((path) => path.split('/').pop()), ['part-1', 'part-2'])
+  assert.deepEqual(driverDirs(dir).map((path) => basename(path)), ['part-1', 'part-2'])
   assert.deepEqual(attribute({ verdict: 'missed', dir }, specified), { group: 'missed@done', layer: 'writer-missed', touched: null })
 })
 

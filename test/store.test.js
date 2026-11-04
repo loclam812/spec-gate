@@ -36,7 +36,7 @@ it('repoSlug falls back to the git common dir without a remote', () => {
 
 it('storeRoot honours SPEC_GATE_HOME', () => {
   assert.equal(storeRoot({ SPEC_GATE_HOME: '/tmp/sg-home' }), '/tmp/sg-home')
-  assert.equal(sampleDir('s', 'x', { SPEC_GATE_HOME: '/tmp/sg-home' }), '/tmp/sg-home/projects/s/eval/x')
+  assert.equal(sampleDir('s', 'x', { SPEC_GATE_HOME: '/tmp/sg-home' }), join('/tmp/sg-home', 'projects', 's', 'eval', 'x'))
 })
 
 it('workDir names neither the repository nor the sample, and stays out of the system temp directory', () => {
@@ -44,5 +44,5 @@ it('workDir names neither the repository nor the sample, and stays out of the sy
   assert.equal(dirname(dir), join(homedir(), '.cache', 'spec-gate', 'work'))
   assert.match(basename(dir), /^sg-[0-9a-f]{10}$/)
   assert.equal(dir, workDir('github.com-acme-shop', 'shop-42', {}))
-  assert.equal(dirname(workDir('s', 'x', { SPEC_GATE_WORK: '/tmp/sg-work' })), '/tmp/sg-work')
+  assert.equal(dirname(workDir('s', 'x', { SPEC_GATE_WORK: '/tmp/sg-work' })), join('/tmp/sg-work'))
 })

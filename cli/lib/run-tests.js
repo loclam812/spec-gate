@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, matchesGlob, relative } from 'node:path'
 import { isGreen, runShell } from './exec.js'
+import { posixPath } from './files.js'
 import { mentionsId } from './text.js'
 import { stackFor } from './profile.js'
 import { renderCommand } from './replay.js'
@@ -69,14 +70,14 @@ export function runTestFile(profile, repo, file, timeoutS = 900) {
     return { file, status: 'unrunnable', timedOut: false, tests: [], output: 'no test stack in the profile matches this file', failures: {} }
   }
   const cwd = join(repo, runnerRoot(repo, file, stack))
-  const { run, xml, tests: reported } = runReported(stack, cwd, renderCommand(stack.test_command, relative(cwd, join(repo, file))), timeoutS)
+  const { run, xml, tests: reported } = runReported(stack, cwd, renderCommand(stack.test_command, posixPath(relative(cwd, join(repo, file)))), timeoutS)
   const ownTest = byStemClass(stack, file)
   const tests = reported.filter(({ name }) => ownTest(name))
   const xmlReport = stack.report === 'junit' || stack.report === 'trx'
   const noCase = !xmlReport || (xml !== '' && !hasCases(stack.report, xml))
   const empty = noCase && ((xmlReport && isGreen(run)) || NO_TESTS.test(run.output))
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
-  const failures = Object.fromEntries(Object.entries(withLoadCause(stack, cwd, relative(cwd, join(repo, file)), reportFailures(stack.report, xml))).filter(([name]) => ownTest(name)))
+  const failures = Object.fromEntries(Object.entries(withLoadCause(stack, cwd, posixPath(relative(cwd, join(repo, file))), reportFailures(stack.report, xml))).filter(([name]) => ownTest(name)))
   return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
 }
 
@@ -114,7 +115,7 @@ function failingFiles(repo, root, stack, xml, failing) {
       const file = files.get(name)
       const path = file ? (isAbsolute(file) ? file : join(repo, root, file)) : null
       // A reporter may give the real path of a repository reached through a symlink (/var on macOS).
-      return path && existsSync(path) ? [[name, relative(realpathSync(repo), realpathSync(path))]] : []
+      return path && existsSync(path) ? [[name, posixPath(relative(realpathSync(repo), realpathSync(path)))]] : []
     }),
   )
 }

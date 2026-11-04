@@ -20,7 +20,7 @@ it('knowledge path says where the file is or where to create it', () => {
   const { repo, run } = setup()
   const missing = run('path').json
   assert.equal(missing.found, false)
-  assert.match(missing.repo_path, /\.claude\/testing\.md$/)
+  assert.match(missing.repo_path, /\.claude[/\\]testing\.md$/)
   writeFile(repo, '.claude/testing.md', KNOWLEDGE_FULL)
   assert.equal(run('path').json.found, true)
 })
@@ -38,7 +38,7 @@ it('knowledge draft renders the learn-project prompt with the old skill when giv
   writeFile(repo, 'old-skill/SKILL.md', '---\nname: write-tests\n---\nUse renderWithCart().\n')
   const draft = run('draft', '--old-skill', join(repo, 'old-skill')).json
   assert.equal(draft.model, 'sonnet')
-  assert.match(readFileSync(draft.prompt_file, 'utf8'), /old-skill\/SKILL\.md/)
+  assert.match(readFileSync(draft.prompt_file, 'utf8'), /old-skill[/\\]SKILL\.md/)
   assert.match(draft.output, /knowledge\.draft\.md$/)
   assert.ok(draft.prompt_file.startsWith(env.SPEC_GATE_HOME) && draft.output.startsWith(env.SPEC_GATE_HOME))
 })
@@ -47,7 +47,7 @@ it('knowledge draft accepts a SKILL.md file as the old skill', () => {
   const { repo, run } = setup()
   writeFile(repo, 'old-skill/SKILL.md', 'Use renderWithCart().\n')
   const draft = run('draft', '--old-skill', join(repo, 'old-skill', 'SKILL.md')).json
-  assert.match(readFileSync(draft.prompt_file, 'utf8'), /old-skill\/SKILL\.md/)
+  assert.match(readFileSync(draft.prompt_file, 'utf8'), /old-skill[/\\]SKILL\.md/)
 })
 
 it('knowledge path names the repository\'s bug-reproduction skill when the file declares one', () => {

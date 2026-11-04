@@ -1,7 +1,7 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { stringify } from 'yaml'
 import { runLog } from '../cli/log.js'
 import { agentCost, findTranscripts } from '../cli/lib/agent-cost.js'
@@ -44,7 +44,7 @@ it('only recent transcripts that read the prompt file are found', () => {
   writeTranscript(config, 'agent-a.jsonl', [prompt(promptFile), assistant('m1', 'claude-sonnet-5-5', { output_tokens: 1 })])
   writeTranscript(config, 'agent-b.jsonl', [prompt('/runs/other/prompts/write-tests.md'), assistant('m1', 'claude-sonnet-5-5', { output_tokens: 1 })])
   writeTranscript(config, 'agent-c.jsonl', [prompt(promptFile), assistant('m1', 'claude-sonnet-5-5', { output_tokens: 1 })])
-  const found = (options) => findTranscripts({ CLAUDE_CONFIG_DIR: config }, promptFile, options).map((file) => file.split('/').pop())
+  const found = (options) => findTranscripts({ CLAUDE_CONFIG_DIR: config }, promptFile, options).map((file) => basename(file))
   assert.deepEqual(found({ since: 0 }).sort(), ['agent-a.jsonl', 'agent-c.jsonl'])
   assert.deepEqual(found({ since: Date.now() + 60_000 }), [])
   assert.deepEqual(findTranscripts({ CLAUDE_CONFIG_DIR: tempDir('sg-empty-') }, promptFile, { since: 0 }), [])
@@ -67,7 +67,7 @@ it('each write-tests submit logs what its writer added, a resumed writer include
   writeFile(repo, 'test/total.test.js', C1_TEST)
   writeFileSync(writer.output, stringify({ files: ['test/total.test.js'] }))
   assert.equal(cli('submit').json.step, 'done')
-  const dir = dirname(writer.prompt_file.replace('/prompts/', '/'))
+  const dir = dirname(dirname(writer.prompt_file))
   const costs = readFileSync(join(dir, 'events.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line)).filter((event) => event.kind === 'write-tests')
   assert.deepEqual(costs.map((event) => [event.transcript, event.model, event.usd]), [['agent-w1.jsonl', 'claude-sonnet-5-5', 2], ['agent-w1.jsonl', 'claude-sonnet-5-5', 2], ['agent-w2.jsonl', 'claude-sonnet-5-5', 2]])
   const chunks = []

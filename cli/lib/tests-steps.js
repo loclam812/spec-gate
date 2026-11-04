@@ -7,7 +7,7 @@ import { renderPrompt } from './candidate.js'
 import { casesDocErrors, highRiskAssumed, isSplit, MAX_QUESTIONS, readySummary, UX_SOURCE_UNASKED } from './cases.js'
 import { withoutCase } from './drop-case.js'
 import { git, tryGit } from './exec.js'
-import { readJson, writeJson } from './files.js'
+import { posixPath, readJson, writeJson } from './files.js'
 import { findKnowledge, testSkill } from './knowledge.js'
 import { discoverProfile, stackFor } from './profile.js'
 import { buildQcPacket } from './qc-packet.js'
@@ -187,7 +187,7 @@ function testsReport(run, results) {
 }
 
 const strings = (value) => list(value).filter((entry) => typeof entry === 'string')
-const normalized = (run, file) => relative(run.repo, resolve(run.repo, file))
+const normalized = (run, file) => posixPath(relative(run.repo, resolve(run.repo, file)))
 const isOutside = (run, file) => isAbsolute(file) || relative(run.repo, resolve(run.repo, file)).startsWith('..')
 const isTracked = (run, file) => git(run.repo, ['--literal-pathspecs', 'ls-files', '--', file]) !== ''
 const untrackedNow = (repo) => (tryGit(repo, ['ls-files', '--others', '--exclude-standard']) ?? '').split('\n').filter(Boolean)
