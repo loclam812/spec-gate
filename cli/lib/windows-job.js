@@ -43,8 +43,10 @@ namespace SpecGate {
 }
 `
 
+// With stderr redirected, PowerShell writes its progress records there as CLIXML, into the run's output.
 const WRAPPER = `
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 try {
   $dll = $env:SPEC_GATE_JOB_DLL
   if (-not (Test-Path -LiteralPath $dll)) {
@@ -69,5 +71,5 @@ const DLL = join(tmpdir(), `spec-gate-job-${createHash('sha256').update(JOB_SOUR
 // `args` is one Windows command-line string, parsed by the program itself.
 export function spawnInJob(file, args, options) {
   const env = { ...(options.env ?? process.env), SPEC_GATE_JOB_DLL: DLL, SPEC_GATE_JOB_SOURCE: JOB_SOURCE, SPEC_GATE_JOB_FILE: file, SPEC_GATE_JOB_ARGS: args }
-  return spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', ENCODED], { windowsHide: true, ...options, env })
+  return spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-OutputFormat', 'Text', '-EncodedCommand', ENCODED], { windowsHide: true, ...options, env })
 }
