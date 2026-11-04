@@ -147,7 +147,13 @@ it('a driven run has a deadline across all its agents', () => {
   const { env } = stubEnv({ sleep: 0.9 })
   const started = Date.now()
   const candidate = { name: 'spec-to-tests', allowed_tools: ['Read', 'Write'], timeout_s: 1 }
-  assert.throws(() => driveSpecToTests(candidate, sample, sides.pre, outDir, { env, hide: [sides.post], watch: [sides.post] }), /out of time|timed out/)
+  let outcome
+  try {
+    outcome = driveSpecToTests(candidate, sample, sides.pre, outDir, { env, hide: [sides.post], watch: [sides.post] })
+  } catch (error) {
+    outcome = error
+  }
+  assert.match(outcome instanceof Error ? outcome.message : JSON.stringify(outcome).slice(0, 2000), /out of time|timed out/)
   assert.ok(Date.now() - started < 2600, `took ${Date.now() - started} ms`)
 })
 

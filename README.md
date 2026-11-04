@@ -51,9 +51,10 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   It loads none of your user settings, hooks, plugins, auto-memory or CLAUDE.md, so every machine
   runs the same QC (other environment variables pass through): it starts in an empty temporary
   folder, because Claude Code finds `~/.claude/CLAUDE.md` from any folder under your home folder
-  even with `--setting-sources project`. When a CLAUDE.md, CLAUDE.local.md or `.claude` memory sits
-  above the temporary folder (`TMPDIR`, or `TEMP` on Windows, under your home folder), the QC
-  refuses to start and names the file. Its event-log line records the model it resolved to (`model_id`) and the Claude Code
+  even with `--setting-sources project`. On Windows, whose `TEMP` lies under the home folder, that
+  folder goes under `%PUBLIC%` (`C:\Users\Public`) instead. When a CLAUDE.md, CLAUDE.local.md or
+  `.claude` memory sits above the folder (under `TMPDIR`, or `TEMP` on Windows), the QC refuses to
+  start and names the file. Its event-log line records the model it resolved to (`model_id`) and the Claude Code
   version (`claude_code`). It
   reads only a packet (the request, the knowledge file's Domain terms,
   the repository's user-facing strings, route and screen names, its test runners, the names of

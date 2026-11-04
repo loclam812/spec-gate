@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { resultTotals, sessionInfo } from './candidate.js'
 import { logEvent } from './run-log.js'
@@ -13,6 +13,13 @@ const MEMORY_FILES = ['CLAUDE.md', 'CLAUDE.local.md', join('.claude', 'CLAUDE.md
 export function rulePath(path, platform = process.platform) {
   if (platform !== 'win32') return path
   return path.replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`).replaceAll('\\', '/')
+}
+
+// Windows keeps TEMP under the home folder, where Claude Code would find ~/.claude/CLAUDE.md;
+// PUBLIC (C:\Users\Public) is writable by every user and lies outside it.
+export function qcBase(env, platform, tmp, home) {
+  const underHome = tmp.toLowerCase().startsWith(`${home.toLowerCase()}\\`)
+  return platform === 'win32' && underHome && env.PUBLIC ? env.PUBLIC : tmp
 }
 
 function memoryAbove(dir) {
@@ -31,7 +38,8 @@ export function runBlindQc(run, instruction, { env = process.env, timeoutS = 900
   const dir = realpathSync.native(run.dir)
   // CLAUDE.md discovery walks up from the cwd and finds ~/.claude/CLAUDE.md even with
   // --setting-sources project, so the QC starts in an empty folder with no memory above it.
-  const cwd = realpathSync.native(mkdtempSync(join(tmpdir(), 'sg-qc-')))
+  const base = qcBase(env, process.platform, realpathSync.native(tmpdir()), realpathSync.native(homedir()))
+  const cwd = realpathSync.native(mkdtempSync(join(base, 'sg-qc-')))
   const memory = memoryAbove(cwd)
   let result = {}
   try {

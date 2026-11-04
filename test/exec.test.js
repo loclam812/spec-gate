@@ -18,6 +18,15 @@ function isAlive(pid) {
 // Git Bash's $! is its own pid; the pid Windows knows is in /proc/<pid>/winpid.
 const BG_PID = process.platform === 'win32' ? 'cat /proc/$!/winpid > bg.pid' : 'echo $! > bg.pid'
 
+// On Windows a failed kill names the process chain, so a CI log says which link was missed.
+function ancestry(pid) {
+  if (process.platform !== 'win32') return ''
+  const listing = listProcesses()
+  const chain = []
+  for (let entry = listing.find((e) => e.pid === pid); entry && chain.length < 6; entry = listing.find((e) => e.pid === entry.parent)) chain.push(entry)
+  return JSON.stringify({ now: Date.now(), chain })
+}
+
 function goneWithin(pid, ms) {
   const deadline = Date.now() + ms
   while (isAlive(pid) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
@@ -28,14 +37,18 @@ it('runShell kills what a command left running in the background', () => {
   const dir = tempDir()
   const run = runShell(`sleep 30 >/dev/null 2>&1 & ${BG_PID}`, dir, 5)
   assert.equal(run.code, 0)
-  assert.equal(goneWithin(Number(readFileSync(join(dir, 'bg.pid'), 'utf8')), 1000), true)
+  const pid = Number(readFileSync(join(dir, 'bg.pid'), 'utf8'))
+  const before = ancestry(pid)
+  assert.equal(goneWithin(pid, 1000), true, before)
 })
 
 it('runShell kills the whole command when it times out', () => {
   const dir = tempDir()
   const run = runShell(`sleep 30 >/dev/null 2>&1 & ${BG_PID}; sleep 30`, dir, 1)
   assert.equal(run.timedOut, true)
-  assert.equal(goneWithin(Number(readFileSync(join(dir, 'bg.pid'), 'utf8')), 1000), true)
+  const pid = Number(readFileSync(join(dir, 'bg.pid'), 'utf8'))
+  const before = ancestry(pid)
+  assert.equal(goneWithin(pid, 1000), true, before)
 })
 
 it('runShell runs in a directory with spaces and Vietnamese letters', () => {

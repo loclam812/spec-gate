@@ -1,7 +1,7 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { homedir } from 'node:os'
 import { join, sep } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
@@ -359,7 +359,7 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   const runDir = args[args.indexOf('--add-dir') + 1]
   assert.ok(existsSync(join(runDir, 'cases.yaml')))
   // A cwd under $HOME makes Claude Code load ~/.claude/CLAUDE.md even with --setting-sources project.
-  assert.ok(cwd.startsWith(`${realpathSync.native(tmpdir())}${sep}`) && !cwd.startsWith(`${realpathSync.native(homedir())}${sep}`))
+  assert.ok(!cwd.toLowerCase().startsWith(`${realpathSync.native(homedir())}${sep}`.toLowerCase()), cwd)
   assert.ok(!existsSync(cwd))
   assert.equal(args[args.indexOf('--setting-sources') + 1], 'project')
   assert.equal(noAutoMemory, '1')

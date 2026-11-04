@@ -50,8 +50,9 @@ export function gitBash(env = process.env) {
   return found
 }
 
+// CreationDate is local time; ToFileTime converts it to UTC (ToFileTimeUtc would not).
 const PROCESS_LIST =
-  "Get-CimInstance Win32_Process | Where-Object CreationDate | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToFileTimeUtc() }"
+  "Get-CimInstance Win32_Process | Where-Object CreationDate | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToFileTime() }"
 const FILETIME_AT_EPOCH = 116444736000000000n
 
 export function listProcesses() {

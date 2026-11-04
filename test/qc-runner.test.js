@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sessionInfo } from '../cli/lib/candidate.js'
-import { rulePath, runBlindQc } from '../cli/lib/qc-runner.js'
+import { qcBase, rulePath, runBlindQc } from '../cli/lib/qc-runner.js'
 import { tempDir, withPath, writeFile } from './helpers.js'
 
 function stubClaude() {
@@ -35,7 +35,9 @@ it('refuses to start the QC when a folder above the temporary folder holds a CLA
   writeFile(root, '.claude/CLAUDE.md', '# Global instructions\n')
   writeFile(root, 'tmp/.keep', '')
   const run = { dir: tempDir('sg-run-') }
-  const { env, called } = stubClaude()
+  const { env: withPublic, called } = stubClaude()
+  // Without PUBLIC, Windows keeps the QC folder in TEMP, as macOS and Linux do.
+  const { PUBLIC: _, ...env } = withPublic
   const { failure } = withTmpdir(join(root, 'tmp'), () => runBlindQc(run, { prompt_file: join(run.dir, 'qc.md'), model: 'opus' }, { env }))
   assert.match(failure, /\.claude[/\\]CLAUDE\.md/)
   assert.match(failure, /TMPDIR/)
@@ -51,4 +53,12 @@ it('a transcript without a start event records the model and Claude Code version
 it('a permission rule names a Windows path the way Claude Code matches it', () => {
   assert.equal(rulePath('C:\\Users\\a b\\run', 'win32'), '/c/Users/a b/run')
   assert.equal(rulePath('/tmp/run', 'darwin'), '/tmp/run')
+})
+
+it('on Windows the QC folder leaves a temp folder that lies under the home folder for PUBLIC', () => {
+  const home = 'C:\\Users\\a'
+  assert.equal(qcBase({ PUBLIC: 'C:\\Users\\Public' }, 'win32', 'C:\\Users\\a\\AppData\\Local\\Temp', home), 'C:\\Users\\Public')
+  assert.equal(qcBase({ PUBLIC: 'C:\\Users\\Public' }, 'win32', 'D:\\tmp', home), 'D:\\tmp')
+  assert.equal(qcBase({}, 'win32', 'C:\\Users\\a\\AppData\\Local\\Temp', home), 'C:\\Users\\a\\AppData\\Local\\Temp')
+  assert.equal(qcBase({ PUBLIC: '/p' }, 'darwin', '/Users/a/tmp', '/Users/a'), '/Users/a/tmp')
 })
