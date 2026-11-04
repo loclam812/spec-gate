@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 export function git(cwd, args) {
@@ -74,8 +75,9 @@ export function processTree(listing, rootPid, sinceMs) {
 
 // Windows has no process groups and never reparents an orphan, so whatever a run started still
 // names the run's shell as its parent after the shell exits; the creation time rules out reused pids.
-export function killTree(rootPid, sinceMs) {
-  for (const pid of processTree(listProcesses(), rootPid, sinceMs - 1000)) {
+export function killTree(rootPids, sinceMs) {
+  const listing = listProcesses()
+  for (const pid of new Set(rootPids.flatMap((root) => processTree(listing, root, sinceMs - 1000)))) {
     try {
       process.kill(pid)
     } catch {}
@@ -94,12 +96,34 @@ function runPosix(command, cwd, timeoutS) {
   return result
 }
 
+// Git Bash's ps: an optional state letter, then PID PPID PGID WINPID.
+export function groupWinpids(ps, pgid) {
+  return ps
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(/\s+/))
+    .map((fields) => (/^\d+$/.test(fields[0]) ? fields : fields.slice(1)))
+    .filter((fields) => Number(fields[2]) === pgid && /^\d+$/.test(fields[3]))
+    .map((fields) => Number(fields[3]))
+}
+
+// Git Bash runs `cmd &` as fork then exec, and the forked shell exits at once, so the Windows parent
+// chain to what it started breaks; its process group (the shell's own pid) does not.
+function msysGroup(bash, pgidFile) {
+  const pgid = Number(existsSync(pgidFile) ? readFileSync(pgidFile, 'utf8').trim() : NaN)
+  rmSync(pgidFile, { force: true })
+  if (!Number.isInteger(pgid)) return []
+  return groupWinpids(spawnSync(bash, ['-c', 'ps'], { encoding: 'utf8', windowsHide: true }).stdout ?? '', pgid)
+}
+
 function runWindows(command, cwd, timeoutS, started) {
+  const bash = gitBash()
+  const pgidFile = join(tmpdir(), `sg-pgid-${process.pid}-${started}`)
   // Git Bash parses its Windows command line with its own quoting rules, so the command travels in
   // the environment, where nothing re-parses it.
-  const env = { ...childEnv(), SPEC_GATE_COMMAND: command }
-  const result = spawnSync(gitBash(), ['-c', 'eval "$SPEC_GATE_COMMAND"'], { cwd, env, timeout: timeoutS * 1000, windowsHide: true, ...SPAWN_OPTIONS })
-  if (result.pid) killTree(result.pid, started)
+  const script = 'echo $$ > "$SPEC_GATE_PGID_FILE"; unset SPEC_GATE_PGID_FILE SPEC_GATE_SCRIPT; eval "$SPEC_GATE_COMMAND"'
+  const env = { ...childEnv(), SPEC_GATE_COMMAND: command, SPEC_GATE_PGID_FILE: pgidFile, SPEC_GATE_SCRIPT: script }
+  const result = spawnSync(bash, ['-c', 'eval "$SPEC_GATE_SCRIPT"'], { cwd, env, timeout: timeoutS * 1000, windowsHide: true, ...SPAWN_OPTIONS })
+  killTree([result.pid, ...msysGroup(bash, pgidFile)].filter(Boolean), started)
   return result
 }
 
@@ -126,7 +150,7 @@ export function spawnTool(name, args, options) {
   const env = { ...(options.env ?? process.env), ...passed, SPEC_GATE_TOOL: name, SPEC_GATE_COMMAND: EXEC_FROM_ENV, MSYS_NO_PATHCONV: '1', MSYS2_ARG_CONV_EXCL: '*' }
   const started = Date.now()
   const result = spawnSync(gitBash(options.env), ['-c', 'eval "$SPEC_GATE_COMMAND"'], { windowsHide: true, ...options, env })
-  if (result.pid) killTree(result.pid, started)
+  if (result.pid) killTree([result.pid], started)
   return result
 }
 

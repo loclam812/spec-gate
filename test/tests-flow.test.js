@@ -6,6 +6,7 @@ import { join, sep } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
 import { git } from '../cli/lib/exec.js'
+import { rulePath } from '../cli/lib/qc-runner.js'
 import { KNOWLEDGE_FULL, tempDir, withPath, writeFile } from './helpers.js'
 import { C1_TEST, CASES, REQUEST, setup, toDone } from './tests-helpers.js'
 
@@ -363,7 +364,7 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   assert.ok(!existsSync(cwd))
   assert.equal(args[args.indexOf('--setting-sources') + 1], 'project')
   assert.equal(noAutoMemory, '1')
-  assert.equal(args[args.indexOf('--allowedTools') + 1], `Read(/${runDir}/**),Edit(/${runDir}/cases.yaml)`)
+  assert.equal(args[args.indexOf('--allowedTools') + 1], `Read(/${rulePath(runDir)}/**),Edit(/${rulePath(runDir)}/cases.yaml)`)
   assert.match(args[args.indexOf('--disallowedTools') + 1], /Bash.*Grep.*Glob/)
   assert.equal(args[args.indexOf('--model') + 1], 'opus')
   const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))

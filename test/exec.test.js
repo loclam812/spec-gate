@@ -2,7 +2,7 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
-import { gitBash, listProcesses, processTree, runShell, spawnTool } from '../cli/lib/exec.js'
+import { gitBash, groupWinpids, listProcesses, processTree, runShell, spawnTool } from '../cli/lib/exec.js'
 import { tempDir } from './helpers.js'
 
 function isAlive(pid) {
@@ -96,4 +96,14 @@ it('the process tree holds every descendant started since the run began, and not
 it('the Windows process listing names this process and its parent', { skip: process.platform !== 'win32' }, () => {
   const me = listProcesses().find((entry) => entry.pid === process.pid)
   assert.equal(me?.parent, process.ppid)
+})
+
+it('the Git Bash process list yields the Windows pids of one process group', () => {
+  const ps = [
+    '      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND',
+    '      812       1     812      10052  cons0      197108 03:41:06 /usr/bin/bash',
+    'S     905     812     812       9892  cons0      197108 03:41:06 /usr/bin/sleep',
+    '     1001       1    1001       4400  cons0      197108 03:41:07 /usr/bin/ps',
+  ].join('\n')
+  assert.deepEqual(groupWinpids(ps, 812), [10052, 9892])
 })
