@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { stringify } from 'yaml'
 import { runLog } from '../cli/log.js'
@@ -75,4 +75,14 @@ it('each write-tests submit logs what its writer added, a resumed writer include
   const { runs, summary } = JSON.parse(chunks.join(''))
   assert.equal(runs[0].usd, 6)
   assert.equal(summary.usd, 6)
+})
+
+it('a transcript stamped a coarse clock tick before the cutoff is still found', () => {
+  const config = tempDir('sg-config-')
+  const promptFile = '/runs/r1/prompts/write-tests.md'
+  const file = writeTranscript(config, 'agent-a.jsonl', [prompt(promptFile), assistant('m1', 'claude-sonnet-5-5', { output_tokens: 1 })])
+  const since = Date.now()
+  const stamped = new Date(since - 10)
+  utimesSync(file, stamped, stamped)
+  assert.deepEqual(findTranscripts({ CLAUDE_CONFIG_DIR: config }, promptFile, { since }).map((path) => basename(path)), ['agent-a.jsonl'])
 })

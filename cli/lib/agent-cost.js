@@ -37,13 +37,17 @@ const parseLine = (line) => {
 
 // Claude Code keeps each subagent's transcript at projects/<cwd>/<session>/subagents/agent-*.jsonl.
 // The format is undocumented, so a transcript that cannot be read is simply not counted.
+// Linux stamps mtime from a coarse clock that can lag Date.now() by a tick; a file found twice
+// costs nothing, since the caller subtracts what it already logged per transcript.
+const MTIME_SLACK_MS = 1000
+
 export function findTranscripts(env, promptFile, { since }) {
   return childDirs(join(configDir(env), 'projects'))
     .flatMap(childDirs)
     .map((session) => join(session, 'subagents'))
     .filter((dir) => existsSync(dir))
     .flatMap((dir) => readdirSync(dir).filter((name) => name.endsWith('.jsonl')).map((name) => join(dir, name)))
-    .filter((file) => statSync(file).mtimeMs >= since && readFileSync(file, 'utf8').includes(promptFile))
+    .filter((file) => statSync(file).mtimeMs >= since - MTIME_SLACK_MS && readFileSync(file, 'utf8').includes(promptFile))
 }
 
 // Streamed entries repeat one message's usage, so each message counts once, at its largest.
