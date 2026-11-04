@@ -11,7 +11,16 @@ claude plugin marketplace add loclam812/spec-gate      # or a local clone's path
 claude plugin install spec-gate@spec-gate
 ```
 
-Requires Node 26+, git, tar and perl. The CLI's one dependency (`yaml`) is committed under
+Requires Node 26+ and git; on macOS and Linux also tar and perl.
+
+On Windows, install [Git for Windows](https://git-scm.com/downloads/win): spec-gate runs test
+commands and `claude` through its Git Bash, so a test command is written the same way on every
+system. Bash is found through `CLAUDE_CODE_GIT_BASH_PATH`, then next to `git`. A Claude Code
+session that has only the PowerShell tool (no Git for Windows) cannot run the skills. Inside WSL,
+spec-gate is on Linux and needs nothing extra. The evaluation harness (`spec-gate eval`) runs on
+macOS and Linux only.
+
+The CLI's one dependency (`yaml`) is committed under
 `node_modules/`, so an installed plugin runs without `npm install`. To work on the plugin itself:
 `npm test`; `npm link` puts `spec-gate` on PATH (or run `node cli/spec-gate.js`). The evaluation
 harness's `generate` also needs the Claude Code CLI.
@@ -456,6 +465,10 @@ empty), and again with `broken` counted as a miss; the truth lies between the tw
 - Each test command runs in its own process group, killed after every run: a test cannot leave a
   server running for the next file, and a background process holding stdout keeps the run open
   until its timeout.
+- On Windows there are no process groups: after every run spec-gate kills the processes whose
+  parent chain leads back to the run's shell and that started during the run. A process that
+  detached from that chain survives.
+- On Windows the evaluation harness refuses to run; use WSL.
 - A hang before the fix counts as a failing test.
 - Without `report`, verdicts are per test file: one wrong assertion in a file that also catches the
   bug makes the file `broken`.
