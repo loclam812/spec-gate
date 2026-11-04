@@ -3,25 +3,30 @@ import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sessionInfo } from '../cli/lib/candidate.js'
-import { runBlindQc } from '../cli/lib/qc-runner.js'
-import { tempDir, writeFile } from './helpers.js'
+import { rulePath, runBlindQc } from '../cli/lib/qc-runner.js'
+import { tempDir, withPath, writeFile } from './helpers.js'
 
 function stubClaude() {
   const bin = tempDir('sg-bin-')
   const called = join(bin, 'called')
   writeFile(bin, 'claude', `#!/bin/sh\ntouch '${called}'\necho '{"type":"result","total_cost_usd":0.5}'\n`)
   chmodSync(join(bin, 'claude'), 0o755)
-  return { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, called }
+  return { env: withPath(process.env, bin), called }
 }
 
+// os.tmpdir() reads TMPDIR on POSIX and TEMP or TMP on Windows.
+const TMP_VARS = ['TMPDIR', 'TEMP', 'TMP']
+
 function withTmpdir(dir, fn) {
-  const saved = process.env.TMPDIR
-  process.env.TMPDIR = dir
+  const saved = TMP_VARS.map((name) => process.env[name])
+  for (const name of TMP_VARS) process.env[name] = dir
   try {
     return fn()
   } finally {
-    if (saved === undefined) delete process.env.TMPDIR
-    else process.env.TMPDIR = saved
+    TMP_VARS.forEach((name, i) => {
+      if (saved[i] === undefined) delete process.env[name]
+      else process.env[name] = saved[i]
+    })
   }
 }
 
@@ -41,4 +46,9 @@ it('refuses to start the QC when a folder above the temporary folder holds a CLA
 
 it('a transcript without a start event records the model and Claude Code version as unknown', () => {
   assert.deepEqual(sessionInfo('{"type":"result","total_cost_usd":0.5}\n'), { model_id: 'unknown', claude_code: 'unknown' })
+})
+
+it('a permission rule names a Windows path the way Claude Code matches it', () => {
+  assert.equal(rulePath('C:\\Users\\a b\\run', 'win32'), '/c/Users/a b/run')
+  assert.equal(rulePath('/tmp/run', 'darwin'), '/tmp/run')
 })

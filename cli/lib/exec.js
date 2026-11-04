@@ -103,6 +103,16 @@ export function runShell(command, cwd, timeoutS) {
   }
 }
 
+// On Windows a program is started through Git Bash, which finds npm's extensionless shims and
+// shell scripts that spawnSync cannot run; the arguments pass as argv, never through a shell string.
+export function spawnTool(name, args, options) {
+  if (process.platform !== 'win32') return spawnSync(name, args, options)
+  const started = Date.now()
+  const result = spawnSync(gitBash(options.env), ['-c', 'exec "$0" "$@"', name, ...args], { windowsHide: true, ...options })
+  if (result.pid) killTree(result.pid, started)
+  return result
+}
+
 export function isGreen(run) {
   return run.code === 0 && !run.timedOut
 }

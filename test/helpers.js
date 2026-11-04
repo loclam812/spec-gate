@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { stringify } from 'yaml'
 import { git } from '../cli/lib/exec.js'
 
@@ -25,6 +25,12 @@ export const MISSING_TEST = testFile('total of nothing is zero', 'assert.equal(t
 export const BROKEN_TEST = testFile('total is wrong on purpose', 'assert.equal(total([{ price: 1, qty: 1 }]), 99)')
 export const HANGING_TEST =
   "import { test } from 'node:test'\n\ntest('hangs', async () => {\n  await new Promise((resolve) => setTimeout(resolve, 3000))\n})\n"
+
+// Windows names the variable Path; a second PATH key would leave which one wins to chance.
+export function withPath(env, dir) {
+  const key = Object.keys(env).find((name) => name.toUpperCase() === 'PATH') ?? 'PATH'
+  return { ...env, [key]: `${dir}${delimiter}${env[key] ?? ''}` }
+}
 
 export function tempDir(prefix = 'sg-test-') {
   return mkdtempSync(join(tmpdir(), prefix))

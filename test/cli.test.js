@@ -4,7 +4,7 @@ import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runEval } from '../cli/eval.js'
 import { repoSlug } from '../cli/lib/store.js'
-import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
 
 function setup() {
   const { repo, preFix, postFix } = makeFixtureRepo()
@@ -22,7 +22,7 @@ function setup() {
   writeFile(bin, 'claude', `#!/bin/sh\nmkdir -p test && cp '${generated}' test/total.test.js && echo '{}'\n`)
   chmodSync(join(bin, 'claude'), 0o755)
   const work = tempDir('sg-work-')
-  const env = { ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: work, PATH: `${bin}:${process.env.PATH}` }
+  const env = withPath({ ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: work }, bin)
   const run = (...argv) => {
     const chunks = []
     const code = runEval([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })
@@ -100,7 +100,7 @@ it('a candidate reading the source checkout is leaked; one writing scratch files
   const { home, repo, run, work } = setup()
   run('prepare', 'demo-1')
   const runWith = (bin, n) => {
-    const env = { ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: work, PATH: `${bin}:${process.env.PATH}` }
+    const env = withPath({ ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: work }, bin)
     const out = { write: () => {} }
     runEval(['generate', 'demo-1', '--candidate', 'single-prompt', '--run', n, '--repo', repo], { env, out })
     const chunks = []

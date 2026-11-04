@@ -1,8 +1,8 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { gitBash, runShell } from '../cli/lib/exec.js'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { delimiter, join } from 'node:path'
+import { gitBash, runShell, spawnTool } from '../cli/lib/exec.js'
 import { tempDir } from './helpers.js'
 
 function isAlive(pid) {
@@ -54,4 +54,12 @@ it('gitBash honours CLAUDE_CODE_GIT_BASH_PATH', () => {
 it('gitBash names the env var when bash is missing', () => {
   const env = { CLAUDE_CODE_GIT_BASH_PATH: join(tempDir(), 'bash.exe'), PATH: '' }
   assert.throws(() => gitBash(env), /CLAUDE_CODE_GIT_BASH_PATH/)
+})
+
+it('spawnTool runs an extensionless shell script found on PATH', () => {
+  const bin = tempDir('sg-bin-')
+  writeFileSync(join(bin, 'fake-tool'), `#!/bin/sh\nprintf '%s|' "$@"\n`)
+  chmodSync(join(bin, 'fake-tool'), 0o755)
+  const result = spawnTool('fake-tool', ['a b', "it's", 'x"y'], { env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` }, encoding: 'utf8' })
+  assert.equal(result.stdout, `a b|it's|x"y|`)
 })

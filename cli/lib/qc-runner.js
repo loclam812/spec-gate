@@ -1,13 +1,19 @@
-import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { resultTotals, sessionInfo } from './candidate.js'
 import { logEvent } from './run-log.js'
+import { spawnTool } from './exec.js'
 
 // Tools the QC must not have even by asking: anything that could reach the application's code.
 const DENIED = ['Bash', 'Grep', 'Glob', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent', 'Task']
 const MEMORY_FILES = ['CLAUDE.md', 'CLAUDE.local.md', join('.claude', 'CLAUDE.md'), join('.claude', 'rules')]
+
+// Claude Code matches Windows paths in POSIX form: C:\Users\a is /c/Users/a.
+export function rulePath(path, platform = process.platform) {
+  if (platform !== 'win32') return path
+  return path.replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`).replaceAll('\\', '/')
+}
 
 function memoryAbove(dir) {
   for (let parent = dirname(dir); ; parent = dirname(parent)) {
@@ -21,11 +27,11 @@ function memoryAbove(dir) {
 // cases.yaml only, so it cannot open the code it would otherwise copy. It gets none of the user's
 // settings, hooks, plugins, memory or CLAUDE.md, so every machine runs the same QC.
 export function runBlindQc(run, instruction, { env = process.env, timeoutS = 900 } = {}) {
-  // Permission rules match resolved paths (/var is /private/var on macOS).
-  const dir = realpathSync(run.dir)
+  // Permission rules match resolved paths (/var is /private/var on macOS, RUNNER~1 is runneradmin on Windows).
+  const dir = realpathSync.native(run.dir)
   // CLAUDE.md discovery walks up from the cwd and finds ~/.claude/CLAUDE.md even with
   // --setting-sources project, so the QC starts in an empty folder with no memory above it.
-  const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'sg-qc-')))
+  const cwd = realpathSync.native(mkdtempSync(join(tmpdir(), 'sg-qc-')))
   const memory = memoryAbove(cwd)
   let result = {}
   try {
@@ -37,10 +43,10 @@ export function runBlindQc(run, instruction, { env = process.env, timeoutS = 900
         '--setting-sources', 'project', '--strict-mcp-config', '--model', instruction.model,
         '--add-dir', dir,
         // File writes are governed by Edit(path) rules; a Write(path) rule is not matched.
-        '--allowedTools', `Read(/${dir}/**),Edit(/${join(dir, 'cases.yaml')})`,
+        '--allowedTools', `Read(/${rulePath(dir)}/**),Edit(/${rulePath(join(dir, 'cases.yaml'))})`,
         '--disallowedTools', DENIED.join(','),
       ]
-      result = spawnSync('claude', args, { cwd, env: { ...clean, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', timeout: timeoutS * 1000, maxBuffer: 64 * 1024 * 1024 })
+      result = spawnTool('claude', args, { cwd, env: { ...clean, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', timeout: timeoutS * 1000, maxBuffer: 64 * 1024 * 1024 })
     }
   } finally {
     rmSync(cwd, { recursive: true, force: true })

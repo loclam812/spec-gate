@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
+import { spawnTool } from './exec.js'
 import { writeJson } from './files.js'
 import { answersText, specText } from './sample.js'
 import { resetTree } from './workspace.js'
@@ -176,7 +176,7 @@ export function runCandidate(candidate, sample, preDir, outDir, { env = process.
   })
   writeFileSync(join(preDir, PROMPT_FILE), prompt)
   const result = withHidden(hide, () =>
-    spawnSync('claude', headlessArgs(candidate), {
+    spawnTool('claude', headlessArgs(candidate), {
       cwd: preDir,
       env: { ...env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],

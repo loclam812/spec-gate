@@ -4,7 +4,7 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runEval } from '../cli/eval.js'
 import { repoSlug } from '../cli/lib/store.js'
-import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
 
 function setup(fixTest = CATCHING_TEST) {
   const { repo, preFix, postFix } = makeFixtureRepo({ fixFiles: { 'test/total.test.js': fixTest } })
@@ -26,7 +26,7 @@ function setup(fixTest = CATCHING_TEST) {
     `#!/bin/sh\necho call >> '${calls}'\nmkdir -p test && cp '${generated}' test/total.test.js\ncat '${home}/leak-line.txt' 2>/dev/null || echo '{}'\n`,
   )
   chmodSync(join(bin, 'claude'), 0o755)
-  const env = { ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: tempDir('sg-work-'), PATH: `${bin}:${process.env.PATH}` }
+  const env = withPath({ ...process.env, SPEC_GATE_HOME: home, SPEC_GATE_WORK: tempDir('sg-work-') }, bin)
   const run = (...argv) => {
     const chunks = []
     const code = runEval([...argv, '--repo', repo], { env, out: { write: (text) => chunks.push(text) } })

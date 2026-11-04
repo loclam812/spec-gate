@@ -5,13 +5,13 @@ import { join } from 'node:path'
 import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate, watchedPaths, withHidden } from '../cli/lib/candidate.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { changedFiles, prepareWorkspace } from '../cli/lib/workspace.js'
-import { CATCHING_TEST, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
 
 function stubClaude(script) {
   const bin = tempDir('sg-bin-')
   writeFile(bin, 'claude', `#!/bin/sh\n${script}\n`)
   chmodSync(join(bin, 'claude'), 0o755)
-  return { ...process.env, PATH: `${bin}:${process.env.PATH}` }
+  return withPath(process.env, bin)
 }
 
 const { repo, preFix, postFix } = makeFixtureRepo()

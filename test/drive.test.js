@@ -8,7 +8,7 @@ import { driveSpecToTests } from '../cli/lib/drive.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { prepareWorkspace } from '../cli/lib/workspace.js'
 import { VERSION } from '../cli/lib/version.js'
-import { BUGGY_TOTAL, KNOWLEDGE_FULL, commitAll, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+import { BUGGY_TOTAL, KNOWLEDGE_FULL, commitAll, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/drive', import.meta.url))
 
@@ -47,7 +47,7 @@ esac
 echo '{"type":"result","total_cost_usd":0.25}'
 `)
   chmodSync(join(bin, 'claude'), 0o755)
-  return { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FIXTURES }, log }
+  return { env: { ...withPath(process.env, bin), FIXTURES }, log }
 }
 
 function setup({ knowledge = null, tracked = null } = {}) {

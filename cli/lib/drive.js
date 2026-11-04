@@ -1,10 +1,10 @@
-import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, matchesGlob, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stringify } from 'yaml'
 import { runTests } from '../tests.js'
+import { spawnTool } from './exec.js'
 import { LOCALE_DIR } from './qc-packet.js'
 import { readPaths, renderPrompt, resultTotals, sessionInfo, watchedPaths, withHidden } from './candidate.js'
 import { readJson, writeJson } from './files.js'
@@ -29,7 +29,7 @@ function requestText(sample) {
 
 function spawnAgent({ prompt, model, tools, timeoutS, cwd, home }, env, hide) {
   const result = withHidden(hide, () =>
-    spawnSync(
+    spawnTool(
       'claude',
       [
         '-p', prompt,

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { runTests } from '../cli/tests.js'
 import { git } from '../cli/lib/exec.js'
-import { KNOWLEDGE_FULL, tempDir, writeFile } from './helpers.js'
+import { KNOWLEDGE_FULL, tempDir, withPath, writeFile } from './helpers.js'
 import { C1_TEST, CASES, REQUEST, setup, toDone } from './tests-helpers.js'
 
 it('spec-to-tests runs discover → blind QC → Ready → write-tests and ends with a suite snapshot', () => {
@@ -345,7 +345,7 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   writeFile(bin, 'claude', `#!/bin/sh\nprintf '%s\\n' "$PWD" "$CLAUDE_CODE_DISABLE_AUTO_MEMORY" "$@" > '${log}'\nrun=$(dirname "$(dirname "$(printf '%s' "$2" | sed -e 's/^Read //' -e 's/ and do exactly.*$//')")")\ncp '${join(bin, 'cases.yaml')}' "$run/cases.yaml"\necho '{"type":"system","subtype":"init","model":"claude-opus-5-5","claude_code_version":"2.1.314"}'\necho '{"type":"result","total_cost_usd":0.5}'\n`)
   writeFileSync(join(bin, 'cases.yaml'), stringify(CASES))
   chmodSync(join(bin, 'claude'), 0o755)
-  const withStub = { ...env, PATH: `${bin}:${env.PATH}` }
+  const withStub = withPath(env, bin)
   const call = (...argv) => {
     const chunks = []
     const code = runTests([...argv, '--repo', repo], { env: withStub, out: { write: (text) => chunks.push(text) } })
