@@ -51,10 +51,10 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   It loads none of your user settings, hooks, plugins, auto-memory or CLAUDE.md, so every machine
   runs the same QC (other environment variables pass through): it starts in an empty temporary
   folder, because Claude Code finds `~/.claude/CLAUDE.md` from any folder under your home folder
-  even with `--setting-sources project`. On Windows, whose `TEMP` lies under the home folder, that
-  folder goes under `%PUBLIC%` (`C:\Users\Public`) instead. When a CLAUDE.md, CLAUDE.local.md or
-  `.claude` memory sits above the folder (under `TMPDIR`, or `TEMP` on Windows), the QC refuses to
-  start and names the file. Its event-log line records the model it resolved to (`model_id`) and the Claude Code
+  even with `--setting-sources project`. When a CLAUDE.md, CLAUDE.local.md or `.claude` memory
+  sits above that folder (under `TMPDIR`), the QC refuses to start and names the file. On Windows,
+  whose `TEMP` lies under the home folder, the QC runs with `--safe-mode` instead, which loads no
+  CLAUDE.md, hook or plugin. Its event-log line records the model it resolved to (`model_id`) and the Claude Code
   version (`claude_code`). It
   reads only a packet (the request, the knowledge file's Domain terms,
   the repository's user-facing strings, route and screen names, its test runners, the names of
@@ -466,9 +466,10 @@ empty), and again with `broken` counted as a miss; the truth lies between the tw
 - Each test command runs in its own process group, killed after every run: a test cannot leave a
   server running for the next file, and a background process holding stdout keeps the run open
   until its timeout.
-- On Windows there are no process groups: after every run spec-gate kills the processes whose
-  parent chain leads back to the run's shell and that started during the run. A process that
-  detached from that chain survives.
+- On Windows each run is a job object that kills everything still in it when the run ends or times
+  out, orphans included. It is built with PowerShell's `Add-Type` and cached as a DLL in `TEMP`;
+  where policy blocks `Add-Type` (constrained language mode), the run still works, but what a test
+  leaves running survives it.
 - On Windows the evaluation harness refuses to run; use WSL.
 - A hang before the fix counts as a failing test.
 - Without `report`, verdicts are per test file: one wrong assertion in a file that also catches the

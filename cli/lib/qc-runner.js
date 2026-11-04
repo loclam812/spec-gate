@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { resultTotals, sessionInfo } from './candidate.js'
 import { logEvent } from './run-log.js'
@@ -13,13 +13,6 @@ const MEMORY_FILES = ['CLAUDE.md', 'CLAUDE.local.md', join('.claude', 'CLAUDE.md
 export function rulePath(path, platform = process.platform) {
   if (platform !== 'win32') return path
   return path.replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`).replaceAll('\\', '/')
-}
-
-// Windows keeps TEMP under the home folder, where Claude Code would find ~/.claude/CLAUDE.md;
-// PUBLIC (C:\Users\Public) is writable by every user and lies outside it.
-export function qcBase(env, platform, tmp, home) {
-  const underHome = tmp.toLowerCase().startsWith(`${home.toLowerCase()}\\`)
-  return platform === 'win32' && underHome && env.PUBLIC ? env.PUBLIC : tmp
 }
 
 function memoryAbove(dir) {
@@ -38,9 +31,11 @@ export function runBlindQc(run, instruction, { env = process.env, timeoutS = 900
   const dir = realpathSync.native(run.dir)
   // CLAUDE.md discovery walks up from the cwd and finds ~/.claude/CLAUDE.md even with
   // --setting-sources project, so the QC starts in an empty folder with no memory above it.
-  const base = qcBase(env, process.platform, realpathSync.native(tmpdir()), realpathSync.native(homedir()))
-  const cwd = realpathSync.native(mkdtempSync(join(base, 'sg-qc-')))
-  const memory = memoryAbove(cwd)
+  // Windows keeps TEMP under the home folder, so there --safe-mode keeps every CLAUDE.md, hook
+  // and plugin out instead.
+  const cwd = realpathSync.native(mkdtempSync(join(tmpdir(), 'sg-qc-')))
+  const windows = process.platform === 'win32'
+  const memory = windows ? null : memoryAbove(cwd)
   let result = {}
   try {
     if (!memory) {
@@ -53,6 +48,7 @@ export function runBlindQc(run, instruction, { env = process.env, timeoutS = 900
         // File writes are governed by Edit(path) rules; a Write(path) rule is not matched.
         '--allowedTools', `Read(/${rulePath(dir)}/**),Edit(/${rulePath(join(dir, 'cases.yaml'))})`,
         '--disallowedTools', DENIED.join(','),
+        ...(windows ? ['--safe-mode'] : []),
       ]
       result = spawnTool('claude', args, { cwd, env: { ...clean, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', timeout: timeoutS * 1000, maxBuffer: 64 * 1024 * 1024 })
     }

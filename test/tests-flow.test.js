@@ -360,7 +360,8 @@ it('tests qc runs the blind QC headless, able to read only its run folder and wr
   const runDir = args[args.indexOf('--add-dir') + 1]
   assert.ok(existsSync(join(runDir, 'cases.yaml')))
   // A cwd under $HOME makes Claude Code load ~/.claude/CLAUDE.md even with --setting-sources project.
-  assert.ok(!cwd.toLowerCase().startsWith(`${realpathSync.native(homedir())}${sep}`.toLowerCase()), cwd)
+  if (process.platform === 'win32') assert.ok(args.includes('--safe-mode'))
+  else assert.ok(!cwd.startsWith(`${realpathSync.native(homedir())}${sep}`) && !args.includes('--safe-mode'), cwd)
   assert.ok(!existsSync(cwd))
   assert.equal(args[args.indexOf('--setting-sources') + 1], 'project')
   assert.equal(noAutoMemory, '1')

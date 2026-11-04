@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawnInJob } from './windows-job.js'
 
 export function git(cwd, args) {
   return execFileSync('git', args, {
@@ -51,39 +51,6 @@ export function gitBash(env = process.env) {
   return found
 }
 
-// CreationDate is local time; ToFileTime converts it to UTC (ToFileTimeUtc would not).
-const PROCESS_LIST =
-  "Get-CimInstance Win32_Process | Where-Object CreationDate | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToFileTime() }"
-const FILETIME_AT_EPOCH = 116444736000000000n
-
-export function listProcesses() {
-  const listed = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', PROCESS_LIST], { encoding: 'utf8', windowsHide: true })
-  return (listed.stdout ?? '')
-    .split(/\r?\n/)
-    .map((line) => line.trim().split(' '))
-    .filter((fields) => fields.length === 3 && fields.every((field) => /^\d+$/.test(field)))
-    .map(([pid, parent, created]) => ({ pid: Number(pid), parent: Number(parent), created: Number((BigInt(created) - FILETIME_AT_EPOCH) / 10000n) }))
-}
-
-export function processTree(listing, rootPid, sinceMs) {
-  const tree = [rootPid]
-  for (let i = 0; i < tree.length; i++) {
-    tree.push(...listing.filter((entry) => entry.parent === tree[i] && entry.created >= sinceMs).map((entry) => entry.pid))
-  }
-  return tree
-}
-
-// Windows has no process groups and never reparents an orphan, so whatever a run started still
-// names the run's shell as its parent after the shell exits; the creation time rules out reused pids.
-export function killTree(rootPids, sinceMs) {
-  const listing = listProcesses()
-  for (const pid of new Set(rootPids.flatMap((root) => processTree(listing, root, sinceMs - 1000)))) {
-    try {
-      process.kill(pid)
-    } catch {}
-  }
-}
-
 const SPAWN_OPTIONS = { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
 
 // The command runs as the leader of its own process group (perl's setpgrp; spawnSync cannot
@@ -96,40 +63,18 @@ function runPosix(command, cwd, timeoutS) {
   return result
 }
 
-// Git Bash's ps: an optional state letter, then PID PPID PGID WINPID.
-export function groupWinpids(ps, pgid) {
-  return ps
-    .split(/\r?\n/)
-    .map((line) => line.trim().split(/\s+/))
-    .map((fields) => (/^\d+$/.test(fields[0]) ? fields : fields.slice(1)))
-    .filter((fields) => Number(fields[2]) === pgid && /^\d+$/.test(fields[3]))
-    .map((fields) => Number(fields[3]))
-}
+// Git Bash parses its Windows command line with its own quoting rules, so the command travels in
+// the environment, where nothing re-parses it, and is unset before it runs.
+const EVAL_FROM_ENV = '-c "__sg=$SPEC_GATE_COMMAND; unset SPEC_GATE_COMMAND; eval \\"$__sg\\""'
 
-// Git Bash runs `cmd &` as fork then exec, and the forked shell exits at once, so the Windows parent
-// chain to what it started breaks; its process group (the shell's own pid) does not.
-function msysGroup(bash, pgidFile) {
-  const pgid = Number(existsSync(pgidFile) ? readFileSync(pgidFile, 'utf8').trim() : NaN)
-  rmSync(pgidFile, { force: true })
-  if (!Number.isInteger(pgid)) return []
-  return groupWinpids(spawnSync(bash, ['-c', 'ps'], { encoding: 'utf8', windowsHide: true }).stdout ?? '', pgid)
-}
-
-function runWindows(command, cwd, timeoutS, started) {
-  const bash = gitBash()
-  const pgidFile = join(tmpdir(), `sg-pgid-${process.pid}-${started}`)
-  // Git Bash parses its Windows command line with its own quoting rules, so the command travels in
-  // the environment, where nothing re-parses it.
-  const script = 'echo $$ > "$SPEC_GATE_PGID_FILE"; unset SPEC_GATE_PGID_FILE SPEC_GATE_SCRIPT; eval "$SPEC_GATE_COMMAND"'
-  const env = { ...childEnv(), SPEC_GATE_COMMAND: command, SPEC_GATE_PGID_FILE: pgidFile, SPEC_GATE_SCRIPT: script }
-  const result = spawnSync(bash, ['-c', 'eval "$SPEC_GATE_SCRIPT"'], { cwd, env, timeout: timeoutS * 1000, windowsHide: true, ...SPAWN_OPTIONS })
-  killTree([result.pid, ...msysGroup(bash, pgidFile)].filter(Boolean), started)
-  return result
+function runWindows(command, cwd, timeoutS) {
+  const env = { ...childEnv(), SPEC_GATE_COMMAND: command }
+  return spawnInJob(gitBash(), EVAL_FROM_ENV, { cwd, env, timeout: timeoutS * 1000, ...SPAWN_OPTIONS })
 }
 
 export function runShell(command, cwd, timeoutS) {
   const started = Date.now()
-  const result = process.platform === 'win32' ? runWindows(command, cwd, timeoutS, started) : runPosix(command, cwd, timeoutS)
+  const result = process.platform === 'win32' ? runWindows(command, cwd, timeoutS) : runPosix(command, cwd, timeoutS)
   return {
     code: result.status ?? -1,
     timedOut: result.error?.code === 'ETIMEDOUT',
@@ -139,7 +84,7 @@ export function runShell(command, cwd, timeoutS) {
 }
 
 const EXEC_FROM_ENV =
-  'tool=$SPEC_GATE_TOOL; args=(); i=0; while v=SPEC_GATE_ARG_$i; [ -n "${!v+x}" ]; do args+=("${!v}"); unset "$v"; i=$((i+1)); done; unset SPEC_GATE_TOOL SPEC_GATE_COMMAND; exec "$tool" "${args[@]}"'
+  'tool=$SPEC_GATE_TOOL; args=(); i=0; while v=SPEC_GATE_ARG_$i; [ -n "${!v+x}" ]; do args+=("${!v}"); unset "$v"; i=$((i+1)); done; unset SPEC_GATE_TOOL; exec "$tool" "${args[@]}"'
 
 // On Windows a program is started through Git Bash, which finds npm's extensionless shims and shell
 // scripts that spawnSync cannot run. The name and arguments travel in the environment (Git Bash
@@ -148,10 +93,7 @@ export function spawnTool(name, args, options) {
   if (process.platform !== 'win32') return spawnSync(name, args, options)
   const passed = Object.fromEntries(args.map((arg, i) => [`SPEC_GATE_ARG_${i}`, arg]))
   const env = { ...(options.env ?? process.env), ...passed, SPEC_GATE_TOOL: name, SPEC_GATE_COMMAND: EXEC_FROM_ENV, MSYS_NO_PATHCONV: '1', MSYS2_ARG_CONV_EXCL: '*' }
-  const started = Date.now()
-  const result = spawnSync(gitBash(options.env), ['-c', 'eval "$SPEC_GATE_COMMAND"'], { windowsHide: true, ...options, env })
-  if (result.pid) killTree([result.pid], started)
-  return result
+  return spawnInJob(gitBash(options.env), EVAL_FROM_ENV, { ...options, env })
 }
 
 export function isGreen(run) {

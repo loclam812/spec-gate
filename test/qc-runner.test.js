@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sessionInfo } from '../cli/lib/candidate.js'
-import { qcBase, rulePath, runBlindQc } from '../cli/lib/qc-runner.js'
+import { rulePath, runBlindQc } from '../cli/lib/qc-runner.js'
 import { tempDir, withPath, writeFile } from './helpers.js'
 
 function stubClaude() {
@@ -30,14 +30,13 @@ function withTmpdir(dir, fn) {
   }
 }
 
-it('refuses to start the QC when a folder above the temporary folder holds a CLAUDE.md it would load', () => {
+// Windows runs the QC with --safe-mode, which loads no CLAUDE.md, so it has nothing to refuse.
+it('refuses to start the QC when a folder above the temporary folder holds a CLAUDE.md it would load', { skip: process.platform === 'win32' }, () => {
   const root = tempDir('sg-home-')
   writeFile(root, '.claude/CLAUDE.md', '# Global instructions\n')
   writeFile(root, 'tmp/.keep', '')
   const run = { dir: tempDir('sg-run-') }
-  const { env: withPublic, called } = stubClaude()
-  // Without PUBLIC, Windows keeps the QC folder in TEMP, as macOS and Linux do.
-  const { PUBLIC: _, ...env } = withPublic
+  const { env, called } = stubClaude()
   const { failure } = withTmpdir(join(root, 'tmp'), () => runBlindQc(run, { prompt_file: join(run.dir, 'qc.md'), model: 'opus' }, { env }))
   assert.match(failure, /\.claude[/\\]CLAUDE\.md/)
   assert.match(failure, /TMPDIR/)
@@ -55,10 +54,3 @@ it('a permission rule names a Windows path the way Claude Code matches it', () =
   assert.equal(rulePath('/tmp/run', 'darwin'), '/tmp/run')
 })
 
-it('on Windows the QC folder leaves a temp folder that lies under the home folder for PUBLIC', () => {
-  const home = 'C:\\Users\\a'
-  assert.equal(qcBase({ PUBLIC: 'C:\\Users\\Public' }, 'win32', 'C:\\Users\\a\\AppData\\Local\\Temp', home), 'C:\\Users\\Public')
-  assert.equal(qcBase({ PUBLIC: 'C:\\Users\\Public' }, 'win32', 'D:\\tmp', home), 'D:\\tmp')
-  assert.equal(qcBase({}, 'win32', 'C:\\Users\\a\\AppData\\Local\\Temp', home), 'C:\\Users\\a\\AppData\\Local\\Temp')
-  assert.equal(qcBase({ PUBLIC: '/p' }, 'darwin', '/Users/a/tmp', '/Users/a'), '/Users/a/tmp')
-})
