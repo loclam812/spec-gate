@@ -195,8 +195,9 @@ const REFUSED_KINDS = ['timeout', 'syntax', 'network', 'setup']
 // Red for the right reason is red on the behaviour. A missing symbol of the code under test is the
 // expected red before implementation; a timeout, a syntax error, a network error or a failed hook
 // means the environment is broken, and any other failure, an assertion included, is accepted.
+// node --test names a file that did not load by its path, with \ on Windows.
 export const didNotLoad = (result) =>
-  result.status === 'red' && !result.timedOut && result.tests.every((test) => result.file.endsWith(test.name.split(' > ').pop()))
+  result.status === 'red' && !result.timedOut && result.tests.every((test) => posixPath(result.file).endsWith(posixPath(test.name.split(' > ').pop())))
 
 export function wrongReasons(result, caseIds, { source = '' } = {}) {
   if (result.timedOut) return [`${result.file}: no test ran (timed out)`]
@@ -208,7 +209,7 @@ export function wrongReasons(result, caseIds, { source = '' } = {}) {
     return accepted ? [] : [`${result.file}: no test ran (the file did not load: ${reason})`]
   }
   // vitest reports a failed hook as a failure of the file itself while the file's tests are skipped.
-  const fileLevel = ([name]) => name.split(' > ').pop() === result.file && result.tests.some((test) => test.status === 'skip')
+  const fileLevel = ([name]) => posixPath(name.split(' > ').pop()) === posixPath(result.file) && result.tests.some((test) => test.status === 'skip')
   const hooks = failures.filter(fileLevel).filter(([, failure]) => failureKind(failure) !== 'missing')
   if (hooks.length > 0) return hooks.map(([, failure]) => `${result.file}: a hook failed before the tests ran: ${headline(failure)} (setup)`)
   return failures

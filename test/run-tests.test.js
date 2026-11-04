@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverProfile } from '../cli/lib/profile.js'
-import { caseIdsMissing, changedSince, hashFiles, failureKind, runnerRoot, runTestFile, withBail, wrongReasons } from '../cli/lib/run-tests.js'
+import { caseIdsMissing, changedSince, didNotLoad, hashFiles, failureKind, runnerRoot, runTestFile, withBail, wrongReasons } from '../cli/lib/run-tests.js'
 import { BUGGY_TOTAL, CATCHING_TEST, commitAll, makeFixtureRepo, writeFile } from './helpers.js'
 
 const { repo } = makeFixtureRepo()
@@ -320,4 +320,11 @@ it('a failure in CRLF output reads the same as in LF output', () => {
     const built = { file: 'x', status: 'red', timedOut: false, tests: [], failures: {}, output }
     assert.deepEqual(wrongReasons({ ...built, output: output.replaceAll('\n', '\r\n') }, ['C1'], { source: '' }), wrongReasons(built, ['C1'], { source: '' }))
   }
+})
+
+it('a file that did not load is recognised when the runner names it with backslashes', () => {
+  const failure = { type: '', message: 'test failed', body: "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\\repo\\src\\refund.js'" }
+  const result = { file: 'test/refund.test.js', status: 'red', timedOut: false, tests: [{ name: 'test\\refund.test.js', status: 'fail' }], failures: { 'test\\refund.test.js': failure } }
+  assert.equal(didNotLoad(result), true)
+  assert.deepEqual(wrongReasons(result, ['C1'], { source: 'C1' }), [])
 })

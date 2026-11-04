@@ -86,3 +86,10 @@ it('a transcript stamped a coarse clock tick before the cutoff is still found', 
   utimesSync(file, stamped, stamped)
   assert.deepEqual(findTranscripts({ CLAUDE_CONFIG_DIR: config }, promptFile, { since }).map((path) => basename(path)), ['agent-a.jsonl'])
 })
+
+it('a transcript is found by a Windows prompt path, which its JSON escapes', () => {
+  const config = tempDir('sg-config-')
+  const promptFile = 'C:\\Users\\a\\runs\\r1\\prompts\\write-tests.md'
+  writeTranscript(config, 'agent-a.jsonl', [prompt(promptFile), assistant('m1', 'claude-sonnet-5-5', { output_tokens: 1 })])
+  assert.deepEqual(findTranscripts({ CLAUDE_CONFIG_DIR: config }, promptFile, { since: 0 }).map((path) => basename(path)), ['agent-a.jsonl'])
+})

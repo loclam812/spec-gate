@@ -2,7 +2,7 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
-import { gitBash, runShell, spawnTool } from '../cli/lib/exec.js'
+import { gitBash, listProcesses, processTree, runShell, spawnTool } from '../cli/lib/exec.js'
 import { tempDir } from './helpers.js'
 
 function isAlive(pid) {
@@ -62,4 +62,25 @@ it('spawnTool runs an extensionless shell script found on PATH', () => {
   chmodSync(join(bin, 'fake-tool'), 0o755)
   const result = spawnTool('fake-tool', ['a b', "it's", 'x"y'], { env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` }, encoding: 'utf8' })
   assert.equal(result.stdout, `a b|it's|x"y|`)
+})
+
+it('runShell passes quotes inside the command intact', () => {
+  const run = runShell(`printf '%s|' "x\\"y" 'it'"'"'s' a\\ b`, tempDir(), 10)
+  assert.equal(run.output, `x"y|it's|a b|`)
+})
+
+it('the process tree holds every descendant started since the run began, and nothing older', () => {
+  const listing = [
+    { pid: 10, parent: 1, created: 100 },
+    { pid: 11, parent: 10, created: 101 },
+    { pid: 12, parent: 11, created: 102 },
+    { pid: 13, parent: 10, created: 50 },
+    { pid: 14, parent: 2, created: 103 },
+  ]
+  assert.deepEqual(processTree(listing, 10, 100).sort(), [10, 11, 12])
+})
+
+it('the Windows process listing names this process and its parent', { skip: process.platform !== 'win32' }, () => {
+  const me = listProcesses().find((entry) => entry.pid === process.pid)
+  assert.equal(me?.parent, process.ppid)
 })

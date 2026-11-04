@@ -41,13 +41,16 @@ const parseLine = (line) => {
 // costs nothing, since the caller subtracts what it already logged per transcript.
 const MTIME_SLACK_MS = 1000
 
+// A transcript is JSON, so a Windows path in it has every \ doubled.
+const readsPrompt = (text, promptFile) => text.includes(promptFile) || text.includes(JSON.stringify(promptFile).slice(1, -1))
+
 export function findTranscripts(env, promptFile, { since }) {
   return childDirs(join(configDir(env), 'projects'))
     .flatMap(childDirs)
     .map((session) => join(session, 'subagents'))
     .filter((dir) => existsSync(dir))
     .flatMap((dir) => readdirSync(dir).filter((name) => name.endsWith('.jsonl')).map((name) => join(dir, name)))
-    .filter((file) => statSync(file).mtimeMs >= since - MTIME_SLACK_MS && readFileSync(file, 'utf8').includes(promptFile))
+    .filter((file) => statSync(file).mtimeMs >= since - MTIME_SLACK_MS && readsPrompt(readFileSync(file, 'utf8'), promptFile))
 }
 
 // Streamed entries repeat one message's usage, so each message counts once, at its largest.

@@ -1,7 +1,7 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { runLog, runNote } from '../cli/log.js'
 import { repoSlug } from '../cli/lib/store.js'
 import { VERSION } from '../cli/lib/version.js'
@@ -37,7 +37,7 @@ it('every state change and verify is logged with a time, and the log summarises 
 it('a note is kept with its run and shown in the log', () => {
   const { repo, env, cli } = setup()
   toDone(cli, repo)
-  const run = dirname(cli('next').json.report).split('/').pop()
+  const run = basename(dirname(cli('next').json.report))
   assert.equal(capture(runNote, ['--run', run, 'the test missed the empty cart'], env, repo).code, 0)
   const [entry] = capture(runLog, ['--since', '1d'], env).json.runs
   assert.equal(entry.notes.length, 1)
