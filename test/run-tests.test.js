@@ -35,6 +35,15 @@ it('the guard names a test file that was edited or deleted', () => {
   assert.deepEqual(changedSince(repo, hashes), ['test/c1.test.js', 'test/c2.test.js'])
 })
 
+it('the guard does not count a CRLF re-checkout as an edit, only a change of content', () => {
+  writeFile(repo, 'test/c5.test.js', "// C5\nassert(1)\n")
+  const hashes = hashFiles(repo, ['test/c5.test.js'])
+  writeFile(repo, 'test/c5.test.js', "// C5\r\nassert(1)\r\n")
+  assert.deepEqual(changedSince(repo, hashes), [])
+  writeFile(repo, 'test/c5.test.js', "// C5\r\nassert(2)\r\n")
+  assert.deepEqual(changedSince(repo, hashes), ['test/c5.test.js'])
+})
+
 it('caseIdsMissing names the cases no test file mentions', () => {
   writeFile(repo, 'test/c3.test.js', "test('C3: something', () => {})\n")
   assert.deepEqual(caseIdsMissing(repo, ['test/c3.test.js'], ['C3', 'C4']), ['C4'])

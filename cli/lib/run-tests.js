@@ -120,7 +120,9 @@ function failingFiles(repo, root, stack, xml, failing) {
   )
 }
 
-const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
+// Line endings are not hashed: a checkout under core.autocrlf rewrites them without editing the test.
+// latin1 maps every byte to one character, so any other byte change still changes the hash.
+const sha256 = (path) => createHash('sha256').update(readFileSync(path, 'latin1').replaceAll('\r\n', '\n'), 'latin1').digest('hex')
 
 export function hashFiles(repo, files) {
   return Object.fromEntries(files.map((file) => [file, sha256(join(repo, file))]))
