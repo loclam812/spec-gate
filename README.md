@@ -470,6 +470,8 @@ empty), and again with `broken` counted as a miss; the truth lies between the tw
   out, orphans included. It is built with PowerShell's `Add-Type` and cached as a DLL in `TEMP`;
   where policy blocks `Add-Type` (constrained language mode), the run still works, but what a test
   leaves running survives it.
+- On Windows a test command runs with console code page 65001 and `PYTHONIOENCODING=utf-8`, so
+  .NET and Python output reads back as UTF-8; a test that depends on the ANSI code page sees UTF-8.
 - On Windows the evaluation harness refuses to run; use WSL.
 - A hang before the fix counts as a failing test.
 - Without `report`, verdicts are per test file: one wrong assertion in a file that also catches the

@@ -44,6 +44,8 @@ namespace SpecGate {
 `
 
 // With stderr redirected, PowerShell writes its progress records there as CLIXML, into the run's output.
+// .NET programs encode their output in the console code page, so the wrapper sets it to UTF-8. The
+// console is this run's own: windowsHide with no inherited stdio starts PowerShell with CREATE_NO_WINDOW.
 const WRAPPER = `
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -57,6 +59,7 @@ try {
   if (-not ('SpecGate.Job' -as [type])) { Add-Type -Path $dll }
   [SpecGate.Job]::KillOnClose() | Out-Null
 } catch {}
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch {}
 $psi = New-Object System.Diagnostics.ProcessStartInfo $env:SPEC_GATE_JOB_FILE, $env:SPEC_GATE_JOB_ARGS
 $psi.UseShellExecute = $false
 foreach ($name in 'SPEC_GATE_JOB_DLL', 'SPEC_GATE_JOB_SOURCE', 'SPEC_GATE_JOB_FILE', 'SPEC_GATE_JOB_ARGS') { $psi.EnvironmentVariables.Remove($name) }
