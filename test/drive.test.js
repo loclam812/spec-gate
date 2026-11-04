@@ -144,7 +144,8 @@ it('an answers file from an earlier round is never reused', () => {
 it('a driven run has a deadline across all its agents', () => {
   const { sample, sides } = setup()
   const outDir = tempDir()
-  const { env } = stubEnv({ sleep: 0.9 })
+  // A question round makes three agents of 0.9 s, which no machine fits in the 2 s budget; two can fit.
+  const { env } = stubEnv({ sleep: 0.9, first: 'cases-question.yaml' })
   const started = Date.now()
   const candidate = { name: 'spec-to-tests', allowed_tools: ['Read', 'Write'], timeout_s: 1 }
   assert.throws(() => driveSpecToTests(candidate, sample, sides.pre, outDir, { env, hide: [sides.post], watch: [sides.post] }), /out of time|timed out/)
