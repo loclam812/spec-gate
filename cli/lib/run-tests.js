@@ -115,7 +115,7 @@ function failingFiles(repo, root, stack, xml, failing) {
       const file = files.get(name)
       const path = file ? (isAbsolute(file) ? file : join(repo, root, file)) : null
       // A reporter may give the real path of a repository reached through a symlink (/var on macOS).
-      return path && existsSync(path) ? [[name, posixPath(relative(realpathSync(repo), realpathSync(path)))]] : []
+      return path && existsSync(path) ? [[name, posixPath(relative(realpathSync.native(repo), realpathSync.native(path)))]] : []
     }),
   )
 }
