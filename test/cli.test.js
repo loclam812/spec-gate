@@ -2,9 +2,9 @@ import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { runEval } from '../cli/eval.js'
+import { evalUnsupported, runEval } from '../cli/eval.js'
 import { repoSlug } from '../cli/lib/store.js'
-import { CATCHING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, evalIt, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
 
 function setup() {
   const { repo, preFix, postFix } = makeFixtureRepo()
@@ -31,7 +31,7 @@ function setup() {
   return { home, repo, preFix, run, work }
 }
 
-it('where, validate, prepare, generate, score and report run end to end with a stub claude', () => {
+evalIt('where, validate, prepare, generate, score and report run end to end with a stub claude', () => {
   const { home, repo, run } = setup()
   assert.equal(run('where', 'demo-1').text, `${join(home, 'projects', repoSlug(repo), 'eval', 'demo-1')}\n`)
   assert.deepEqual(run('validate', 'demo-1'), { code: 0, text: 'ok\n' })
@@ -44,7 +44,7 @@ it('where, validate, prepare, generate, score and report run end to end with a s
   assert.match(run('report').text, /\| unlabelled \| 1 \|\n\nLayers: n\/a \(not a driver candidate\)/)
 })
 
-it('score before prepare says which command to run', () => {
+evalIt('score before prepare says which command to run', () => {
   const { run } = setup()
   assert.throws(
     () => run('score', 'demo-1', '--candidate', 'single-prompt', '--run', '1'),
@@ -52,18 +52,18 @@ it('score before prepare says which command to run', () => {
   )
 })
 
-it('generate without a run number is rejected', () => {
+evalIt('generate without a run number is rejected', () => {
   const { run } = setup()
   run('prepare', 'demo-1')
   assert.throws(() => run('generate', 'demo-1', '--candidate', 'single-prompt'), /--candidate <name> and --run <n> are required/)
 })
 
-it('an unknown sample points at where it was expected', () => {
+evalIt('an unknown sample points at where it was expected', () => {
   const { run } = setup()
   assert.throws(() => run('validate', 'missing-1'), /no sample\.yaml in .*eval\/missing-1/)
 })
 
-it('score refuses a workspace prepared for other shas', () => {
+evalIt('score refuses a workspace prepared for other shas', () => {
   const { home, repo, preFix, run } = setup()
   run('prepare', 'demo-1')
   const yamlPath = join(home, 'projects', repoSlug(repo), 'eval', 'demo-1', 'sample.yaml')
@@ -75,7 +75,7 @@ it('score refuses a workspace prepared for other shas', () => {
   )
 })
 
-it('collect after generate is refused instead of erasing the collected tests', () => {
+evalIt('collect after generate is refused instead of erasing the collected tests', () => {
   const { run } = setup()
   run('prepare', 'demo-1')
   run('generate', 'demo-1', '--candidate', 'single-prompt', '--run', '1')
@@ -96,7 +96,7 @@ function stubTouching(path) {
   return bin
 }
 
-it('a candidate reading the source checkout is leaked; one writing scratch files to /tmp is not', () => {
+evalIt('a candidate reading the source checkout is leaked; one writing scratch files to /tmp is not', () => {
   const { home, repo, run, work } = setup()
   run('prepare', 'demo-1')
   const runWith = (bin, n) => {
@@ -109,4 +109,10 @@ it('a candidate reading the source checkout is leaked; one writing scratch files
   }
   assert.match(runWith(stubTouching(join(repo, 'src', 'total.js')), '1'), /^demo-1: leaked/)
   assert.match(runWith(stubTouching('/tmp/sg-scratch-mutation.sh'), '2'), /^demo-1: caught/)
+})
+
+it('eval refuses on win32 with a WSL hint', () => {
+  assert.equal(evalUnsupported('win32'), 'spec-gate eval runs on macOS and Linux; use WSL on Windows')
+  assert.equal(evalUnsupported('darwin'), null)
+  assert.equal(evalUnsupported('linux'), null)
 })

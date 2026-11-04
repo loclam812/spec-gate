@@ -1,11 +1,10 @@
-import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { git } from '../cli/lib/exec.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { changedFiles, exportTree, isReady, preparedFor, prepareWorkspace, resetTree, snapshot } from '../cli/lib/workspace.js'
-import { BUGGY_TOTAL, CATCHING_TEST, FIXED_TOTAL, makeFixtureRepo, tempDir, writeFile, writeSample } from './helpers.js'
+import { BUGGY_TOTAL, CATCHING_TEST, FIXED_TOTAL, makeFixtureRepo, tempDir, writeFile, writeSample, evalIt as it } from './helpers.js'
 
 const { repo, preFix, postFix } = makeFixtureRepo()
 const fields = {

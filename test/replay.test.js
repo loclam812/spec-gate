@@ -1,4 +1,3 @@
-import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -17,6 +16,7 @@ import {
   tempDir,
   writeFile,
   writeSample,
+  evalIt as it,
 } from './helpers.js'
 
 const { repo, preFix, postFix } = makeFixtureRepo()

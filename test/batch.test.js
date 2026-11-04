@@ -1,10 +1,9 @@
-import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runEval } from '../cli/eval.js'
 import { repoSlug } from '../cli/lib/store.js'
-import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample, evalIt as it } from './helpers.js'
 
 function setup(fixTest = CATCHING_TEST) {
   const { repo, preFix, postFix } = makeFixtureRepo({ fixFiles: { 'test/total.test.js': fixTest } })

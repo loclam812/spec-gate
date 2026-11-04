@@ -92,7 +92,14 @@ const COMMANDS = {
   },
 }
 
+// The harness hides one tree from the agent with chmod and runs POSIX tooling (tar, process groups).
+export function evalUnsupported(platform) {
+  return platform === 'win32' ? 'spec-gate eval runs on macOS and Linux; use WSL on Windows' : null
+}
+
 export function runEval(argv, { env = process.env, out = process.stdout } = {}) {
+  const unsupported = evalUnsupported(process.platform)
+  if (unsupported) throw new Error(unsupported)
   const { values, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true })
   const [command, id] = positionals
   if (command === 'report') {

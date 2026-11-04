@@ -1,4 +1,3 @@
-import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, readFileSync } from 'node:fs'
@@ -8,7 +7,7 @@ import { driveSpecToTests } from '../cli/lib/drive.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { prepareWorkspace } from '../cli/lib/workspace.js'
 import { VERSION } from '../cli/lib/version.js'
-import { BUGGY_TOTAL, KNOWLEDGE_FULL, commitAll, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
+import { BUGGY_TOTAL, KNOWLEDGE_FULL, commitAll, makeFixtureRepo, tempDir, withPath, writeFile, writeSample, evalIt as it } from './helpers.js'
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/drive', import.meta.url))
 

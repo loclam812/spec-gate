@@ -1,11 +1,10 @@
-import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { headlessArgs, loadCandidate, pathsOutside, PROMPT_FILE, renderPrompt, runCandidate, watchedPaths, withHidden } from '../cli/lib/candidate.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { changedFiles, prepareWorkspace } from '../cli/lib/workspace.js'
-import { CATCHING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample } from './helpers.js'
+import { CATCHING_TEST, makeFixtureRepo, tempDir, withPath, writeFile, writeSample, evalIt as it } from './helpers.js'
 
 function stubClaude(script) {
   const bin = tempDir('sg-bin-')

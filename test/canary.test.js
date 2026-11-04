@@ -1,4 +1,3 @@
-import { it } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -6,7 +5,7 @@ import { acceptCanary, canaryVerdict, loadCanary, runCanary } from '../cli/lib/c
 import { git } from '../cli/lib/exec.js'
 import { loadSample } from '../cli/lib/sample.js'
 import { prepareWorkspace } from '../cli/lib/workspace.js'
-import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, writeSample } from './helpers.js'
+import { CATCHING_TEST, MISSING_TEST, makeFixtureRepo, tempDir, writeSample, evalIt as it } from './helpers.js'
 
 const NODE_TEST_PACKAGE = '{ "type": "module", "scripts": { "test": "node --test" } }\n'
 

@@ -1,3 +1,4 @@
+import { it } from 'node:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
@@ -27,6 +28,9 @@ export const HANGING_TEST =
   "import { test } from 'node:test'\n\ntest('hangs', async () => {\n  await new Promise((resolve) => setTimeout(resolve, 3000))\n})\n"
 
 // Windows names the variable Path; a second PATH key would leave which one wins to chance.
+const EVAL_SKIP = process.platform === 'win32' && 'eval harness runs on macOS and Linux'
+export const evalIt = (name, fn) => it(name, { skip: EVAL_SKIP }, fn)
+
 export function withPath(env, dir) {
   const key = Object.keys(env).find((name) => name.toUpperCase() === 'PATH') ?? 'PATH'
   return { ...env, [key]: `${dir}${delimiter}${env[key] ?? ''}` }
