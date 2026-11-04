@@ -51,6 +51,8 @@ export function commitAll(repo, message) {
 export function makeFixtureRepo({ preFiles = {}, fixFiles = {} } = {}) {
   const repo = tempDir('sg-fixture-')
   git(repo, ['init', '-q', '-b', 'main'])
+  // A Windows git with core.autocrlf=true would hand the trees back with CRLF.
+  git(repo, ['config', 'core.autocrlf', 'false'])
   writeFile(repo, 'package.json', '{ "type": "module" }\n')
   writeFile(repo, '.gitignore', 'node_modules/\nCLAUDE.local.md\n')
   writeFile(repo, 'src/total.js', BUGGY_TOTAL)

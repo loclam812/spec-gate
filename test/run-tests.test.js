@@ -309,3 +309,15 @@ it('a .NET file keeps only the results of the class named like it, though the fi
   assert.deepEqual(result.tests, [{ name: 'CalcTests > Adds', status: 'pass' }])
   assert.deepEqual(result.failures, {})
 })
+
+it('a failure in CRLF output reads the same as in LF output', () => {
+  const outputs = [
+    './refund_test.go:12:9: undefined: Refund\nFAIL\texample.com/shop [build failed]',
+    "  Determining projects to restore...\n/repo/Shop.Tests.csproj : error NU1301: Unable to load the service index for source https://api.nuget.org/v3/index.json.\n",
+    "/repo/CalcTests.cs(12,9): error CS0103: The name 'Refund' does not exist in the current context\n",
+  ]
+  for (const output of outputs) {
+    const built = { file: 'x', status: 'red', timedOut: false, tests: [], failures: {}, output }
+    assert.deepEqual(wrongReasons({ ...built, output: output.replaceAll('\n', '\r\n') }, ['C1'], { source: '' }), wrongReasons(built, ['C1'], { source: '' }))
+  }
+})

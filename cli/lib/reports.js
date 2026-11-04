@@ -105,9 +105,11 @@ export function trxFiles(xml) {
   )
 }
 
+// A Windows runner writes CRLF; failure bodies are shown to the user and matched line by line.
 export function reportFailures(format, xml) {
-  if (format === 'junit') return Object.fromEntries(junitFailures(xml))
-  if (format === 'trx') return Object.fromEntries(trxFailures(xml))
+  const lf = xml.replaceAll('\r\n', '\n')
+  if (format === 'junit') return Object.fromEntries(junitFailures(lf))
+  if (format === 'trx') return Object.fromEntries(trxFailures(lf))
   return {}
 }
 

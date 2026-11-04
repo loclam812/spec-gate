@@ -106,3 +106,18 @@ it('hasCases tells a report with results from an empty one, per format', () => {
   assert.deepEqual(reportFailures('go-json', ''), {})
   assert.equal(reportFiles('go-json', '').size, 0)
 })
+
+it('a CRLF report parses the same as LF', () => {
+  const crlf = (text) => text.replaceAll('\n', '\r\n')
+  const junit = '<testsuites>\n<testsuite name="s">\n<testcase name="b" classname="suite">\n<failure message="x" type="AssertionError">expected 1\nto be 2</failure>\n</testcase>\n</testsuite>\n</testsuites>\n'
+  assert.deepEqual([...parseReport('junit', { output: '', xml: crlf(junit) })], [...parseReport('junit', { output: '', xml: junit })])
+  assert.deepEqual(reportFailures('junit', crlf(junit)), reportFailures('junit', junit))
+  for (const framework of ['xunit', 'nunit', 'mstest']) {
+    const xml = trx(framework).replaceAll('\r\n', '\n')
+    assert.deepEqual([...parseReport('trx', { xml: crlf(xml) })], [...parseReport('trx', { xml })])
+    assert.deepEqual(reportFailures('trx', crlf(xml)), reportFailures('trx', xml))
+    assert.deepEqual(reportFiles('trx', crlf(xml)), reportFiles('trx', xml))
+  }
+  const goJson = '{"Action":"pass","Test":"TestA"}\n{"Action":"fail","Test":"TestB"}\n'
+  assert.deepEqual([...parseReport('go-json', { output: crlf(goJson), xml: '' })], [...parseReport('go-json', { output: goJson, xml: '' })])
+})
