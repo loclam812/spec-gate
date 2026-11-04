@@ -122,7 +122,8 @@ re-guarded with `spec-gate tests amend` and listed in the report; a changed help
 same way and is amended the same way, and amending a helper that was deleted stops guarding it. A
 drop re-guards only test files, so a helper edited for a drop needs its own amend. Every other test
 file is hashed when Ready is approved, before the writer starts (`existing-tests.json`; adopt hashes
-them when it adopts, so edits made before that are its baseline). verify lists each one edited or
+them when it adopts, so edits made before that are its baseline). Hashes ignore CRLF versus LF, so
+a re-checkout under `core.autocrlf` is not an edit. verify lists each one edited or
 deleted since under "Existing tests changed", without failing on it, because an old test may
 rightly change with an interface but may also have been weakened to let the change through. `spec-gate verify` exits non-zero when
 anything is red. With many failing browser tests, each waits for its timeout, so verify can take
