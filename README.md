@@ -64,7 +64,8 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   questions only for high-risk points the request does not settle. Cases scale with risk: 8–15 at low risk, 15–25 at high risk, never more than 30 (more are refused).
   A case's basis is `request`, `decision` (the user's answer), `domain` (what the plain purpose of
   the feature or the rules of its field fix) or `assumed`; Ready lists the `domain` and `assumed`
-  ones. Answers are also kept per repository in the store's `decisions.md`, and later runs' QC
+  ones, and every high-risk `request` or `decision` case under "High risk, taken as given". A
+  `decision` case is refused while no answer or project decision is on record. Answers are also kept per repository in the store's `decisions.md`, and later runs' QC
   reads them instead of asking again; an `unknown` answer is not kept. A question already answered
   in the run is refused, and so is an assumed case whose risk drops from high to low.
   A high-risk case may be assumed only when the round already asks four questions or its question
@@ -97,10 +98,10 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   is listed under `helpers:` and guarded with the tests. A helper git already tracks, one that was
   already untracked when write-tests started, a directory, or a file a test runner would run is
   refused. It may drop a case it cannot test in this repository at all, with a reason, up to a
-  third of the cases. A disputed case
-  you agree cannot hold is dropped after its test is removed: `spec-gate tests drop --case <id>
-  --reason "<why>"` records the reason, re-guards only the files that held the case, and verify
-  lists it.
+  third of the cases. A case the writer listed as disputed, or one you dispute (`--user-disputed`),
+  can be dropped later; one you agree cannot hold is dropped after its test is removed:
+  `spec-gate tests drop --case <id> --reason "<why>"` records the reason (and whose dispute it
+  was), re-guards only the files that held the case, and verify lists it.
 - **check** runs each test file once. It accepts when every case has a test and every red test
   fails on an assertion or on code that does not exist yet, not on a syntax error, a timeout, the network or setup. Green tests
   are allowed and listed. Otherwise the writer gets the failures and up to two more attempts, then the run is
@@ -123,7 +124,8 @@ kept only the failing tests, so there every new failure is still a suspect. jest
 not compared. Gaps name each case without a green test. A new failure counts as a regression only if it fails
 again on a rerun; one that passes is listed as flaky. One that fails both suite runs but passes when
 its file runs alone is listed as suite only (the suite's load or order broke it, not the change). A guarded test the user agreed to change is
-re-guarded with `spec-gate tests amend` and listed in the report; a changed helper fails verify the
+re-guarded with `spec-gate tests amend` and listed in the report; a pass that rests on a drop or
+an amend says so in its Result line, with the counts. A changed helper fails verify the
 same way and is amended the same way, and amending a helper that was deleted stops guarding it. A
 drop re-guards only test files, so a helper edited for a drop needs its own amend. Every other test
 file is hashed when Ready is approved, before the writer starts (`existing-tests.json`; adopt hashes
@@ -199,7 +201,7 @@ new session to load the update.
 spec-gate tests start --request "<text>" | --request-file <path>
 spec-gate tests next | submit | status --run <id>
 spec-gate tests qc --run <id>                   # run the blind QC headless (reads only its run folder)
-spec-gate tests drop --run <id> --case <id> --reason "<why>"   # after its test is removed
+spec-gate tests drop --run <id> --case <id> --reason "<why>" [--user-disputed]   # after its test is removed
 spec-gate tests amend --run <id> --file <test or helper> --reason "<what the user approved>"   # re-guard an approved test or helper change
 spec-gate tests adopt --request "<text>" --file <test> [--file <test> ...]   # guard tests another skill wrote
 spec-gate verify --run <id>

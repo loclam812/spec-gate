@@ -43,13 +43,12 @@ it('only non_testable sentences, and more than 30 cases, are refused', () => {
   assert.match(casesDocErrors(many, CONTEXT).join('\n'), /cases: 31 cases; keep the 30 riskiest/)
 })
 
-it('Ready lists only assumed cases and counts the rest by where they came from', () => {
+it('Ready lists assumed cases and every high-risk case, and counts the rest by where they came from', () => {
   const decided = { id: 'C3', when: 'a refund is asked twice', then: 'the second is refused', basis: 'decision', risk: 'high', layer: 'unit' }
   const text = readySummary({ ...DOC, cases: [...DOC.cases, decided] }, { casesPath: '/run/cases.yaml' })
   assert.match(text, /## Check these\n\n- C2 \(assumed, low\): when the refund is for 0, then it is refused\n\n/)
-  assert.doesNotMatch(text, /C3 \(decision/)
+  assert.match(text, /## High risk, taken as given\n\n- C1 \(request\): when a refund is requested, then it waits for approval\n- C3 \(decision\): when a refund is asked twice, then the second is refused\n\n/)
   assert.match(text, /1 case straight from the request, 1 from your answers\. All cases: \/run\/cases\.yaml/)
-  assert.doesNotMatch(text, /it waits for approval/)
 })
 
 const withSource = (source, context = CONTEXT) =>
@@ -122,4 +121,11 @@ it('a request that names a page may stay ui: false with a reason, and the refusa
 it('Ready shows why a request that names a screen word has no UI', () => {
   const text = readySummary({ ...DOC, ui_reason: '"page" is a page of comments, not a screen' }, { casesPath: '/run/cases.yaml' })
   assert.match(text, /2 cases; no UI: "page" is a page of comments, not a screen\./)
+})
+
+it('a case may claim basis decision only when an answer or a project decision is on record', () => {
+  const decided = { id: 'C3', when: 'a refund is asked twice', then: 'the second is refused', basis: 'decision', risk: 'high', layer: 'unit' }
+  const doc = { ...DOC, sentences: [{ ...DOC.sentences[0], cases: [...DOC.sentences[0].cases, 'C3'] }], cases: [...DOC.cases, decided] }
+  assert.match(casesDocErrors(doc, { ...CONTEXT, decisionsRecorded: false }).join('\n'), /case C3: basis is decision, but no answer or project decision is on record; use request or assumed/)
+  assert.doesNotMatch(casesDocErrors(doc, { ...CONTEXT, decisionsRecorded: true }).join('\n'), /basis is decision/)
 })

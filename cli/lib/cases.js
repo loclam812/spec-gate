@@ -33,8 +33,20 @@ function sentenceErrors(sentences, ids, context) {
   ]
 }
 
-function caseErrors(cases) {
+// A decision is an answered behaviour question: an "unknown" answer settles nothing, and a
+// UX-source answer says where the design lives, not how the feature behaves. The run's entries
+// carry a question id and the project's a date, so blocks are read by their Answer line only.
+export function decisionsOnRecord(runDecisions, projectDecisions) {
+  const answered = (text) =>
+    text.split(/^- /m).slice(1).some((block) => !/\(about: ux-source[,)]/.test(block) && /^\s*Answer:\s*(?!unknown\b)\S/im.test(block))
+  return answered(runDecisions) || answered(projectDecisions)
+}
+
+function caseErrors(cases, context = {}) {
   return [
+    ...(context.decisionsRecorded === false
+      ? cases.filter((c) => c.basis === 'decision').map((c) => `case ${c.id}: basis is decision, but no answer or project decision is on record; use request or assumed`)
+      : []),
     ...duplicates(cases.map((c) => c.id)).map((id) => `duplicate case id ${id}`),
     ...cases.filter((c) => !/^C\d+$/.test(String(c.id))).map((c) => `case id ${c.id} must look like C1, C2, ...`),
     ...cases.flatMap((c) => [
@@ -92,7 +104,7 @@ export function casesDocErrors(doc, context) {
     ...(cases.length === 0 ? ['cases: the request has nothing to test; write at least one case'] : []),
     ...(cases.length > MAX_CASES ? [`cases: ${cases.length} cases; keep the ${MAX_CASES} riskiest`] : []),
     ...sentenceErrors(sentences, new Set(cases.map((c) => c.id)), context),
-    ...caseErrors(cases),
+    ...caseErrors(cases, context),
     // Once the user could not answer, an assumption is all that is left.
     // Only the first round must ask: later rounds have used their questions, and refusing there
     // would only get the run stuck.
@@ -118,6 +130,9 @@ export function readySummary(doc, { casesPath }) {
   const cases = list(doc?.cases).filter(isMapping)
   const count = (basis) => cases.filter((c) => c.basis === basis).length
   const checkLines = cases.filter((c) => c.basis === 'assumed' || c.basis === 'domain').map((c) => `- ${c.id} (${c.basis}, ${c.risk}): when ${c.when}, then ${c.then}`)
+  // The QC labels its own cases; a high-risk behaviour it invented and called request or decision
+  // would otherwise reach the writer unseen.
+  const givenHigh = cases.filter((c) => c.risk === 'high' && (c.basis === 'request' || c.basis === 'decision')).map((c) => `- ${c.id} (${c.basis}): when ${c.when}, then ${c.then}`)
   return [
     '# Ready to write tests',
     '',
@@ -127,6 +142,7 @@ export function readySummary(doc, { casesPath }) {
     '',
     ...(checkLines.length > 0 ? checkLines : ['Nothing: no case rests on an assumption.']),
     '',
+    ...(givenHigh.length > 0 ? ['## High risk, taken as given', '', ...givenHigh, ''] : []),
     `${plural(count('request'), 'case')} straight from the request, ${count('decision')} from your answers. All cases: ${casesPath}`,
     '',
   ].join('\n')

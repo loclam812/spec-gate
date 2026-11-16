@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { addsTokens, agentCost, costSince, findTranscripts } from './agent-cost.js'
 import { renderPrompt } from './candidate.js'
-import { casesDocErrors, highRiskAssumed, isSplit, MAX_QUESTIONS, readySummary, UX_SOURCE_UNASKED } from './cases.js'
+import { casesDocErrors, decisionsOnRecord, highRiskAssumed, isSplit, MAX_QUESTIONS, readySummary, UX_SOURCE_UNASKED } from './cases.js'
 import { withoutCase } from './drop-case.js'
 import { git, tryGit } from './exec.js'
 import { posixPath, readJson, writeJson } from './files.js'
@@ -65,6 +65,7 @@ function qcContext(run) {
     previous: readYaml(at(run, 'cases.yaml.prev')),
     round: run.state.qc_rounds ?? 0,
     answeredIds: [...readText(at(run, 'decisions.md')).matchAll(/^- (Q\w+) /gm)].map((match) => match[1]),
+    decisionsRecorded: decisionsOnRecord(readText(at(run, 'decisions.md')), readText(projectDecisions(run))),
   }
 }
 

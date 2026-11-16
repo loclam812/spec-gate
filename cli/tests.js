@@ -24,11 +24,12 @@ const OPTIONS = {
   reject: { type: 'string' },
   case: { type: 'string' },
   reason: { type: 'string' },
+  'user-disputed': { type: 'boolean' },
   file: { type: 'string', multiple: true },
   'old-skill': { type: 'string' },
 }
 
-const USAGE = 'usage: spec-gate tests <start|next|submit|qc|status|drop|amend|adopt> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"] [--case <id> --reason "<why>"] [--file <test> ...]'
+const USAGE = 'usage: spec-gate tests <start|next|submit|qc|status|drop|amend|adopt> [--repo <path>] [--run <id>] [--request "<text>" | --request-file <path>] [--answers <file>] [--approve | --reject "<why>"] [--case <id> --reason "<why>" [--user-disputed]] [--file <test> ...]'
 
 const print = (out, value) => out.write(`${JSON.stringify(value, null, 2)}\n`)
 
@@ -96,7 +97,7 @@ export function runTests(argv, { env = process.env, out = process.stdout } = {})
     return 0
   }
   if (command === 'drop') {
-    print(out, dropCase(openRun(values, env), { id: values.case, reason: values.reason }))
+    print(out, dropCase(openRun(values, env), { id: values.case, reason: values.reason, userDisputed: Boolean(values['user-disputed']) }))
     return 0
   }
   if (command === 'qc') return blindQc(values, env, out)

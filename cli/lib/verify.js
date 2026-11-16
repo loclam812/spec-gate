@@ -69,10 +69,20 @@ function existingTestsChanged(run) {
 const existingSection = (lines) =>
   `## Existing tests changed\n\n${lines === null ? 'Not checked: this run was written before spec-gate recorded the existing tests.' : bullets(lines)}`
 
-function renderVerify({ run, edited, existing, red, regressions, traced, notes, ok }) {
+// A pass that leaned on a drop or an amend says so where it is read first, not only under Notes.
+function resultLine(ok, changes) {
+  const dropped = changes.filter((line) => line.startsWith('- Dropped ')).length
+  const amended = changes.length - dropped
+  if (!ok) return '**Result:** fail'
+  if (changes.length === 0) return '**Result:** pass'
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+  return `**Result:** pass, with ${plural(dropped, 'case')} dropped and ${plural(amended, 'test')} amended after the tests were written; check the reasons under Notes`
+}
+
+function renderVerify({ run, edited, existing, red, regressions, traced, notes, ok, changes = [] }) {
   return `${[
     `# spec-gate verify ${run.state.id}`,
-    `**Result:** ${ok ? 'pass' : 'fail'}`,
+    resultLine(ok, changes),
     traced.section,
     `## Changed test and helper files\n\n${bullets(edited.map((file) => `- ${file} changed after the tests were written`))}`,
     existingSection(existing),
@@ -107,7 +117,7 @@ export function verifyRun(run) {
   const traced = run.state.adopted ? adoptedTrace(run, files, results) : buildTrace({ casesDoc: parse(readFileSync(at(run, 'cases.yaml'), 'utf8')), repo: run.repo, files, results })
   const ok = edited.length === 0 && red.length === 0 && regressions.length === 0 && traced.gaps.length === 0
   const dropped = existsSync(at(run, 'decisions.md')) ? readFileSync(at(run, 'decisions.md'), 'utf8').split('\n').filter((line) => line.startsWith('- Dropped ') || line.startsWith('- Amended ')) : []
-  const markdown = renderVerify({ run, edited, existing, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok })
+  const markdown = renderVerify({ run, edited, existing, red, regressions, traced, notes: [...notes, ...dropped.map((line) => line.slice(2))], ok, changes: dropped.filter((line) => !line.includes(' at write-tests:')) })
   writeFileSync(at(run, 'verify.md'), markdown)
   logEvent(run.dir, { kind: 'verify', ok, red: red.length, regressions: regressions.length, edited: edited.length, existing_edited: existing?.length ?? null })
   return { ok, markdown }

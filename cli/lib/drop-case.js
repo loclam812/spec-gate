@@ -32,18 +32,26 @@ function reguard(run, guard, id) {
   return held
 }
 
-export function dropCase(run, { id, reason }) {
+export function dropCase(run, { id, reason, userDisputed = false }) {
   if (run.state.step !== 'done') throw new Error(`drop: run ${run.state.id} is at step ${run.state.step}; a case is dropped after its tests are written`)
   if (!reason?.trim()) throw new Error('drop: give the reason with --reason "<why the case cannot hold>"')
   const doc = parse(readFileSync(at(run, 'cases.yaml'), 'utf8'))
   if (!list(doc.cases).some((c) => c.id === id)) throw new Error(`drop: no case ${id} in this run`)
+  // A drop after the tests exist starts from a dispute, the writer's or the user's; a case nobody
+  // disputed is the requirement, and dropping it would only make verify pass. A user dispute is
+  // recorded as one and named in verify's Result line, so it is never silent.
+  if (!existsSync(at(run, 'tests.yaml'))) throw new Error(`drop: this run's tests.yaml is missing, so its disputed cases cannot be checked`)
+  const written = parse(readFileSync(at(run, 'tests.yaml'), 'utf8'))
+  if (!userDisputed && !list(written?.disputed).some((entry) => entry?.case === id)) {
+    throw new Error(`drop: ${id} was not disputed when the tests were written; if the user disputes it, ask them, then pass --user-disputed with their reason`)
+  }
   const guard = readJson(at(run, 'guard.json'))
   const holder = Object.keys(guard).find((file) => mentionsId(readText(join(run.repo, file)), id))
   if (holder) throw new Error(`drop: remove the test for ${id} from ${holder} first`)
   writeFileSync(at(run, 'cases.yaml'), stringify(withoutCase(doc, id, reason.trim())))
-  appendFileSync(at(run, 'decisions.md'), `- Dropped ${id} after the tests were written: ${reason.trim()}\n`)
+  appendFileSync(at(run, 'decisions.md'), `- Dropped ${id}${userDisputed ? " on the user's dispute" : ''} after the tests were written: ${reason.trim()}\n`)
   const reguarded = reguard(run, guard, id)
-  logEvent(run.dir, { kind: 'drop', case: id })
+  logEvent(run.dir, { kind: 'drop', case: id, user_disputed: userDisputed })
   return { dropped: id, reguarded }
 }
 
