@@ -337,3 +337,38 @@ it('a file that did not load is recognised when the runner names it with backsla
   assert.equal(didNotLoad(result), true)
   assert.deepEqual(wrongReasons(result, ['C1'], { source: 'C1' }), [])
 })
+
+it('runTestFile says whether its stack reports each test', () => {
+  assert.equal(runTestFile(profile, repo, 'test/c1.test.js').perTest, true)
+})
+
+it('a jest run with no per-test report is judged from its output, not as a file that did not load', () => {
+  const jest = (output) => ({ file: 'test/refund.test.js', status: 'red', timedOut: false, tests: [], failures: {}, output, perTest: false })
+  const assertion = 'FAIL test/refund.test.js\n  ● refund › refuses 0\n\n    expect(received).toBe(expected)\n\n    Expected: 0\n    Received: 5'
+  assert.deepEqual(wrongReasons(jest(assertion), []), [])
+  assert.deepEqual(wrongReasons(jest(assertion), ['C1'], { source: 'C1' }), [])
+
+  const missing = "FAIL test/refund.test.js\n  ● Test suite failed to run\n\n    Cannot find module '../src/refund' from 'test/refund.test.js'"
+  assert.deepEqual(wrongReasons(jest(missing), ['C1'], { source: 'C1' }), [])
+  assert.match(wrongReasons(jest(missing), ['C1'], { source: '' })[0], /did not load: Cannot find module/)
+
+  const setup = 'FAIL test/refund.test.js\n  ● Test suite failed to run\n\n    Error: DATABASE_URL is not set'
+  assert.match(wrongReasons(jest(setup), ['C1'], { source: 'C1' })[0], /DATABASE_URL is not set \(setup\)/)
+  assert.match(wrongReasons(jest("FAIL a\n    SyntaxError: Unexpected token '}'"), [])[0], /\(syntax\)/)
+  assert.match(wrongReasons(jest('FAIL a\n  ● refund › waits\n\n    thrown: "Exceeded timeout of 5000 ms for a test."'), [])[0], /\(timeout\)/)
+})
+
+it('a jest run is judged only by its failures: a green run, and passing test titles, never refuse it', () => {
+  const jest = (output, status = 'red') => ({ file: 'test/refund.test.js', status, timedOut: false, tests: [], failures: {}, output, perTest: false })
+  assert.deepEqual(wrongReasons(jest('PASS test/refund.test.js\n  ✓ C1: rejects a SyntaxError payload', 'green'), ['C1'], { source: 'C1' }), [])
+  const titled = 'FAIL test/refund.test.js\n  ✓ C2: survives ECONNREFUSED\n  ✕ C1: refuses 0\n\n  ● refund › C1: refuses 0 with a SyntaxError message\n\n    expect(received).toBe(expected)\n\n    Expected: 0\n    Received: 5'
+  assert.deepEqual(wrongReasons(jest(titled), ['C1'], { source: 'C1' }), [])
+})
+
+it('a ts-jest missing export or name is missing code, not setup', () => {
+  const jest = (output) => ({ file: 'test/refund.test.ts', status: 'red', timedOut: false, tests: [], failures: {}, output, perTest: false })
+  const missingExport = 'FAIL test/refund.test.ts\n  ● Test suite failed to run\n\n    test/refund.test.ts:1:10 - error TS2305: Module \'"../src/refund"\' has no exported member \'refund\'.'
+  assert.deepEqual(wrongReasons(jest(missingExport), ['C1'], { source: 'C1' }), [])
+  const missingName = "FAIL test/refund.test.ts\n  ● Test suite failed to run\n\n    test/refund.test.ts:3:5 - error TS2304: Cannot find name 'refund'."
+  assert.deepEqual(wrongReasons(jest(missingName), ['C1'], { source: 'C1' }), [])
+})
