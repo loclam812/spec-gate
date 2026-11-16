@@ -158,3 +158,18 @@ it('verify lists an existing test the writer edited before the tests were guarde
   writeFile(repo, 'src/total.js', FIXED_TOTAL)
   assert.match(report(verify()), /## Existing tests changed\n\n- test\/old\.test\.js changed since spec-gate recorded it/)
 })
+
+it('verify lists an existing test the writer rewrote and listed as its own new file', () => {
+  const { repo, cli, verify } = setup({ extraTests: { 'test/old.test.js': OLD_TEST } })
+  cli('start', '--request', REQUEST)
+  cli('submit')
+  writeFileSync(cli('next').json.output, stringify(CASES))
+  cli('submit')
+  cli('submit', '--approve')
+  const writer = cli('next').json
+  writeFile(repo, 'test/old.test.js', C1_TEST)
+  writeFileSync(writer.output, stringify({ files: ['test/old.test.js'] }))
+  assert.equal(cli('submit').json.step, 'done')
+  writeFile(repo, 'src/total.js', FIXED_TOTAL)
+  assert.match(report(verify()), /## Existing tests changed\n\n- test\/old\.test\.js changed since spec-gate recorded it/)
+})

@@ -14,7 +14,7 @@ import { buildQcPacket } from './qc-packet.js'
 import { uiMentions } from './risk.js'
 import { logEvent, readEvents } from './run-log.js'
 import { saveState } from './run-store.js'
-import { didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
+import { changedSince, didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
 import { projectDir, repoSlug } from './store.js'
 import { mentionsId, splitRequest } from './text.js'
 
@@ -122,9 +122,11 @@ function guardFiles(run, files, helpers = [], { adopted = false } = {}) {
   // A write-tests run without the Ready snapshot is left unchecked: one taken now would hide the writer's edits.
   if (adopted) snapshotExistingTests(run)
   if (!existsSync(at(run, 'existing-tests.json'))) return
+  // An old test the writer rewrote and listed as its own stays recorded, so verify still shows the edit.
   const guarded = [...files, ...helpers]
   const existing = readJson(at(run, 'existing-tests.json'))
-  writeJson(at(run, 'existing-tests.json'), Object.fromEntries(Object.entries(existing).filter(([file]) => !guarded.includes(file))))
+  const edited = new Set(changedSince(run.repo, Object.fromEntries(guarded.filter((file) => file in existing).map((file) => [file, existing[file]]))))
+  writeJson(at(run, 'existing-tests.json'), Object.fromEntries(Object.entries(existing).filter(([file]) => !guarded.includes(file) || edited.has(file))))
 }
 
 function caseStatus(run, result, id) {
