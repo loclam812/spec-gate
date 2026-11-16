@@ -4,7 +4,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
 import { git } from '../cli/lib/exec.js'
-import { writeFile } from './helpers.js'
+import { commitAll, writeFile } from './helpers.js'
 import { C1_TEST, CASES, REQUEST, setup } from './tests-helpers.js'
 
 function toWriter(cli) {
@@ -61,7 +61,7 @@ it('a commit made during write-tests is refused, so a change cannot hide in hist
   const { repo, cli } = setup()
   const writer = toWriter(cli)
   touch(repo, 'src/total.js')
-  git(repo, ['commit', '-qam', 'sneak'])
+  commitAll(repo, 'sneak')
   assert.match(submitTests(cli, repo, writer).errors.join('\n'), /write-tests: HEAD moved since Ready/)
 })
 
