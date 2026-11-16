@@ -88,7 +88,12 @@ verify-changes:  guarded files unchanged → existing tests edited listed → ne
   wrong is reported as disputed, as is one it can only test more weakly than written, including an
   `e2e` case it can only test outside a browser. It lists the
   interfaces its tests assume (routes, functions, labels that do not exist yet) for the user to
-  check. It changes no existing non-test file; a new helper the tests import (a fixture, a builder)
+  check. It changes no existing non-test file, and submit checks it: a non-test file changed since
+  Ready (tracked or untracked), a new file listed neither as a test nor as a helper, a moved HEAD,
+  a file newly marked assume-unchanged or skip-worktree, or an edited `.git/info/exclude` is sent
+  back. What you had at Ready is the baseline (`source-before.json`); files a test run leaves behind
+  are the runner's (`runner-artifacts.json`). New files under paths git already ignores are not
+  seen. A new helper the tests import (a fixture, a builder)
   is listed under `helpers:` and guarded with the tests. A helper git already tracks, one that was
   already untracked when write-tests started, a directory, or a file a test runner would run is
   refused. It may drop a case it cannot test in this repository at all, with a reason, up to a

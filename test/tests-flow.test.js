@@ -187,9 +187,9 @@ it('a test whose hook throws on the environment is refused as a setup failure', 
 
 it('a loaded test whose name carries no case id is refused with no test names C1', () => {
   const { repo, cli } = setup()
+  writeFile(repo, 'src/refunds.js', 'export const other = 1\n')
   const writer = toWriter(cli)
   const source = "import { test } from 'node:test'\nimport * as refunds from '../src/refunds.js'\n// C1\ntest('refund within window', () => { refunds.approve() })\n"
-  writeFile(repo, 'src/refunds.js', 'export const other = 1\n')
   writeFile(repo, 'test/refunds.test.js', source)
   writeFileSync(writer.output, stringify({ files: ['test/refunds.test.js'] }))
   assert.deepEqual(cli('submit').json.errors, ['write-tests: no test names C1'])

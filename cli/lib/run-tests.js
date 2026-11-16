@@ -78,7 +78,7 @@ export function runTestFile(profile, repo, file, timeoutS = 900) {
   const empty = noCase && ((xmlReport && isGreen(run)) || NO_TESTS.test(run.output))
   const status = empty ? 'no-tests' : isGreen(run) ? 'green' : 'red'
   const failures = Object.fromEntries(Object.entries(withLoadCause(stack, cwd, posixPath(relative(cwd, join(repo, file))), reportFailures(stack.report, xml))).filter(([name]) => ownTest(name)))
-  return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000) }
+  return { file, status, timedOut: run.timedOut, tests, failures, output: run.output.slice(-4000), perTest: Boolean(stack.report) }
 }
 
 // The whole suite of each runner the test files use, so QA sees tests the change broke elsewhere.
@@ -141,8 +141,8 @@ export function caseIdsMissing(repo, files, caseIds) {
 
 const firstLine = (text) => text.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
 const PLAYWRIGHT_LOCATION = /^\S+:\d+:\d+ /
-const MISSING_SYMBOL = /Cannot find module|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method|error CS(0103|0117|0234|0246|1061|1501|1729|7036)\b/
-const TIMEOUT = /Test timeout of \d+ms exceeded|\btimed out after\b/i
+const MISSING_SYMBOL = /Cannot find module|has no exported member|Cannot find name '|Failed to resolve import|Failed to load url|is not a function|is not defined|is not a constructor|does not provide an export named|undefined: \w+|cannot find package|no required module provides package|has no field or method|error CS(0103|0117|0234|0246|1061|1501|1729|7036)\b/
+const TIMEOUT = /Test timeout of \d+ms exceeded|\btimed out after\b|Exceeded timeout of \d+ ?ms/i
 const SYNTAX = /\bSyntaxError\b|Unexpected token|error CS1(0[0-5]\d|51[349]|525)\b/
 const NETWORK = /ECONNREFUSED|ERR_CONNECTION_REFUSED|ENOTFOUND|getaddrinfo/
 
@@ -201,8 +201,24 @@ const REFUSED_KINDS = ['timeout', 'syntax', 'network', 'setup']
 export const didNotLoad = (result) =>
   result.status === 'red' && !result.timedOut && result.tests.every((test) => posixPath(result.file).endsWith(posixPath(test.name.split(' > ').pop())))
 
+// Without a per-test report (jest) an empty test list says nothing about loading, so the output is
+// the only evidence: a suite that failed to run is read like a failed hook, anything else by the
+// failure blocks after the first ● heading. Headings and the pass/fail list carry test titles, not causes.
+function outputReasons(result, caseIds, source) {
+  if (result.status !== 'red') return []
+  const output = result.output ?? ''
+  const suite = output.search(/Test suite failed to run/)
+  const failed = output.includes('●') ? output.slice(output.indexOf('●')) : output
+  const causes = failed.split('\n').filter((line) => !/^\s*●/.test(line)).join('\n')
+  const first = suite >= 0 ? { type: '', message: 'Test suite failed to run', body: output.slice(suite) } : outputFailure(causes)
+  const kind = failureKind(first)
+  if (kind === 'missing') return caseIds.some((id) => mentionsId(source, id)) ? [] : [`${result.file}: no test ran (the file did not load: ${headline(first)})`]
+  return REFUSED_KINDS.includes(kind) ? [`${result.file}: fails on ${headline(first)} (${kind}), not on the behaviour`] : []
+}
+
 export function wrongReasons(result, caseIds, { source = '' } = {}) {
   if (result.timedOut) return [`${result.file}: no test ran (timed out)`]
+  if (result.perTest === false) return outputReasons(result, caseIds, source)
   const failures = Object.entries(result.failures ?? {})
   if (didNotLoad(result)) {
     const first = failures[0]?.[1] ?? (result.output ? outputFailure(result.output) : undefined)

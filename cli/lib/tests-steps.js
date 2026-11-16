@@ -1,5 +1,5 @@
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { addsTokens, agentCost, costSince, findTranscripts } from './agent-cost.js'
@@ -14,7 +14,7 @@ import { buildQcPacket } from './qc-packet.js'
 import { uiMentions } from './risk.js'
 import { logEvent, readEvents } from './run-log.js'
 import { saveState } from './run-store.js'
-import { didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
+import { changedSince, didNotLoad, failureKind, hashFiles, runSuite, runTestFile, suiteTargets, wrongReasons } from './run-tests.js'
 import { projectDir, repoSlug } from './store.js'
 import { mentionsId, splitRequest } from './text.js'
 
@@ -122,9 +122,11 @@ function guardFiles(run, files, helpers = [], { adopted = false } = {}) {
   // A write-tests run without the Ready snapshot is left unchecked: one taken now would hide the writer's edits.
   if (adopted) snapshotExistingTests(run)
   if (!existsSync(at(run, 'existing-tests.json'))) return
+  // An old test the writer rewrote and listed as its own stays recorded, so verify still shows the edit.
   const guarded = [...files, ...helpers]
   const existing = readJson(at(run, 'existing-tests.json'))
-  writeJson(at(run, 'existing-tests.json'), Object.fromEntries(Object.entries(existing).filter(([file]) => !guarded.includes(file))))
+  const edited = new Set(changedSince(run.repo, Object.fromEntries(guarded.filter((file) => file in existing).map((file) => [file, existing[file]]))))
+  writeJson(at(run, 'existing-tests.json'), Object.fromEntries(Object.entries(existing).filter(([file]) => !guarded.includes(file) || edited.has(file))))
 }
 
 function caseStatus(run, result, id) {
@@ -190,8 +192,70 @@ const strings = (value) => list(value).filter((entry) => typeof entry === 'strin
 const normalized = (run, file) => posixPath(relative(run.repo, resolve(run.repo, file)))
 const isOutside = (run, file) => isAbsolute(file) || relative(run.repo, resolve(run.repo, file)).startsWith('..')
 const isTracked = (run, file) => git(run.repo, ['--literal-pathspecs', 'ls-files', '--', file]) !== ''
-const untrackedNow = (repo) => (tryGit(repo, ['ls-files', '--others', '--exclude-standard']) ?? '').split('\n').filter(Boolean)
+const untrackedNow = (repo) => (tryGit(repo, ['ls-files', '-z', '--others', '--exclude-standard']) ?? '').split('\0').filter(Boolean)
+const trackedChanged = (repo) => (tryGit(repo, ['diff', '--name-only', '-z', 'HEAD']) ?? '').split('\0').filter(Boolean)
 const isRegularFile = (run, file) => statSync(join(run.repo, file)).isFile()
+
+const headNow = (repo) => tryGit(repo, ['rev-parse', '--verify', '-q', 'HEAD'])?.trim() ?? null
+// assume-unchanged (a lower-case tag) and skip-worktree (S) hide a file's edits from git diff.
+const hiddenNow = (repo) =>
+  (tryGit(repo, ['ls-files', '-v', '-z']) ?? '').split('\0').filter((entry) => /^([a-z]|S) /.test(entry)).map((entry) => entry.slice(2))
+const excludePath = (repo) => tryGit(repo, ['rev-parse', '--git-path', 'info/exclude'])?.trim() ?? null
+const hashOrNull = (path) => (path && existsSync(path) ? hashFiles(dirname(path), [basename(path)])[basename(path)] : null)
+const isRegularPath = (repo, file) => existsSync(join(repo, file)) && statSync(join(repo, file)).isFile()
+
+// What the user had at Ready (changed tracked files, untracked files, HEAD) is the baseline.
+// A dirty submodule is listed as changed but is a directory, which cannot be hashed.
+function snapshotSource(run) {
+  const paths = [...new Set([...trackedChanged(run.repo), ...untrackedNow(run.repo)])]
+  const files = { ...Object.fromEntries(paths.map((file) => [file, null])), ...hashFiles(run.repo, paths.filter((file) => isRegularPath(run.repo, file))) }
+  const exclude = excludePath(run.repo)
+  writeJson(at(run, 'source-before.json'), {
+    head: headNow(run.repo),
+    hidden: hiddenNow(run.repo),
+    exclude: hashOrNull(exclude && resolve(run.repo, exclude)),
+    files: Object.fromEntries(Object.entries(files).filter(([file]) => !existsSync(join(run.repo, file)) || isRegularPath(run.repo, file))),
+  })
+}
+
+// Files a test run of this step created (reports, logs) belong to the runner, not to the writer.
+function recordRunnerArtifacts(run, before) {
+  const made = untrackedNow(run.repo).filter((file) => !before.has(file))
+  if (made.length === 0) return
+  const known = existsSync(at(run, 'runner-artifacts.json')) ? readJson(at(run, 'runner-artifacts.json')) : []
+  writeJson(at(run, 'runner-artifacts.json'), [...new Set([...known, ...made])])
+}
+
+// The red proof holds only on untouched code: a stub or an edit made with the tests could fake it.
+// Old tests are left to the existing-tests check, which lists their edits for review.
+function sourceErrors(run, files, helpers, step) {
+  if (!existsSync(at(run, 'source-before.json'))) return []
+  const before = readJson(at(run, 'source-before.json'))
+  const errors = []
+  if (headNow(run.repo) !== before.head) errors.push(`${step}: HEAD moved since Ready (a commit, reset or checkout); ${step} makes no commits, so put HEAD back`)
+  const exclude = excludePath(run.repo)
+  if (hashOrNull(exclude && resolve(run.repo, exclude)) !== before.exclude) errors.push(`${step}: ${exclude} changed after Ready; ${step} hides no file from git`)
+  errors.push(...hiddenNow(run.repo).filter((file) => !before.hidden.includes(file)).map((file) => `${step}: ${file} is hidden from git (assume-unchanged or skip-worktree) since Ready; undo that`))
+  const skip = new Set([...files, ...helpers, ...(existsSync(at(run, 'runner-artifacts.json')) ? readJson(at(run, 'runner-artifacts.json')) : [])])
+  const profile = profileOf(run)
+  const untracked = new Set(untrackedNow(run.repo))
+  const paths = new Set([...trackedChanged(run.repo), ...untracked, ...Object.keys(before.files)])
+  for (const file of paths) {
+    const exists = existsSync(join(run.repo, file))
+    if (skip.has(file) || (exists && !isRegularPath(run.repo, file))) continue
+    const isTest = stackFor(profile, file) !== null
+    if (file in before.files) {
+      const was = before.files[file]
+      const edited = was === null ? exists : !exists || changedSince(run.repo, { [file]: was }).length > 0
+      if (edited && !isTest) errors.push(`${step}: ${file} changed after Ready; ${step} changes no existing non-test file`)
+    } else if (exists && untracked.has(file)) {
+      errors.push(`${step}: ${file} is new and not listed; list it under helpers if the tests import it, or delete it`)
+    } else if (!isTest) {
+      errors.push(`${step}: ${file} changed after Ready; ${step} changes no existing non-test file`)
+    }
+  }
+  return errors
+}
 
 function helperErrors(run, helpers, profile, step) {
   const outside = helpers.filter((file) => isOutside(run, file))
@@ -250,7 +314,11 @@ function writeTests(run) {
   const checked = checkFiles(run, output)
   if (checked.errors) return checked
   const { files, helpers } = checked
+  const touched = sourceErrors(run, files, helpers, 'write-tests')
+  if (touched.length > 0) return { errors: touched }
+  const untrackedBeforeRun = new Set(untrackedNow(run.repo))
   const results = runAll(run, files)
+  recordRunnerArtifacts(run, untrackedBeforeRun)
   const empty = results.filter((result) => result.status === 'no-tests')
   if (empty.length > 0) {
     return {
@@ -383,6 +451,7 @@ const HANDLERS = {
     if (approve) {
       writeJson(at(run, 'untracked-before.json'), untrackedNow(run.repo))
       snapshotExistingTests(run)
+      snapshotSource(run)
     }
     return approve ? advance(run) : { errors: ['ready: pass --approve, or --reject "<what is wrong>"'] }
   },
