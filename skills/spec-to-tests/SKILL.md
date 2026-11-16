@@ -31,4 +31,6 @@ by hand, except the `answers_file` the CLI names, and never commit or push.
 3. When `submit` prints `errors`, run `next` again: the agent prompt now lists them.
 4. A disputed case the user agrees cannot hold: remove its test, then
    `spec-gate tests drop --run <id> --case <C…> --reason "<why>"`. The reason is recorded and
-   verify lists it; the CLI refuses while a guarded test still names the case.
+   verify lists it; the CLI refuses while a guarded test still names the case. A case the writer
+   did not dispute is dropped only when the user disputes it: ask them, then add `--user-disputed`
+   with their reason. Never drop a case on your own judgment.
