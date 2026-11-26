@@ -8,7 +8,7 @@ allowed-tools: Bash(node:*), Read, Write, Agent, AskUserQuestion
 # spec-to-tests
 
 The CLI is `node "${CLAUDE_PLUGIN_ROOT}/cli/spec-gate.js"`, written `spec-gate` below. Run every
-command from the repository root; each prints JSON. Never edit files under `~/.claude/spec-gate/`
+command from the repository root; each prints JSON. Never edit files under `~/.spec-gate/`
 by hand, except the `answers_file` the CLI names, and never commit or push.
 
 1. Write the request to a temporary file outside the repository (`mktemp`, under `$TMPDIR`), then `spec-gate tests start --request-file <file>` (so quotes,
