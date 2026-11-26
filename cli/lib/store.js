@@ -1,10 +1,20 @@
 import { createHash } from 'node:crypto'
+import { existsSync, lstatSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { git, tryGit } from './exec.js'
 
-export function storeRoot(env = process.env) {
-  return env.SPEC_GATE_HOME || join(homedir(), '.claude', 'spec-gate')
+// Claude Code refuses agent writes under ~/.claude, so a store there fails QC with "cases.yaml was not written".
+export function storeRoot(env = process.env, home = homedir()) {
+  return env.SPEC_GATE_HOME || join(home, '.spec-gate')
+}
+
+export function legacyStoreProblem(env = process.env, home = homedir()) {
+  if (env.SPEC_GATE_HOME) return null
+  const legacy = join(home, '.claude', 'spec-gate')
+  const current = storeRoot(env, home)
+  if (!existsSync(legacy) || lstatSync(legacy).isSymbolicLink() || existsSync(current)) return null
+  return `spec-gate: the store moved to ${current}, because Claude Code refuses writes under ~/.claude. Move it first: mv ${legacy} ${current}`
 }
 
 export function slugFromRemote(url) {

@@ -138,7 +138,7 @@ minutes.
 
 ### What it writes where
 
-The store (`~/.claude/spec-gate/projects/<slug>/runs/<id>/`, see below) holds everything of a run:
+The store (`~/.spec-gate/projects/<slug>/runs/<id>/`, see below) holds everything of a run:
 `request.md`, `profile.json`, `risk.json`, `knowledge.md` (a snapshot), `qc-packet.md`,
 `cases.yaml`, `decisions.md`, `ready.md`, `tests.yaml`, `results.json`, the guarded test and helper
 files (`guard.json`, `guard-helpers.json`),
@@ -150,7 +150,7 @@ run. The tests stay in the repository and keep guarding the behaviour.
 ### The knowledge file
 
 `.claude/testing.md` in the repository (tracked or git-excluded), else
-`~/.claude/spec-gate/projects/<slug>/knowledge.md`; at most about 200 lines, with these sections:
+`~/.spec-gate/projects/<slug>/knowledge.md`; at most about 200 lines, with these sections:
 
 ```markdown
 # Testing knowledge: <repository>
@@ -228,8 +228,11 @@ this into yours:
 
 ## Store
 
-Everything per user lives under `$SPEC_GATE_HOME` (default `~/.claude/spec-gate`), never inside
-the repositories being measured:
+Everything per user lives under `$SPEC_GATE_HOME` (default `~/.spec-gate`), never inside
+the repositories being measured. Before 0.9.5 the default was `~/.claude/spec-gate`; Claude Code
+refuses agent writes there, so QC failed with "cases.yaml was not written". The CLI now stops
+until an old store is moved with `mv ~/.claude/spec-gate ~/.spec-gate` (a symlink left at the old
+path is fine). The store layout:
 
 ```
 projects/<slug>/eval/<id>/sample.yaml     the bug
@@ -295,7 +298,7 @@ feature: order totals on the checkout page   # optional: the pointer a spec writ
 `single-prompt` is built in. A candidate is a prompt template, plus optional settings:
 
 ```yaml
-# ~/.claude/spec-gate/candidates/<name>/candidate.yaml
+# ~/.spec-gate/candidates/<name>/candidate.yaml
 prompt: prompt.md
 model: opus
 ```
@@ -323,7 +326,7 @@ deadline, and a part that ends stuck is named in `stuck.json` while the others s
 sample's `knowledge.md`, when present, is placed as the repository's
 `.claude/testing.md` before the run. `batch` runs it only when named with `--candidate spec-to-tests`.
 
-`~/.claude/spec-gate/candidates/LOG.tsv` keeps one row per concept tried, so a dropped idea is not
+`~/.spec-gate/candidates/LOG.tsv` keeps one row per concept tried, so a dropped idea is not
 tried again: `id`, `date`, `source`, `hypothesis`, `target` (the miss group it aims at), `pair`
 (the two candidates compared), `result` (with where it comes from) and `status` (`kept`,
 `dropped`, `pending` while its runs are ordered, `waiting` while it needs data). Read it before

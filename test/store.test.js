@@ -1,9 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { homedir } from 'node:os'
+import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { git } from '../cli/lib/exec.js'
-import { repoSlug, sampleDir, slugFromPath, slugFromRemote, storeRoot, workDir } from '../cli/lib/store.js'
+import { legacyStoreProblem, repoSlug, sampleDir, slugFromPath, slugFromRemote, storeRoot, workDir } from '../cli/lib/store.js'
 import { makeFixtureRepo } from './helpers.js'
 
 describe('slugFromRemote', () => {
@@ -45,4 +46,33 @@ it('workDir names neither the repository nor the sample, and stays out of the sy
   assert.match(basename(dir), /^sg-[0-9a-f]{10}$/)
   assert.equal(dir, workDir('github.com-acme-shop', 'shop-42', {}))
   assert.equal(dirname(workDir('s', 'x', { SPEC_GATE_WORK: '/tmp/sg-work' })), join('/tmp/sg-work'))
+})
+
+describe('store location outside ~/.claude', () => {
+  const home = () => mkdtempSync(join(tmpdir(), 'sg-user-'))
+
+  it('defaults to ~/.spec-gate, since Claude Code refuses writes under ~/.claude', () => {
+    assert.equal(storeRoot({}, '/home/me'), join('/home/me', '.spec-gate'))
+  })
+
+  it('refuses to run while the store still sits at ~/.claude/spec-gate', () => {
+    const dir = home()
+    mkdirSync(join(dir, '.claude', 'spec-gate', 'projects'), { recursive: true })
+    assert.match(legacyStoreProblem({}, dir), /mv .*\.claude\/spec-gate .*\.spec-gate/)
+  })
+
+  it('accepts a symlink left at the old path', () => {
+    const dir = home()
+    mkdirSync(join(dir, '.spec-gate'))
+    mkdirSync(join(dir, '.claude'))
+    symlinkSync(join(dir, '.spec-gate'), join(dir, '.claude', 'spec-gate'))
+    assert.equal(legacyStoreProblem({}, dir), null)
+  })
+
+  it('stays quiet when SPEC_GATE_HOME is set or no old store exists', () => {
+    const dir = home()
+    mkdirSync(join(dir, '.claude', 'spec-gate'), { recursive: true })
+    assert.equal(legacyStoreProblem({ SPEC_GATE_HOME: '/tmp/sg-home' }, dir), null)
+    assert.equal(legacyStoreProblem({}, home()), null)
+  })
 })
